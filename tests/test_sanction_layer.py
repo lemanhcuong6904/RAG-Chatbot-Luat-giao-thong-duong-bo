@@ -44,6 +44,42 @@ def test_penalty_query_without_vehicle_fails_closed() -> None:
     assert "vehicle_code" in response.answer
 
 
+def test_sanction_lookup_without_behavior_fails_closed() -> None:
+    lookup = SanctionRepository().lookup(
+        event_date="2026-08-16",
+        vehicle_code="MOTORCYCLE",
+    )
+
+    assert lookup.status == "AMBIGUOUS"
+    assert lookup.missing_fields == ["behavior"]
+
+
+def test_sanction_lookup_respects_explicit_document_number() -> None:
+    lookup = SanctionRepository().lookup(
+        event_date="2026-08-11",
+        vehicle_code="MOTORCYCLE",
+        behavior_code="KHONG_CHAP_HANH_HIEU_LENH_CUA_DEN_TIN_HIEU_GIAO_THONG",
+        document_number="165/2024/NĐ-CP",
+    )
+
+    assert lookup.status == "NOT_FOUND"
+
+
+def test_deferred_sanction_rule_is_temporally_ambiguous_before_effective_date() -> None:
+    lookup = SanctionRepository().lookup(
+        event_date="2026-08-16",
+        vehicle_code="CAR",
+        behavior_code="DIEU_KHIEN_XE_KINH_DOANH_VAN_TAI_HANH_KHACH_XE_VAN_TAI_NOI_BO_KHONG_LAP_THIET_BI_GHI_NHAN_",
+        document_number="168/2024/NĐ-CP",
+        article="20",
+        clause="5",
+        point="l",
+    )
+
+    assert lookup.status == "TEMPORAL_AMBIGUOUS"
+    assert lookup.rules[0].temporal_status == "DEFERRED"
+
+
 def test_invalid_explicit_legal_reference_does_not_semantic_fallback() -> None:
     parsed = ParsedQuery(
         query="Khoản 99 Điều 6 Nghị định 168 quy định gì?",

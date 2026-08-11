@@ -38,5 +38,23 @@ def test_parse_query_detects_enumeration_mode() -> None:
     )
 
     assert parsed.intent == "ENUMERATION"
+    assert parsed.answer_mode == "ENUMERATION"
     assert parsed.retrieval_mode == "EXHAUSTIVE"
     assert parsed.answer_scope == "ALL_CHILDREN"
+
+
+def test_penalty_enumeration_keeps_penalty_primary_intent() -> None:
+    parsed = parse_query(ChatRequest(query="Các mức phạt nào áp dụng cho xe máy vượt đèn đỏ?"))
+
+    assert parsed.intent == "PENALTY_LOOKUP"
+    assert parsed.primary_intent == "PENALTY_LOOKUP"
+    assert parsed.answer_mode == "ENUMERATION"
+    assert parsed.retrieval_mode == "EXHAUSTIVE"
+
+
+def test_parse_query_maps_behavior_catalog_alias() -> None:
+    parsed = parse_query(ChatRequest(query="Xe máy đi sai làn bị phạt bao nhiêu?"))
+
+    assert parsed.intent == "PENALTY_LOOKUP"
+    assert parsed.vehicle_code == "MOTORCYCLE"
+    assert parsed.behavior_text_query == "làn đường"

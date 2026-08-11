@@ -5,8 +5,8 @@ import sqlite3
 from pathlib import Path
 
 from rag_luat_gt.config import SANCTION_DB_PATH
+from rag_luat_gt.sanction.behavior_catalog import behavior_contains_from_query
 from rag_luat_gt.sanction.schemas import SanctionLookup, SanctionRule
-from rag_luat_gt.text import normalize_text, strip_accents
 
 
 JSON_FIELDS = {
@@ -32,6 +32,7 @@ class SanctionRepository:
         vehicle_code: str | None = None,
         behavior_code: str | None = None,
         behavior_contains: str | None = None,
+        document_number: str | None = None,
         article: str | None = None,
         clause: str | None = None,
         point: str | None = None,
@@ -47,6 +48,13 @@ class SanctionRepository:
                 warnings=["Câu hỏi xử phạt chưa xác định rõ loại phương tiện."],
             )
 
+        if not behavior_code and not behavior_contains:
+            return SanctionLookup(
+                status="AMBIGUOUS",
+                missing_fields=["behavior"],
+                warnings=["Câu hỏi xử phạt chưa xác định rõ hành vi vi phạm."],
+            )
+
         where = [
             "(valid_from IS NULL OR valid_from <= ?)",
             "(valid_to IS NULL OR ? < valid_to)",
@@ -54,6 +62,10 @@ class SanctionRepository:
             "vehicle_codes_json LIKE ?",
         ]
         values: list[object] = [event_date, event_date, f'%"{vehicle_code}"%']
+
+        if document_number:
+            where.append("document_number = ?")
+            values.append(document_number)
 
         if behavior_code:
             where.append("behavior_code = ?")
@@ -80,6 +92,13 @@ class SanctionRepository:
 
         if not rows:
             return SanctionLookup(status="NOT_FOUND", warnings=["Không tìm thấy sanction rule phù hợp."])
+        temporal_warnings = [
+            rule.temporal_warning
+            for rule in rows
+            if rule.temporal_status in {"DEFERRED", "CONDITIONAL", "UNRESOLVED"} and rule.temporal_warning
+        ]
+        if temporal_warnings:
+            return SanctionLookup(status="TEMPORAL_AMBIGUOUS", rules=rows, warnings=temporal_warnings)
         return SanctionLookup(status="FOUND", rules=rows)
 
     @staticmethod
@@ -93,14 +112,15 @@ class SanctionRepository:
                 except json.JSONDecodeError:
                     data[target_field] = []
         if data.get("deferred_effective_from") and event_date < data["deferred_effective_from"]:
+            data["temporal_status"] = "DEFERRED"
             data["temporal_warning"] = (
                 "Rule contains a specially deferred scope; inspect deferred_scope_text before applying it."
             )
+        elif data.get("deferred_scope_text"):
+            data["temporal_status"] = "CONDITIONAL"
+            data["temporal_warning"] = (
+                "Rule contains a conditional/deferred scope; inspect deferred_scope_text before applying it."
+            )
+        else:
+            data["temporal_status"] = "ACTIVE"
         return SanctionRule(**data)
-
-
-def behavior_contains_from_query(query: str) -> str | None:
-    normalized = strip_accents(normalize_text(query))
-    if "den" in normalized and ("do" in normalized or "tin hieu" in normalized):
-        return "đèn tín hiệu giao thông"
-    return None

@@ -5,7 +5,8 @@ from rag_luat_gt.generation.answerer import build_answer
 from rag_luat_gt.generation.sanction_answerer import build_sanction_response
 from rag_luat_gt.retrieval.hybrid import HybridRetriever
 from rag_luat_gt.retrieval.query_parser import parse_query
-from rag_luat_gt.sanction.repository import SanctionRepository, behavior_contains_from_query
+from rag_luat_gt.sanction.behavior_catalog import behavior_contains_from_query
+from rag_luat_gt.sanction.repository import SanctionRepository
 from rag_luat_gt.schemas import ChatRequest, ChatResponse
 
 
@@ -35,12 +36,16 @@ class RAGService:
                 event_date=parsed.legal_effective_date or parsed.event_date or parsed.query_reference_date or "",
                 vehicle_code=parsed.vehicle_code,
                 behavior_code=parsed.behavior_code,
-                behavior_contains=behavior_contains_from_query(parsed.query),
+                behavior_contains=parsed.behavior_text_query or behavior_contains_from_query(parsed.query),
+                document_number=parsed.document_number,
                 article=parsed.article,
                 clause=parsed.clause,
                 point=parsed.point,
             )
-            if lookup.status in {"FOUND", "AMBIGUOUS", "UNAVAILABLE"}:
+            explicit_ref = any([parsed.document_number, parsed.article, parsed.clause, parsed.point])
+            if lookup.status in {"FOUND", "AMBIGUOUS", "UNAVAILABLE", "TEMPORAL_AMBIGUOUS"} or (
+                lookup.status == "NOT_FOUND" and explicit_ref
+            ):
                 response = build_sanction_response(parsed, lookup)
                 if not request.debug:
                     response.debug = None

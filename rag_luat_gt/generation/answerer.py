@@ -49,7 +49,7 @@ def _evidence_gate(
     if not results:
         return False, ["Không tìm thấy nguồn phù hợp trong index."]
 
-    query = strip_accents(normalize_text(parsed.normalized_query))
+    query = strip_accents(normalize_text(parsed.evidence_validation_query or parsed.query))
     query_tokens = {token for token in tokenize(query) if len(token) >= 3}
     evidence_tokens = {
         token
@@ -160,7 +160,8 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
 
     if RAG_LLM_PROVIDER == "openai" and OPENAI_API_KEY:
         try:
-            answer = generate_with_openai(parsed, results[:6], notes)
+            llm_limit = 30 if parsed.retrieval_mode == "EXHAUSTIVE" or parsed.answer_mode == "ENUMERATION" else 6
+            answer = generate_with_openai(parsed, results[:llm_limit], notes)
         except Exception as exc:
             warnings.append(f"OpenAI generation failed, used extractive fallback: {exc}")
             answer = _build_extractive_answer(parsed, results, citations, notes)

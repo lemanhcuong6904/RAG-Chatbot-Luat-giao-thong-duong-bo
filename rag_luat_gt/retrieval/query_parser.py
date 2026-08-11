@@ -4,6 +4,7 @@ import re
 from datetime import date
 
 from rag_luat_gt.schemas import ChatRequest, ParsedQuery
+from rag_luat_gt.sanction.behavior_catalog import behavior_code_from_query, behavior_contains_from_query
 from rag_luat_gt.text import expand_query, normalize_text, strip_accents
 
 
@@ -33,12 +34,12 @@ ENUMERATION_PATTERNS = [
 def _detect_intent(query: str) -> str:
     q = normalize_text(query)
     q_ascii = strip_accents(q)
-    if _is_enumeration_query(query):
-        return "ENUMERATION"
     if any(term in q for term in ["phạt", "xử phạt", "mức phạt", "trừ điểm"]) or any(
         term in q_ascii for term in ["phat", "xu phat", "muc phat", "tru diem"]
     ):
         return "PENALTY_LOOKUP"
+    if _is_enumeration_query(query):
+        return "ENUMERATION"
     if any(term in q for term in ["giấy phép lái xe", "gplx", "bằng lái", "sát hạch"]) or any(
         term in q_ascii for term in ["giay phep lai xe", "bang lai", "sat hach"]
     ):
@@ -111,20 +112,7 @@ def _detect_vehicle_code(query: str) -> str | None:
 
 
 def _detect_behavior_code(query: str) -> str | None:
-    q = strip_accents(normalize_text(query))
-    if any(
-        term in q
-        for term in [
-            "den do",
-            "den tin hieu",
-            "vuot den",
-            "chay den do",
-            "di den do",
-            "khong chap hanh hieu lenh cua den",
-        ]
-    ):
-        return "KHONG_CHAP_HANH_HIEU_LENH_CUA_DEN_TIN_HIEU_GIAO_THONG"
-    return None
+    return behavior_code_from_query(query)
 
 
 def _requested_facets(query: str) -> list[str]:
@@ -174,10 +162,18 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
     event_date = explicit_event_date or request.event_date
     query_reference_date = request.as_of_date or date.today()
     legal_effective_date = event_date or query_reference_date
+    intent = _detect_intent(query)
+    expanded_query = expand_query(query)
+    behavior_contains = behavior_contains_from_query(query)
     return ParsedQuery(
         query=query,
-        normalized_query=expand_query(query),
-        intent=_detect_intent(query),
+        original_query=query,
+        normalized_query=expanded_query,
+        retrieval_query=expanded_query,
+        evidence_validation_query=query,
+        intent=intent,
+        primary_intent=intent,
+        answer_mode="ENUMERATION" if is_enumeration else "FACTOID",
         document_number=_document_number(query),
         article=article.group(1) if article else None,
         clause=clause.group(1) if clause else None,
@@ -185,6 +181,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
         vehicle_type=_detect_vehicle(query),
         vehicle_code=_detect_vehicle_code(query),
         behavior_code=_detect_behavior_code(query),
+        behavior_text_query=behavior_contains,
         requested_facets=_requested_facets(query),
         event_date=event_date.isoformat() if event_date else None,
         as_of_date=request.as_of_date.isoformat() if request.as_of_date else None,

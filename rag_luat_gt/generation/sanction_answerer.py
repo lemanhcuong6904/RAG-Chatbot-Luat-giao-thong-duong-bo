@@ -54,10 +54,10 @@ def _citation(rule: SanctionRule) -> Citation:
 
 
 def build_sanction_response(parsed: ParsedQuery, lookup: SanctionLookup) -> ChatResponse:
-    if lookup.status in {"UNAVAILABLE", "NOT_FOUND", "AMBIGUOUS"}:
+    if lookup.status in {"UNAVAILABLE", "NOT_FOUND", "AMBIGUOUS", "TEMPORAL_AMBIGUOUS"}:
         return ChatResponse(
             answer=_build_unanswered(parsed, lookup),
-            citations=[],
+            citations=[_citation(rule) for rule in lookup.rules],
             warnings=lookup.warnings,
             answerable=False,
             debug={"parsed_query": parsed.model_dump(), "sanction_lookup": lookup.model_dump()},
@@ -113,10 +113,12 @@ def _rule_answer(rule: SanctionRule, parsed: ParsedQuery) -> str:
             f" từ {rule.license_suspension_min_months or '?'}"
             f" đến {rule.license_suspension_max_months or '?'} tháng."
         )
+    liable = f" Đối tượng chịu trách nhiệm: {rule.liable_entity_type}." if rule.liable_entity_type else ""
+    conditions = f" Điều kiện áp dụng: {', '.join(rule.conditions)}." if rule.conditions else ""
     return (
         f"Với hành vi “{rule.behavior_text}”"
         f" ({', '.join(rule.vehicle_codes) or parsed.vehicle_code or 'không rõ loại phương tiện'}), "
-        f"mức xử phạt là {_fine_text(rule)}.{points}{suspension}"
+        f"mức xử phạt là {_fine_text(rule)}.{points}{suspension}{liable}{conditions}"
     )
 
 

@@ -1,0 +1,29 @@
+{
+  "TRAFFIC_SIGNAL_NONCOMPLIANCE": {
+    "canonical_text": "Khong chap hanh hieu lenh cua den tin hieu giao thong",
+    "aliases": [
+      "den do",
+      "den tin hieu",
+      "vuot den do",
+      "chay den do",
+      "di den do",
+      "khong chap hanh hieu lenh cua den"
+    ],
+    "rule_behavior_codes": [
+      "KHONG_CHAP_HANH_HIEU_LENH_CUA_DEN_TIN_HIEU_GIAO_THONG"
+    ],
+    "behavior_contains": "đèn tín hiệu giao thông"
+  },
+  "WRONG_LANE": {
+    "canonical_text": "Khong di dung lan duong hoac phan duong quy dinh",
+    "aliases": [
+      "di sai lan",
+      "lan lan",
+      "chay sai lan",
+      "di khong dung lan",
+      "khong dung lan duong"
+    ],
+    "rule_behavior_codes": [],
+    "behavior_contains": "làn đường"
+  }
+}

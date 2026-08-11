@@ -89,19 +89,29 @@ class ChatResponse(BaseModel):
 class ParsedQuery(BaseModel):
     query: str
     normalized_query: str
+    original_query: str | None = None
+    retrieval_query: str | None = None
+    evidence_validation_query: str | None = None
     intent: str = "GENERAL_LEGAL_QA"
+    primary_intent: str | None = None
+    answer_mode: str = "FACTOID"
     document_number: str | None = None
     article: str | None = None
     clause: str | None = None
     point: str | None = None
+    actor: str | None = None
+    liable_entity_type: str | None = None
     vehicle_type: str | None = None
     vehicle_code: str | None = None
     behavior_code: str | None = None
+    behavior_text_query: str | None = None
+    conditions: list[str] = Field(default_factory=list)
     requested_facets: list[str] = Field(default_factory=list)
     event_date: str | None = None
     as_of_date: str | None = None
     legal_effective_date: str | None = None
     query_reference_date: str | None = None
+    temporal_intent: str = "CURRENT_RULE"
     retrieval_mode: str = "FACTOID"
     answer_scope: str | None = None
     keywords: list[str] = Field(default_factory=list)

@@ -13,6 +13,7 @@ class SanctionRule(BaseModel):
     clause: str | None = None
     point: str | None = None
     actor_code: str | None = None
+    liable_entity_type: str | None = None
     vehicle_codes: list[str] = Field(default_factory=list)
     behavior_code: str | None = None
     behavior_text: str | None = None
@@ -44,6 +45,7 @@ class SanctionRule(BaseModel):
     base_rule_id: str | None = None
     notes: list[Any] = Field(default_factory=list)
     temporal_warning: str | None = None
+    temporal_status: str = "ACTIVE"
 
 
 class SanctionLookup(BaseModel):
@@ -51,4 +53,3 @@ class SanctionLookup(BaseModel):
     rules: list[SanctionRule] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     missing_fields: list[str] = Field(default_factory=list)
-

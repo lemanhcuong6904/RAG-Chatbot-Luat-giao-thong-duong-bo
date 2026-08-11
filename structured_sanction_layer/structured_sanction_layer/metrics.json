@@ -1,0 +1,18 @@
+{
+  "source_files": 6,
+  "logical_documents": 5,
+  "legal_provisions": 285,
+  "sanction_rule_versions": 818,
+  "fine_rules": 798,
+  "warning_rules": 2,
+  "confiscation_rules": 18,
+  "rules_with_points": 256,
+  "rules_with_suspension": 22,
+  "amendment_events": 52,
+  "crossref_edges": 571,
+  "review_items": 2,
+  "pass_rules": 816,
+  "review_rules": 2,
+  "effective_on_2026_08_11": 756,
+  "effective_on_2026_08_15_without_deferred_scope": 762
+}

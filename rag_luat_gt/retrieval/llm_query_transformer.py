@@ -12,7 +12,9 @@ from rag_luat_gt.config import (
     RAG_PRERAG_TEMPERATURE,
 )
 from rag_luat_gt.retrieval.query_planner import build_query_plan
+from rag_luat_gt.sanction.behavior_catalog import match_behaviors
 from rag_luat_gt.schemas import ParsedQuery, QueryPlan, ViolationFact
+from rag_luat_gt.text import normalize_text, strip_accents
 
 
 SYSTEM_PROMPT = """Bạn là bộ biến đổi truy vấn Pre-RAG cho chatbot pháp luật giao thông đường bộ Việt Nam.
@@ -88,7 +90,7 @@ def merge_llm_transform(parsed: ParsedQuery, payload: dict[str, Any]) -> ParsedQ
         if isinstance(value, list):
             updates[field] = [str(item) for item in value if item]
 
-    violations = _violations_from_payload(payload.get("violations"))
+    violations = _merge_violations(parsed.violations, _violations_from_payload(payload.get("violations")))
     if violations:
         updates["violations"] = violations
         updates.setdefault("behavior_code", violations[0].behavior_code)
@@ -130,6 +132,95 @@ def _violations_from_payload(value: Any) -> list[ViolationFact]:
             )
         )
     return violations
+
+
+def _merge_violations(
+    base_violations: list[ViolationFact],
+    llm_violations: list[ViolationFact],
+) -> list[ViolationFact]:
+    if not llm_violations:
+        return base_violations
+
+    merged: list[ViolationFact] = []
+    seen: set[str] = set()
+    for violation in llm_violations:
+        enriched = _enrich_violation_from_catalog(violation)
+        base = _matching_base_violation(enriched, base_violations)
+        if base:
+            enriched = base.model_copy(
+                update={
+                    "behavior_text": enriched.behavior_text or base.behavior_text,
+                    "raw_span": enriched.raw_span or base.raw_span,
+                    "confidence": enriched.confidence,
+                }
+            )
+        key = enriched.catalog_code or enriched.behavior_code
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(enriched)
+
+    for base in base_violations:
+        key = base.catalog_code or base.behavior_code
+        if key not in seen:
+            seen.add(key)
+            merged.append(base)
+    return merged
+
+
+def _enrich_violation_from_catalog(violation: ViolationFact) -> ViolationFact:
+    probe = " ".join(part for part in [violation.raw_span, violation.behavior_text] if part)
+    matches = match_behaviors(probe)
+    if not matches:
+        return violation
+
+    match = matches[0]
+    codes = [str(code) for code in match.get("rule_behavior_codes") or [] if code]
+    if not codes:
+        return violation
+
+    conditions = dict(violation.conditions)
+    conditions.setdefault("behavior_codes", codes)
+    return violation.model_copy(
+        update={
+            "behavior_code": codes[0],
+            "behavior_text": str(match.get("canonical_text") or violation.behavior_text),
+            "behavior_contains": str(match.get("behavior_contains") or "") or violation.behavior_contains,
+            "catalog_code": str(match.get("catalog_code") or "") or violation.catalog_code,
+            "conditions": conditions,
+        }
+    )
+
+
+def _matching_base_violation(
+    violation: ViolationFact,
+    base_violations: list[ViolationFact],
+) -> ViolationFact | None:
+    if violation.catalog_code:
+        match = next((base for base in base_violations if base.catalog_code == violation.catalog_code), None)
+        if match:
+            return match
+    if violation.behavior_code:
+        match = next((base for base in base_violations if base.behavior_code == violation.behavior_code), None)
+        if match:
+            return match
+
+    raw = _norm(" ".join(part for part in [violation.raw_span, violation.behavior_text] if part))
+    if not raw:
+        return None
+    return next(
+        (
+            base
+            for base in base_violations
+            if raw in _norm(" ".join(part for part in [base.raw_span, base.behavior_text] if part))
+            or _norm(str(base.raw_span or base.behavior_text)) in raw
+        ),
+        None,
+    )
+
+
+def _norm(value: str) -> str:
+    return strip_accents(normalize_text(value))
 
 
 def _plan_from_payload(parsed: ParsedQuery, value: Any) -> QueryPlan:

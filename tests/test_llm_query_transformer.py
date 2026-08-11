@@ -76,6 +76,40 @@ def test_llm_transform_can_replace_violation_facts() -> None:
     )
 
     assert len(transformed.violations) == 2
-    assert transformed.behavior_code == "A"
+    assert transformed.behavior_code == "KHONG_CHAP_HANH_HIEU_LENH_CUA_DEN_TIN_HIEU_GIAO_THONG"
     assert transformed.query_plan
     assert transformed.query_plan.use_structured_sanction
+
+
+def test_llm_transform_preserves_catalog_behavior_codes_for_license_violation() -> None:
+    parsed = parse_query(
+        ChatRequest(
+            query=(
+                "Một người đi xe máy vượt đèn đỏ, không đội mũ bảo hiểm "
+                "và không có giấy phép lái xe bị phạt thế nào?"
+            )
+        )
+    )
+
+    transformed = merge_llm_transform(
+        parsed,
+        {
+            "intent": "PENALTY_LOOKUP",
+            "violations": [
+                {
+                    "behavior_code": "NO_DRIVER_LICENSE",
+                    "behavior_text": "không có giấy phép lái xe",
+                    "raw_span": "không có giấy phép lái xe",
+                    "catalog_code": "NO_DRIVER_LICENSE",
+                }
+            ],
+            "query_plan": {
+                "strategy": ["EXPANSION", "DECOMPOSITION", "STRUCTURED_LOOKUP", "LEGAL_COMPOSITION"],
+                "use_structured_sanction": True,
+            },
+        },
+    )
+
+    license_violation = next(item for item in transformed.violations if item.catalog_code == "NO_DRIVER_LICENSE")
+    assert license_violation.behavior_code.startswith("KHONG_CO_GIAY_PHEP_LAI_XE")
+    assert len(license_violation.conditions["behavior_codes"]) == 2

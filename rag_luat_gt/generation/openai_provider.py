@@ -40,7 +40,7 @@ def _context_from_chunks(results: list[tuple[Chunk, float]]) -> str:
                     f"valid_to: {chunk.valid_to or ''}",
                     f"score: {score}",
                     "content:",
-                    chunk.text[:1800],
+                    chunk.text,
                 ]
             )
         )

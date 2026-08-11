@@ -97,6 +97,8 @@ if query:
                         st.divider()
                         st.write(f"Source: {citation['source_file']}")
                         st.write(f"Chunk: {citation['chunk_id']}")
+                        st.write(f"Coverage: {citation.get('coverage_status', 'UNKNOWN')}")
+                        st.write(f"Source quality: {citation.get('source_quality', 'UNKNOWN')}")
                         st.write(f"Score: {citation.get('score')}")
             if debug and data.get("debug"):
                 st.subheader("Debug")

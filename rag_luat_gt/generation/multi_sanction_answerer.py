@@ -49,9 +49,9 @@ def _summary(composition: SanctionComposition) -> str:
 def _violation_lines(resolutions: list[ViolationResolution]) -> str:
     lines: list[str] = []
     for index, resolution in enumerate(resolutions, start=1):
-        label = resolution.raw_span or resolution.behavior_text
         if resolution.selected_rule:
             rule = resolution.selected_rule
+            label = rule.behavior_text or resolution.raw_span or resolution.behavior_text
             points = (
                 f", trừ {rule.license_points_deducted} điểm GPLX"
                 if rule.license_points_deducted is not None
@@ -62,12 +62,14 @@ def _violation_lines(resolutions: list[ViolationResolution]) -> str:
                 f"({rule.document_number}, {_rule_ref(rule)})."
             )
         elif resolution.status == "CONDITIONAL" and resolution.rules:
+            label = resolution.rules[0].behavior_text or resolution.raw_span or resolution.behavior_text
             alternatives = "; ".join(
                 f"{_condition_label(rule)}: {_fine_text(rule)} ({rule.document_number}, {_rule_ref(rule)})"
                 for rule in resolution.rules
             )
             lines.append(f"{index}. {label}: cần phân nhánh điều kiện. {alternatives}.")
         else:
+            label = resolution.raw_span or resolution.behavior_text
             lines.append(f"{index}. {label}: chưa resolve được rule phù hợp.")
     return "\n".join(lines)
 

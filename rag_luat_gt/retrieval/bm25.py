@@ -65,6 +65,8 @@ class BM25Retriever:
 
         candidate_ids = {chunk.chunk_id for chunk, _score in self._exact_lookup(parsed)}
         has_filter = bool(candidate_ids)
+        if self._has_explicit_reference(parsed) and not has_filter:
+            return []
         tokens = tokenize(parsed.normalized_query)
         scores = self.bm25.get_scores(tokens)
         ranked = sorted(enumerate(scores), key=lambda item: item[1], reverse=True)
@@ -114,3 +116,7 @@ class BM25Retriever:
         if parsed.point and chunk.point == parsed.point:
             boost += 0.1
         return boost
+
+    @staticmethod
+    def _has_explicit_reference(parsed: ParsedQuery) -> bool:
+        return any([parsed.document_number, parsed.article, parsed.clause, parsed.point])

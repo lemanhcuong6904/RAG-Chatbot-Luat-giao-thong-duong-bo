@@ -8,6 +8,8 @@ from rag_luat_gt.config import (
     QDRANT_READY_FILE,
     RAG_DENSE_ENABLED,
     RAG_EMBEDDING_MODEL,
+    RAG_RERANKER_ENABLED,
+    RAG_RERANKER_TOP_N,
 )
 from rag_luat_gt.retrieval.bm25 import BM25Retriever
 from rag_luat_gt.schemas import Chunk, ParsedQuery
@@ -22,6 +24,8 @@ class HybridRetriever:
         self.bm25 = BM25Retriever()
         self.dense = None
         self.dense_error: str | None = None
+        self.reranker = None
+        self.reranker_error: str | None = None
         if RAG_DENSE_ENABLED and self._dense_ready_matches_manifest():
             try:
                 from rag_luat_gt.retrieval.dense import DenseRetriever
@@ -31,6 +35,13 @@ class HybridRetriever:
                 self.dense_error = str(exc)
         elif RAG_DENSE_ENABLED and QDRANT_READY_FILE.exists():
             self.dense_error = "Dense index marker does not match the current BM25 manifest."
+        if RAG_RERANKER_ENABLED:
+            try:
+                from rag_luat_gt.retrieval.reranker import BGEReranker
+
+                self.reranker = BGEReranker()
+            except Exception as exc:
+                self.reranker_error = str(exc)
 
     def search(self, parsed: ParsedQuery, top_k: int = 8) -> list[tuple[Chunk, float]]:
         bm25_results = self.bm25.search(parsed, top_k=top_k * 4)
@@ -48,11 +59,26 @@ class HybridRetriever:
 
         if not dense_results:
             ranked = self._apply_preferences(parsed, bm25_results)
+            ranked = self._apply_reranker(parsed, ranked)
             return self._expand_structural_context(parsed, ranked, top_k)
 
         fused = self._rrf([dense_results, bm25_results])
         ranked = self._apply_preferences(parsed, fused)
+        ranked = self._apply_reranker(parsed, ranked)
         return self._expand_structural_context(parsed, ranked, top_k)
+
+    def _apply_reranker(
+        self,
+        parsed: ParsedQuery,
+        results: list[tuple[Chunk, float]],
+    ) -> list[tuple[Chunk, float]]:
+        if not self.reranker or not results:
+            return results
+        try:
+            return self.reranker.rerank(parsed, results, top_n=RAG_RERANKER_TOP_N)
+        except Exception as exc:
+            self.reranker_error = str(exc)
+            return results
 
     @staticmethod
     def _dense_ready_matches_manifest() -> bool:

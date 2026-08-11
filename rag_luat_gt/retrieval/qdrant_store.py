@@ -45,6 +45,18 @@ def recreate_collection(client: QdrantClient, collection_name: str = QDRANT_COLL
             distance=models.Distance.COSINE,
         ),
     )
+    for field in ["document_number", "article", "clause", "point", "coverage_status"]:
+        client.create_payload_index(
+            collection_name=collection_name,
+            field_name=field,
+            field_schema=models.PayloadSchemaType.KEYWORD,
+        )
+    for field in ["valid_from", "valid_to"]:
+        client.create_payload_index(
+            collection_name=collection_name,
+            field_name=field,
+            field_schema=models.PayloadSchemaType.DATETIME,
+        )
 
 
 def chunk_payload(chunk: Chunk) -> dict:
@@ -68,4 +80,3 @@ def upsert_chunks(
         for chunk, vector in zip(chunks, vectors, strict=True)
     ]
     client.upsert(collection_name=collection_name, points=points)
-

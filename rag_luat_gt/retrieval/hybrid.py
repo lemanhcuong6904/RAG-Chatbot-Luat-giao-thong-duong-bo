@@ -45,6 +45,23 @@ class HybridRetriever:
                 self.reranker_error = str(exc)
 
     def search(self, parsed: ParsedQuery, top_k: int = 8) -> list[tuple[Chunk, float]]:
+        query_variants = self._planned_queries(parsed)
+        if len(query_variants) > 1:
+            result_sets: list[list[tuple[Chunk, float]]] = []
+            for query in query_variants:
+                variant = parsed.model_copy(update={"normalized_query": query, "retrieval_query": query})
+                result_sets.append(self._search_single_query(variant, top_k=top_k))
+            ranked = self._rrf(result_sets)
+            ranked = self._apply_preferences(parsed, ranked)
+            ranked = self._apply_reranker(parsed, ranked)
+            return self._expand_structural_context(parsed, ranked, top_k)
+
+        ranked = self._search_single_query(parsed, top_k=top_k)
+        ranked = self._apply_preferences(parsed, ranked)
+        ranked = self._apply_reranker(parsed, ranked)
+        return self._expand_structural_context(parsed, ranked, top_k)
+
+    def _search_single_query(self, parsed: ParsedQuery, top_k: int) -> list[tuple[Chunk, float]]:
         bm25_results = self.bm25.search(parsed, top_k=top_k * 4)
         dense_results = []
         if self.dense:
@@ -59,14 +76,33 @@ class HybridRetriever:
                 self.dense_error = str(exc)
 
         if not dense_results:
-            ranked = self._apply_preferences(parsed, bm25_results)
-            ranked = self._apply_reranker(parsed, ranked)
-            return self._expand_structural_context(parsed, ranked, top_k)
+            return bm25_results
 
-        fused = self._rrf([dense_results, bm25_results])
-        ranked = self._apply_preferences(parsed, fused)
-        ranked = self._apply_reranker(parsed, ranked)
-        return self._expand_structural_context(parsed, ranked, top_k)
+        return self._rrf([dense_results, bm25_results])
+
+    @staticmethod
+    def _planned_queries(parsed: ParsedQuery) -> list[str]:
+        if any([parsed.document_number, parsed.article, parsed.clause, parsed.point]):
+            return [parsed.normalized_query]
+
+        queries = [parsed.normalized_query]
+        plan = parsed.query_plan
+        if plan:
+            queries.extend(plan.multi_queries)
+            if plan.step_back_query:
+                queries.append(plan.step_back_query)
+            if plan.hyde_text:
+                queries.append(plan.hyde_text)
+
+        seen: set[str] = set()
+        result: list[str] = []
+        for query in queries:
+            key = strip_accents(normalize_text(query))
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            result.append(query)
+        return result[:6]
 
     def _apply_reranker(
         self,

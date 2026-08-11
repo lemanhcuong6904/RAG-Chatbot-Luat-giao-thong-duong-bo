@@ -81,6 +81,7 @@ class RAGService:
                 "reranker_active": self.retriever.reranker is not None,
                 "reranker_error": self.retriever.reranker_error,
                 "final_candidates": len(results),
+                "query_variants": self.retriever._planned_queries(parsed),
             }
             response.debug = debug
         if not request.debug:

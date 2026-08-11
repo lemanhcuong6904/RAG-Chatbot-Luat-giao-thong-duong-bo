@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from rag_luat_gt.retrieval.query_parser import parse_query
+from rag_luat_gt.retrieval.hybrid import HybridRetriever
 from rag_luat_gt.schemas import ChatRequest
 
 
@@ -35,3 +36,22 @@ def test_planner_adds_multi_query_and_hyde_for_short_general_query() -> None:
     assert "HYDE" in parsed.query_plan.strategy
     assert parsed.query_plan.multi_queries
     assert parsed.query_plan.hyde_text
+
+
+def test_retriever_keeps_explicit_reference_to_single_query_variant() -> None:
+    parsed = parse_query(ChatRequest(query="Khoản 4 Điều 7 Nghị định 168/2024/NĐ-CP quy định gì?"))
+
+    variants = HybridRetriever._planned_queries(parsed)
+
+    assert variants == [parsed.normalized_query]
+
+
+def test_retriever_uses_adaptive_query_variants_for_ambiguous_qa() -> None:
+    parsed = parse_query(ChatRequest(query="xe ưu tiên thế nào?"))
+
+    variants = HybridRetriever._planned_queries(parsed)
+
+    assert len(variants) > 1
+    assert parsed.query_plan
+    assert parsed.query_plan.step_back_query in variants
+    assert parsed.query_plan.hyde_text in variants

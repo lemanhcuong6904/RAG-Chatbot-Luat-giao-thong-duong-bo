@@ -27,6 +27,7 @@ class HybridRetriever:
         self.dense_error: str | None = None
         self.reranker = None
         self.reranker_error: str | None = None
+        self.last_context_trace: list[dict[str, object]] = []
         if RAG_DENSE_ENABLED and self._dense_ready_matches_manifest():
             try:
                 from rag_luat_gt.retrieval.dense import DenseRetriever
@@ -45,6 +46,7 @@ class HybridRetriever:
                 self.reranker_error = str(exc)
 
     def search(self, parsed: ParsedQuery, top_k: int = 8) -> list[tuple[Chunk, float]]:
+        self.last_context_trace = []
         query_variants = self._planned_queries(parsed)
         if len(query_variants) > 1:
             result_sets: list[list[tuple[Chunk, float]]] = []
@@ -371,16 +373,27 @@ class HybridRetriever:
 
         expanded: list[tuple[Chunk, float]] = []
         seen: set[str] = set()
+        trace: list[dict[str, object]] = []
         for chunk, score in results[:top_k]:
             if chunk.point:
                 parent = by_location.get((chunk.document_id, chunk.article, chunk.clause, None))
                 if parent and parent.chunk_id not in seen:
                     expanded.append((parent, score + 0.001))
                     seen.add(parent.chunk_id)
+                    trace.append(
+                        self._context_trace_item(
+                            parent,
+                            score + 0.001,
+                            reason="parent_expansion",
+                            anchor_chunk_id=chunk.chunk_id,
+                        )
+                    )
             if chunk.chunk_id not in seen:
                 expanded.append((chunk, score))
                 seen.add(chunk.chunk_id)
+                trace.append(self._context_trace_item(chunk, score, reason="retrieved"))
 
+        self.last_context_trace = trace
         return expanded
 
     def _expand_structural_context(
@@ -406,6 +419,7 @@ class HybridRetriever:
 
         expanded: list[tuple[Chunk, float]] = []
         seen: set[str] = set()
+        trace: list[dict[str, object]] = []
         anchors = self._resolve_exhaustive_anchors(results, by_id)
 
         for anchor, score in anchors:
@@ -416,13 +430,25 @@ class HybridRetriever:
             for candidate in candidates:
                 if candidate.chunk_id in seen:
                     continue
-                expanded.append((candidate, score + self._expansion_bonus(anchor, candidate)))
+                expanded_score = score + self._expansion_bonus(anchor, candidate)
+                expanded.append((candidate, expanded_score))
                 seen.add(candidate.chunk_id)
+                trace.append(
+                    self._context_trace_item(
+                        candidate,
+                        expanded_score,
+                        reason=self._expansion_reason(anchor, candidate),
+                        anchor_chunk_id=anchor.chunk_id,
+                    )
+                )
 
             if len(expanded) >= max(top_k, len(candidates)):
                 break
 
-        return sorted(expanded, key=lambda item: (item[0].order, item[1]))
+        sorted_expanded = sorted(expanded, key=lambda item: (item[0].order, item[1]))
+        trace_by_id = {item["chunk_id"]: item for item in trace}
+        self.last_context_trace = [trace_by_id[chunk.chunk_id] for chunk, _score in sorted_expanded if chunk.chunk_id in trace_by_id]
+        return sorted_expanded
 
     @staticmethod
     def _resolve_exhaustive_anchors(
@@ -472,3 +498,37 @@ class HybridRetriever:
         if candidate.chunk_id == anchor.chunk_id:
             return 0.002
         return 0.001
+
+    @staticmethod
+    def _expansion_reason(anchor: Chunk, candidate: Chunk) -> str:
+        if candidate.chunk_id == anchor.chunk_id:
+            return "retrieved_anchor"
+        if candidate.parent_id == anchor.chunk_id or candidate.chunk_id in anchor.children_ids:
+            return "child_expansion"
+        if candidate.sibling_group_id and candidate.sibling_group_id == anchor.sibling_group_id:
+            return "sibling_expansion"
+        return "structural_expansion"
+
+    @staticmethod
+    def _context_trace_item(
+        chunk: Chunk,
+        score: float,
+        *,
+        reason: str,
+        anchor_chunk_id: str | None = None,
+    ) -> dict[str, object]:
+        return {
+            "chunk_id": chunk.chunk_id,
+            "reason": reason,
+            "anchor_chunk_id": anchor_chunk_id,
+            "chunk_type": chunk.chunk_type,
+            "document_number": chunk.document_number,
+            "article": chunk.article,
+            "clause": chunk.clause,
+            "point": chunk.point,
+            "parent_id": chunk.parent_id,
+            "sibling_group_id": chunk.sibling_group_id,
+            "children_ids": chunk.children_ids,
+            "score": score,
+            "preview": chunk.text[:240],
+        }

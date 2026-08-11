@@ -105,6 +105,7 @@ class RAGService:
                 "reranker_error": self.retriever.reranker_error,
                 "final_candidates": len(results),
                 "query_variants": self.retriever._planned_queries(parsed),
+                "context_trace": self.retriever.last_context_trace,
             }
             response.debug = debug
         if not request.debug:

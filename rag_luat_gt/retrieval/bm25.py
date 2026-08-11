@@ -60,25 +60,25 @@ class BM25Retriever:
         self.documents = [Document(**row) for row in _load_jsonl(documents_path)]
 
     def search(self, parsed: ParsedQuery, top_k: int = 8) -> list[tuple[Chunk, float]]:
-        candidates = self._exact_lookup(parsed)
-        if candidates:
-            return candidates[:top_k]
-
         if not self.bm25 or not self.chunks:
-            return []
+            return self._exact_lookup(parsed)[:top_k]
 
+        candidate_ids = {chunk.chunk_id for chunk, _score in self._exact_lookup(parsed)}
+        has_filter = bool(candidate_ids)
         tokens = tokenize(parsed.normalized_query)
         scores = self.bm25.get_scores(tokens)
         ranked = sorted(enumerate(scores), key=lambda item: item[1], reverse=True)
 
         results: list[tuple[Chunk, float]] = []
         for index, score in ranked:
-            if score <= 0:
-                continue
             chunk = self.chunks[index]
-            if not _effective_at(chunk, parsed.event_date):
+            if has_filter and chunk.chunk_id not in candidate_ids:
                 continue
-            results.append((chunk, float(score)))
+            if score <= 0 and not has_filter:
+                continue
+            if not _effective_at(chunk, parsed.legal_effective_date):
+                continue
+            results.append((chunk, float(score) + self._reference_boost(parsed, chunk)))
             if len(results) >= top_k:
                 break
         return results
@@ -89,7 +89,7 @@ class BM25Retriever:
 
         results: list[tuple[Chunk, float]] = []
         for chunk in self.chunks:
-            if not _effective_at(chunk, parsed.event_date):
+            if not _effective_at(chunk, parsed.legal_effective_date):
                 continue
             if parsed.document_number and chunk.document_number != parsed.document_number:
                 continue
@@ -99,6 +99,18 @@ class BM25Retriever:
                 continue
             if parsed.point and chunk.point != parsed.point:
                 continue
-            results.append((chunk, 1000.0))
+            results.append((chunk, self._reference_boost(parsed, chunk)))
         return results
 
+    @staticmethod
+    def _reference_boost(parsed: ParsedQuery, chunk: Chunk) -> float:
+        boost = 0.0
+        if parsed.document_number and chunk.document_number == parsed.document_number:
+            boost += 0.4
+        if parsed.article and chunk.article == parsed.article:
+            boost += 0.3
+        if parsed.clause and chunk.clause == parsed.clause:
+            boost += 0.2
+        if parsed.point and chunk.point == parsed.point:
+            boost += 0.1
+        return boost

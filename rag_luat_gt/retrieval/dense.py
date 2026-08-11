@@ -33,6 +33,40 @@ def _effective_at(chunk: Chunk, event_date: str | None) -> bool:
     return True
 
 
+def _datetime(value: str) -> str:
+    return f"{value}T00:00:00Z"
+
+
+def _query_filter(parsed: ParsedQuery) -> models.Filter | None:
+    must: list[models.Condition] = []
+    must_not: list[models.Condition] = []
+    for field, value in [
+        ("document_number", parsed.document_number),
+        ("article", parsed.article),
+        ("clause", parsed.clause),
+        ("point", parsed.point),
+    ]:
+        if value:
+            must.append(models.FieldCondition(key=field, match=models.MatchValue(value=value)))
+
+    if parsed.legal_effective_date:
+        target = _datetime(parsed.legal_effective_date)
+        must.append(
+            models.FieldCondition(
+                key="valid_from",
+                range=models.DatetimeRange(lte=target),
+            )
+        )
+        must_not.append(
+            models.FieldCondition(
+                key="valid_to",
+                range=models.DatetimeRange(lte=target),
+            )
+        )
+
+    return models.Filter(must=must or None, must_not=must_not or None) if must or must_not else None
+
+
 class DenseRetriever:
     def __init__(self) -> None:
         self.client = qdrant_client()
@@ -52,19 +86,28 @@ class DenseRetriever:
             self.embedder = BGEM3Embedder()
 
         vector = self.embedder.encode_query(parsed.normalized_query)
-        hits = self.client.query_points(
-            collection_name=QDRANT_COLLECTION,
-            query=vector,
-            limit=top_k * 3,
-            with_payload=True,
-        ).points
+        try:
+            hits = self.client.query_points(
+                collection_name=QDRANT_COLLECTION,
+                query=vector,
+                query_filter=_query_filter(parsed),
+                limit=top_k * 3,
+                with_payload=True,
+            ).points
+        except Exception:
+            hits = self.client.query_points(
+                collection_name=QDRANT_COLLECTION,
+                query=vector,
+                limit=top_k * 6,
+                with_payload=True,
+            ).points
 
         results: list[tuple[Chunk, float]] = []
         for hit in hits:
             if not hit.payload:
                 continue
             chunk = Chunk(**hit.payload)
-            if not _effective_at(chunk, parsed.event_date):
+            if not _effective_at(chunk, parsed.legal_effective_date):
                 continue
             results.append((chunk, float(hit.score)))
             if len(results) >= top_k:

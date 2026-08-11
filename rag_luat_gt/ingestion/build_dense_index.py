@@ -47,6 +47,8 @@ def build_dense_index() -> dict:
             "embedding_model": RAG_EMBEDDING_MODEL,
             "collection": QDRANT_COLLECTION,
             "chunks": indexed,
+            "corpus_hash": manifest.get("corpus_hash"),
+            "chunking_version": manifest.get("chunking_version"),
         }
         MANIFEST_PATH.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         QDRANT_READY_FILE.write_text(json.dumps(manifest["dense"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

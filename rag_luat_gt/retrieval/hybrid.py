@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from rag_luat_gt.config import QDRANT_READY_FILE, RAG_DENSE_ENABLED
+import json
+
+from rag_luat_gt.config import (
+    MANIFEST_PATH,
+    QDRANT_COLLECTION,
+    QDRANT_READY_FILE,
+    RAG_DENSE_ENABLED,
+    RAG_EMBEDDING_MODEL,
+)
 from rag_luat_gt.retrieval.bm25 import BM25Retriever
 from rag_luat_gt.schemas import Chunk, ParsedQuery
 from rag_luat_gt.text import normalize_text, strip_accents
@@ -14,19 +22,17 @@ class HybridRetriever:
         self.bm25 = BM25Retriever()
         self.dense = None
         self.dense_error: str | None = None
-        if RAG_DENSE_ENABLED and QDRANT_READY_FILE.exists():
+        if RAG_DENSE_ENABLED and self._dense_ready_matches_manifest():
             try:
                 from rag_luat_gt.retrieval.dense import DenseRetriever
 
                 self.dense = DenseRetriever()
             except Exception as exc:
                 self.dense_error = str(exc)
+        elif RAG_DENSE_ENABLED and QDRANT_READY_FILE.exists():
+            self.dense_error = "Dense index marker does not match the current BM25 manifest."
 
     def search(self, parsed: ParsedQuery, top_k: int = 8) -> list[tuple[Chunk, float]]:
-        exact = self.bm25._exact_lookup(parsed)
-        if exact:
-            return self._expand_parent_context(self._apply_preferences(parsed, exact), top_k)
-
         bm25_results = self.bm25.search(parsed, top_k=top_k * 4)
         dense_results = []
         if self.dense:
@@ -45,6 +51,28 @@ class HybridRetriever:
 
         fused = self._rrf([dense_results, bm25_results])
         return self._expand_parent_context(self._apply_preferences(parsed, fused), top_k)
+
+    @staticmethod
+    def _dense_ready_matches_manifest() -> bool:
+        if not QDRANT_READY_FILE.exists() or not MANIFEST_PATH.exists():
+            return False
+        try:
+            ready = json.loads(QDRANT_READY_FILE.read_text(encoding="utf-8"))
+            manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return False
+
+        dense = manifest.get("dense") or {}
+        return all(
+            [
+                ready.get("collection") == QDRANT_COLLECTION,
+                ready.get("embedding_model") == RAG_EMBEDDING_MODEL,
+                ready.get("corpus_hash") == manifest.get("corpus_hash"),
+                ready.get("chunking_version") == manifest.get("chunking_version"),
+                ready.get("chunks") == manifest.get("chunks"),
+                dense.get("corpus_hash") == manifest.get("corpus_hash"),
+            ]
+        )
 
     @staticmethod
     def _rrf(result_sets: list[list[tuple[Chunk, float]]]) -> list[tuple[Chunk, float]]:
@@ -89,21 +117,21 @@ class HybridRetriever:
 
             if parsed.vehicle_type == "xe máy":
                 if "xe máy chuyên dùng" in title:
-                    adjusted -= abs(score) * 0.7 + 100.0
+                    adjusted -= abs(score) * 0.7
                 if any(term in title for term in ["mô tô", "xe gắn máy"]):
-                    adjusted += abs(score) * 0.25 + 50.0
+                    adjusted += abs(score) * 0.25
                 if "phạt tiền từ" in text and "đèn tín hiệu giao thông" in text:
-                    adjusted += abs(score) * 0.15 + 25.0
+                    adjusted += abs(score) * 0.15
 
             elif parsed.vehicle_type == "ô tô":
                 if "ô tô" in title:
-                    adjusted += abs(score) * 0.25 + 50.0
+                    adjusted += abs(score) * 0.25
                 if any(term in title for term in ["xe máy chuyên dùng", "mô tô", "xe gắn máy"]):
-                    adjusted -= abs(score) * 0.7 + 100.0
+                    adjusted -= abs(score) * 0.7
 
             elif parsed.vehicle_type == "xe máy chuyên dùng":
                 if "xe máy chuyên dùng" in title:
-                    adjusted += abs(score) * 0.25 + 50.0
+                    adjusted += abs(score) * 0.25
 
             reranked.append((chunk, adjusted))
 
@@ -127,11 +155,11 @@ class HybridRetriever:
             text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:900]}"))
             adjusted = score
             if "den tin hieu giao thong" in text or "khong chap hanh hieu lenh cua den" in text:
-                adjusted += abs(score) * 0.2 + 40.0
+                adjusted += abs(score) * 0.2
             if chunk.document_number == "168/2024/NĐ-CP" and chunk.article in {"6", "7", "8"}:
-                adjusted += 20.0
+                adjusted += abs(score) * 0.1
             if chunk.article not in {"6", "7", "8"}:
-                adjusted -= abs(score) * 0.35 + 40.0
+                adjusted -= abs(score) * 0.35
             reranked.append((chunk, adjusted))
         return reranked
 
@@ -190,11 +218,11 @@ class HybridRetriever:
             text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:1200]}"))
             adjusted = score
             if any(term in text for term in ["muc thu", "bieu muc thu", "ban hanh kem theo"]):
-                adjusted += abs(score) * 0.35 + 80.0
+                adjusted += abs(score) * 0.35
             if any(term in text for term in ["phat tien tu", "dong"]):
-                adjusted += abs(score) * 0.2 + 40.0
+                adjusted += abs(score) * 0.2
             if any(term in text for term in ["hieu luc thi hanh", "khai, thu, nop", "khai thu nop"]):
-                adjusted -= abs(score) * 0.25 + 30.0
+                adjusted -= abs(score) * 0.25
             reranked.append((chunk, adjusted))
 
         return reranked

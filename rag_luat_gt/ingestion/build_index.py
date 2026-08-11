@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import pickle
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,12 +15,16 @@ from rag_luat_gt.config import (
     INDEX_DIR,
     MANIFEST_PATH,
     MARKDOWN_DIR,
+    QDRANT_READY_FILE,
     ROOT_DIR,
 )
 from rag_luat_gt.ingestion.legal_parser import parse_chunks
 from rag_luat_gt.ingestion.markdown import read_markdown
 from rag_luat_gt.ingestion.normalizer import normalize_document
 from rag_luat_gt.text import tokenize
+
+
+CHUNKING_VERSION = "legal-parser-v2"
 
 
 def write_jsonl(path: Path, rows: list[dict]) -> None:
@@ -29,11 +34,22 @@ def write_jsonl(path: Path, rows: list[dict]) -> None:
             file.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def _corpus_hash(markdown_files: list[Path], root_dir: Path) -> str:
+    digest = hashlib.sha256()
+    for path in markdown_files:
+        digest.update(path.relative_to(root_dir).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def build_index(markdown_dir: Path, root_dir: Path, index_dir: Path = INDEX_DIR) -> dict:
     documents = []
     chunks = []
+    markdown_files = sorted(markdown_dir.rglob("*.md"))
 
-    for markdown_file in sorted(markdown_dir.rglob("*.md")):
+    for markdown_file in markdown_files:
         source_file = markdown_file.relative_to(root_dir).as_posix()
         metadata, body = read_markdown(markdown_file)
         document = normalize_document(metadata, source_file)
@@ -52,11 +68,15 @@ def build_index(markdown_dir: Path, root_dir: Path, index_dir: Path = INDEX_DIR)
     manifest = {
         "built_at": datetime.now(timezone.utc).isoformat(),
         "markdown_dir": markdown_dir.relative_to(root_dir).as_posix(),
+        "corpus_hash": _corpus_hash(markdown_files, root_dir),
+        "chunking_version": CHUNKING_VERSION,
         "documents": len(documents),
         "chunks": len(chunks),
         "retriever": "BM25Okapi",
     }
     MANIFEST_PATH.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if QDRANT_READY_FILE.exists():
+        QDRANT_READY_FILE.unlink()
     return manifest
 
 

@@ -11,13 +11,16 @@ Default output:
 
 from __future__ import annotations
 
-import argparse
 import ast
 import json
 import re
 from pathlib import Path
 from typing import Any
 
+
+ROOT_DIR = Path(".").resolve()
+INPUT_DIR = ROOT_DIR / "data" / "markdown"
+OUTPUT_FILE = ROOT_DIR / "data" / "markdown_metadata.json"
 
 FRONT_MATTER_RE = re.compile(r"\A---\s*\r?\n(.*?)\r?\n---\s*(?:\r?\n|\Z)", re.DOTALL)
 
@@ -120,42 +123,19 @@ def extract_metadata(markdown_dir: Path, root_dir: Path) -> list[dict[str, Any]]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Extract metadata from Markdown files in data/markdown."
-    )
-    parser.add_argument(
-        "--input-dir",
-        default="data/markdown",
-        help="Directory containing Markdown files. Default: data/markdown",
-    )
-    parser.add_argument(
-        "--output",
-        default="data/markdown_metadata.json",
-        help="Output JSON file. Default: data/markdown_metadata.json",
-    )
-    parser.add_argument(
-        "--root-dir",
-        default=".",
-        help="Base directory used to compute source_file relative paths. Default: .",
-    )
-    args = parser.parse_args()
+    # Configure paths at the top of this file.
+    if not INPUT_DIR.is_dir():
+        raise FileNotFoundError(f"Markdown directory not found: {INPUT_DIR}")
 
-    root_dir = Path(args.root_dir).resolve()
-    markdown_dir = (root_dir / args.input_dir).resolve()
-    output_file = (root_dir / args.output).resolve()
-
-    if not markdown_dir.is_dir():
-        raise FileNotFoundError(f"Markdown directory not found: {markdown_dir}")
-
-    records = extract_metadata(markdown_dir, root_dir)
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text(
+    records = extract_metadata(INPUT_DIR, ROOT_DIR)
+    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    OUTPUT_FILE.write_text(
         json.dumps(records, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
     print(f"Extracted metadata from {len(records)} Markdown files")
-    print(f"Output: {output_file.relative_to(root_dir).as_posix()}")
+    print(f"Output: {OUTPUT_FILE.relative_to(ROOT_DIR).as_posix()}")
 
 
 if __name__ == "__main__":

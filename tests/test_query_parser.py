@@ -30,3 +30,13 @@ def test_parse_query_ignores_invalid_explicit_date() -> None:
 
     assert parsed.event_date == "2026-08-10"
     assert parsed.legal_effective_date == "2026-08-10"
+
+
+def test_parse_query_detects_enumeration_mode() -> None:
+    parsed = parse_query(
+        ChatRequest(query="Cơ sở dữ liệu về trật tự an toàn giao thông bao gồm những gì?")
+    )
+
+    assert parsed.intent == "ENUMERATION"
+    assert parsed.retrieval_mode == "EXHAUSTIVE"
+    assert parsed.answer_scope == "ALL_CHILDREN"

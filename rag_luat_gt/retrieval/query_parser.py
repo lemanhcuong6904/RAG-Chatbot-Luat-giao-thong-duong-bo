@@ -15,11 +15,26 @@ CLAUSE_RE = re.compile(r"(?:khoản|khoan)\s+(\d+)", re.IGNORECASE)
 POINT_RE = re.compile(r"(?:điểm|diem)\s+([a-zđ])", re.IGNORECASE)
 DMY_DATE_RE = re.compile(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b")
 YMD_DATE_RE = re.compile(r"\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})\b")
+ENUMERATION_PATTERNS = [
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in [
+        r"\bbao\s+gồm\s+(?:những\s+)?gì\b",
+        r"\bgồm\s+(?:những\s+)?gì\b",
+        r"\bgồm\s+các\b",
+        r"\bcác\s+.+\s+nào\b",
+        r"\bnhững\s+.+\s+nào\b",
+        r"\bliệt\s+kê\b",
+        r"\bcó\s+bao\s+nhiêu\b",
+        r"\bnhững\s+nội\s+dung\s+nào\b",
+    ]
+]
 
 
 def _detect_intent(query: str) -> str:
     q = normalize_text(query)
     q_ascii = strip_accents(q)
+    if _is_enumeration_query(query):
+        return "ENUMERATION"
     if any(term in q for term in ["phạt", "xử phạt", "mức phạt", "trừ điểm"]) or any(
         term in q_ascii for term in ["phat", "xu phat", "muc phat", "tru diem"]
     ):
@@ -47,6 +62,12 @@ def _detect_intent(query: str) -> str:
     if ARTICLE_RE.search(q) or ARTICLE_RE.search(q_ascii):
         return "ARTICLE_LOOKUP"
     return "GENERAL_LEGAL_QA"
+
+
+def _is_enumeration_query(query: str) -> bool:
+    q = normalize_text(query)
+    q_ascii = strip_accents(q)
+    return any(pattern.search(q) or pattern.search(q_ascii) for pattern in ENUMERATION_PATTERNS)
 
 
 def _detect_vehicle(query: str) -> str | None:
@@ -95,6 +116,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
     article = ARTICLE_RE.search(query) or ARTICLE_RE.search(strip_accents(query))
     clause = CLAUSE_RE.search(query) or CLAUSE_RE.search(strip_accents(query))
     point = POINT_RE.search(query) or POINT_RE.search(strip_accents(query))
+    is_enumeration = _is_enumeration_query(query)
     explicit_event_date = _explicit_date(query)
     event_date = explicit_event_date or request.event_date
     query_reference_date = request.as_of_date or date.today()
@@ -112,5 +134,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
         as_of_date=request.as_of_date.isoformat() if request.as_of_date else None,
         legal_effective_date=legal_effective_date.isoformat(),
         query_reference_date=query_reference_date.isoformat(),
+        retrieval_mode="EXHAUSTIVE" if is_enumeration else "FACTOID",
+        answer_scope="ALL_CHILDREN" if is_enumeration else None,
         keywords=[],
     )

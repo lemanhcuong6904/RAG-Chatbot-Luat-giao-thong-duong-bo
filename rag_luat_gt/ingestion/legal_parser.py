@@ -64,6 +64,20 @@ def _base_chunk_id(document: Document, state: _State, counter: int) -> str:
     return "__".join(parts)
 
 
+def _chunk_type(state: _State) -> str:
+    if state.point:
+        return "POINT"
+    if state.clause:
+        return "CLAUSE"
+    if state.article:
+        return "ARTICLE"
+    if state.section:
+        return "SECTION"
+    if state.chapter:
+        return "CHAPTER"
+    return "SPAN"
+
+
 def _retrieval_text(document: Document, heading: str, text: str) -> str:
     return "\n".join(
         value
@@ -189,6 +203,7 @@ def _make_chunks(
         chunks.append(
             Chunk(
                 chunk_id=chunk_id,
+                chunk_type=_chunk_type(state),
                 document_id=document.document_id,
                 document_number=document.document_number,
                 document_title=document.title,
@@ -196,6 +211,10 @@ def _make_chunks(
                 article_title=state.article_title,
                 clause=state.clause,
                 point=state.point,
+                article_id=None,
+                parent_id=None,
+                sibling_group_id=None,
+                order=counter,
                 heading_path=heading_path,
                 text=text,
                 retrieval_text=_retrieval_text(document, heading, text),
@@ -287,4 +306,59 @@ def parse_chunks(document: Document, markdown_body: str, source_file: str) -> li
         state.lines.append(line)
 
     flush()
+    return _annotate_hierarchy(chunks)
+
+
+def _sort_key(chunk: Chunk) -> tuple[int, int, str]:
+    type_rank = {
+        "CHAPTER": 0,
+        "SECTION": 1,
+        "ARTICLE": 2,
+        "CLAUSE": 3,
+        "POINT": 4,
+        "SPAN": 5,
+    }.get(chunk.chunk_type, 9)
+    return (chunk.order, type_rank, chunk.chunk_id)
+
+
+def _annotate_hierarchy(chunks: list[Chunk]) -> list[Chunk]:
+    article_by_key: dict[tuple[str, str | None], Chunk] = {}
+    clause_by_key: dict[tuple[str, str | None, str | None], Chunk] = {}
+
+    for index, chunk in enumerate(chunks, start=1):
+        chunk.order = index
+        if chunk.chunk_type == "ARTICLE":
+            article_by_key[(chunk.document_id, chunk.article)] = chunk
+        elif chunk.chunk_type == "CLAUSE":
+            clause_by_key[(chunk.document_id, chunk.article, chunk.clause)] = chunk
+
+    children_by_parent: dict[str, list[str]] = {}
+    for chunk in chunks:
+        article = article_by_key.get((chunk.document_id, chunk.article))
+        if article:
+            chunk.article_id = article.chunk_id
+
+        if chunk.chunk_type == "CLAUSE" and article:
+            chunk.parent_id = article.chunk_id
+            chunk.sibling_group_id = article.chunk_id
+            children_by_parent.setdefault(article.chunk_id, []).append(chunk.chunk_id)
+        elif chunk.chunk_type == "POINT":
+            clause = clause_by_key.get((chunk.document_id, chunk.article, chunk.clause))
+            if clause:
+                chunk.parent_id = clause.chunk_id
+                chunk.sibling_group_id = clause.chunk_id
+                children_by_parent.setdefault(clause.chunk_id, []).append(chunk.chunk_id)
+            elif article:
+                chunk.parent_id = article.chunk_id
+                chunk.sibling_group_id = article.chunk_id
+                children_by_parent.setdefault(article.chunk_id, []).append(chunk.chunk_id)
+
+    by_id = {chunk.chunk_id: chunk for chunk in chunks}
+    for parent_id, child_ids in children_by_parent.items():
+        parent = by_id[parent_id]
+        parent.children_ids = [
+            child.chunk_id
+            for child in sorted((by_id[child_id] for child_id in child_ids), key=_sort_key)
+        ]
+
     return chunks

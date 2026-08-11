@@ -26,6 +26,7 @@ class Document(BaseModel):
 
 class Chunk(BaseModel):
     chunk_id: str
+    chunk_type: str = "SPAN"
     document_id: str
     document_number: str | None = None
     document_title: str | None = None
@@ -33,6 +34,11 @@ class Chunk(BaseModel):
     article_title: str | None = None
     clause: str | None = None
     point: str | None = None
+    parent_id: str | None = None
+    article_id: str | None = None
+    sibling_group_id: str | None = None
+    order: int = 0
+    children_ids: list[str] = Field(default_factory=list)
     heading_path: list[str] = Field(default_factory=list)
     text: str
     retrieval_text: str
@@ -55,12 +61,15 @@ class ChatRequest(BaseModel):
 
 class Citation(BaseModel):
     chunk_id: str
+    chunk_type: str = "SPAN"
     document_number: str | None = None
     document_title: str | None = None
     article: str | None = None
     article_title: str | None = None
     clause: str | None = None
     point: str | None = None
+    parent_id: str | None = None
+    sibling_group_id: str | None = None
     source_file: str
     text: str
     coverage_status: str = "UNKNOWN"
@@ -89,4 +98,6 @@ class ParsedQuery(BaseModel):
     as_of_date: str | None = None
     legal_effective_date: str | None = None
     query_reference_date: str | None = None
+    retrieval_mode: str = "FACTOID"
+    answer_scope: str | None = None
     keywords: list[str] = Field(default_factory=list)

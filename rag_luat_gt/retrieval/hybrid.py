@@ -47,10 +47,12 @@ class HybridRetriever:
                 self.dense_error = str(exc)
 
         if not dense_results:
-            return self._expand_parent_context(self._apply_preferences(parsed, bm25_results), top_k)
+            ranked = self._apply_preferences(parsed, bm25_results)
+            return self._expand_structural_context(parsed, ranked, top_k)
 
         fused = self._rrf([dense_results, bm25_results])
-        return self._expand_parent_context(self._apply_preferences(parsed, fused), top_k)
+        ranked = self._apply_preferences(parsed, fused)
+        return self._expand_structural_context(parsed, ranked, top_k)
 
     @staticmethod
     def _dense_ready_matches_manifest() -> bool:
@@ -252,3 +254,75 @@ class HybridRetriever:
                 break
 
         return expanded[:top_k]
+
+    def _expand_structural_context(
+        self,
+        parsed: ParsedQuery,
+        results: list[tuple[Chunk, float]],
+        top_k: int,
+    ) -> list[tuple[Chunk, float]]:
+        if parsed.retrieval_mode == "EXHAUSTIVE":
+            return self._expand_exhaustive_context(results, top_k)
+        return self._expand_parent_context(results, top_k)
+
+    def _expand_exhaustive_context(
+        self,
+        results: list[tuple[Chunk, float]],
+        top_k: int,
+    ) -> list[tuple[Chunk, float]]:
+        by_id = {chunk.chunk_id: chunk for chunk in self.bm25.chunks}
+        by_sibling_group: dict[str, list[Chunk]] = {}
+        for chunk in self.bm25.chunks:
+            if chunk.sibling_group_id:
+                by_sibling_group.setdefault(chunk.sibling_group_id, []).append(chunk)
+
+        expanded: list[tuple[Chunk, float]] = []
+        seen: set[str] = set()
+
+        for chunk, score in results:
+            anchor = self._exhaustive_anchor(chunk, by_id)
+            candidates = self._expanded_children(anchor, by_id, by_sibling_group)
+            if not candidates:
+                candidates = [chunk]
+
+            for candidate in candidates:
+                if candidate.chunk_id in seen:
+                    continue
+                expanded.append((candidate, score + self._expansion_bonus(anchor, candidate)))
+                seen.add(candidate.chunk_id)
+
+            if len(expanded) >= max(top_k, len(candidates)):
+                break
+
+        return sorted(expanded, key=lambda item: (item[0].order, item[1]))
+
+    @staticmethod
+    def _exhaustive_anchor(chunk: Chunk, by_id: dict[str, Chunk]) -> Chunk:
+        if chunk.chunk_type in {"ARTICLE", "CLAUSE"}:
+            return chunk
+        if chunk.parent_id and chunk.parent_id in by_id:
+            return by_id[chunk.parent_id]
+        return chunk
+
+    @staticmethod
+    def _expanded_children(
+        anchor: Chunk,
+        by_id: dict[str, Chunk],
+        by_sibling_group: dict[str, list[Chunk]],
+    ) -> list[Chunk]:
+        if anchor.children_ids:
+            children = [by_id[chunk_id] for chunk_id in anchor.children_ids if chunk_id in by_id]
+            return [anchor, *children]
+        if anchor.sibling_group_id:
+            siblings = sorted(
+                by_sibling_group.get(anchor.sibling_group_id, []),
+                key=lambda chunk: (chunk.order, chunk.chunk_id),
+            )
+            return [anchor, *siblings] if anchor.chunk_id not in {item.chunk_id for item in siblings} else siblings
+        return []
+
+    @staticmethod
+    def _expansion_bonus(anchor: Chunk, candidate: Chunk) -> float:
+        if candidate.chunk_id == anchor.chunk_id:
+            return 0.002
+        return 0.001

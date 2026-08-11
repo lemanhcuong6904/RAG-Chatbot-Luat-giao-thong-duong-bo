@@ -24,12 +24,15 @@ def _legal_ref(citation: Citation) -> str:
 def _citation_from_result(chunk: Chunk, score: float) -> Citation:
     return Citation(
         chunk_id=chunk.chunk_id,
+        chunk_type=chunk.chunk_type,
         document_number=chunk.document_number,
         document_title=chunk.document_title,
         article=chunk.article,
         article_title=chunk.article_title,
         clause=chunk.clause,
         point=chunk.point,
+        parent_id=chunk.parent_id,
+        sibling_group_id=chunk.sibling_group_id,
         source_file=chunk.source_file,
         text=chunk.text,
         coverage_status=chunk.coverage_status,
@@ -90,13 +93,15 @@ def _build_extractive_answer(
     citations: list[Citation],
     legal_notes: list[str],
 ) -> str:
+    evidence_limit = 30 if parsed.retrieval_mode == "EXHAUSTIVE" else 3
+    refs_limit = 30 if parsed.retrieval_mode == "EXHAUSTIVE" else 5
     evidence = "\n\n".join(
         f"- {_legal_ref(citations[index])}: {chunk.text[:900]}"
-        for index, (chunk, _score) in enumerate(results[:3])
+        for index, (chunk, _score) in enumerate(results[:evidence_limit])
     )
     refs = "\n".join(
         f"{index + 1}. {citation.document_number or citation.document_title}: {_legal_ref(citation)}"
-        for index, citation in enumerate(citations[:5])
+        for index, citation in enumerate(citations[:refs_limit])
     )
     date_line = parsed.legal_effective_date or parsed.event_date or parsed.as_of_date or "ngày hiện tại"
     notes = "\n".join(f"- {note}" for note in legal_notes)

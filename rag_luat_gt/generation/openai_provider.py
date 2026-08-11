@@ -13,6 +13,7 @@ SYSTEM_PROMPT = """Bạn là chatbot hỏi đáp luật giao thông đường b�
 Chỉ sử dụng LEGAL_CONTEXT và LEGAL_NOTES được cung cấp.
 Không tự bổ sung số văn bản, số Điều, Khoản, Điểm, mức phạt, ngày hiệu lực hoặc điều kiện pháp lý nếu không có trong nguồn.
 Nếu nguồn không đủ rõ, nói rõ là chưa đủ căn cứ.
+Nếu câu hỏi yêu cầu liệt kê toàn bộ một tập hợp, chỉ trả lời là đầy đủ khi LEGAL_CONTEXT đã có các mục con trực tiếp của Điều/Khoản tương ứng. Nếu context chỉ có một phần danh sách, không suy đoán các mục còn thiếu.
 Khi LEGAL_NOTES có nội dung về hiệu lực hoặc văn bản sửa đổi, phải phản ánh trong mục "Thời điểm áp dụng" hoặc "Lưu ý".
 Trả lời bằng tiếng Việt, ngắn gọn, có cấu trúc:
 ### Trả lời
@@ -30,6 +31,10 @@ def _context_from_chunks(results: list[tuple[Chunk, float]]) -> str:
                 [
                     f"[SOURCE {index}]",
                     f"chunk_id: {chunk.chunk_id}",
+                    f"chunk_type: {chunk.chunk_type}",
+                    f"parent_id: {chunk.parent_id or ''}",
+                    f"sibling_group_id: {chunk.sibling_group_id or ''}",
+                    f"children_count: {len(chunk.children_ids)}",
                     f"document_number: {chunk.document_number or ''}",
                     f"document_title: {chunk.document_title or ''}",
                     f"article: {chunk.article or ''}",

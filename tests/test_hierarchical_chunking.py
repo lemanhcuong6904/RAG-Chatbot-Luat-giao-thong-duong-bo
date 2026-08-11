@@ -55,3 +55,27 @@ def test_exhaustive_context_expands_clause_children() -> None:
 
     assert [chunk.chunk_type for chunk, _score in expanded] == ["CLAUSE", "POINT", "POINT", "POINT"]
     assert [chunk.point for chunk, _score in expanded[1:]] == ["a", "b", "c"]
+
+
+def test_temporal_note_inherits_from_article_to_point_with_exclusive_end() -> None:
+    document = normalize_document(
+        {
+            "so_ky_hieu": "36/2024/QH15",
+            "title": "Luật test",
+            "ngay_co_hieu_luc": "2025-01-01",
+            "ghi_chu_hieu_luc": ["Điều 7 áp dụng đến hết ngày 2026-08-15"],
+        },
+        "data/markdown/test.md",
+    )
+    body = "\n".join(
+        [
+            "Điều 7. Dữ liệu giao thông",
+            "1. Nhóm dữ liệu gồm:",
+            "a) Dữ liệu đăng ký xe.",
+        ]
+    )
+
+    chunks = parse_chunks(document, body, "data/markdown/test.md")
+    point = next(chunk for chunk in chunks if chunk.chunk_type == "POINT")
+
+    assert point.valid_to == "2026-08-16"

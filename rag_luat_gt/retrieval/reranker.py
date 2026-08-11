@@ -22,12 +22,11 @@ class BGEReranker:
     ) -> list[tuple[Chunk, float]]:
         if not results:
             return []
-        pairs = [(parsed.query, chunk.retrieval_text) for chunk, _score in results[:top_n]]
+        candidates = results[:top_n]
+        pairs = [(parsed.query, chunk.retrieval_text) for chunk, _score in candidates]
         scores = self.model.predict(pairs)
         rescored = [
             (chunk, float(score))
-            for (chunk, _old_score), score in zip(results[:top_n], scores, strict=True)
+            for (chunk, _old_score), score in zip(candidates, scores, strict=True)
         ]
-        if len(results) > top_n:
-            rescored.extend(results[top_n:])
         return sorted(rescored, key=lambda item: item[1], reverse=True)

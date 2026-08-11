@@ -304,12 +304,12 @@ class HybridRetriever:
 
         expanded: list[tuple[Chunk, float]] = []
         seen: set[str] = set()
+        anchors = self._resolve_exhaustive_anchors(results, by_id)
 
-        for chunk, score in results:
-            anchor = self._exhaustive_anchor(chunk, by_id)
+        for anchor, score in anchors:
             candidates = self._expanded_children(anchor, by_id, by_sibling_group)
             if not candidates:
-                candidates = [chunk]
+                candidates = [anchor]
 
             for candidate in candidates:
                 if candidate.chunk_id in seen:
@@ -321,6 +321,24 @@ class HybridRetriever:
                 break
 
         return sorted(expanded, key=lambda item: (item[0].order, item[1]))
+
+    @staticmethod
+    def _resolve_exhaustive_anchors(
+        results: list[tuple[Chunk, float]],
+        by_id: dict[str, Chunk],
+        max_anchors: int = 2,
+    ) -> list[tuple[Chunk, float]]:
+        anchors: list[tuple[Chunk, float]] = []
+        seen: set[str] = set()
+        for chunk, score in results:
+            anchor = HybridRetriever._exhaustive_anchor(chunk, by_id)
+            if anchor.chunk_id in seen:
+                continue
+            anchors.append((anchor, score))
+            seen.add(anchor.chunk_id)
+            if len(anchors) >= max_anchors:
+                break
+        return anchors
 
     @staticmethod
     def _exhaustive_anchor(chunk: Chunk, by_id: dict[str, Chunk]) -> Chunk:

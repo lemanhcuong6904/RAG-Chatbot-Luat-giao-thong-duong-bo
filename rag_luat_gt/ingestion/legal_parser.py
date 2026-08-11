@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 
 from rag_luat_gt.schemas import Chunk, Document
 from rag_luat_gt.text import normalize_text, strip_accents
@@ -93,15 +94,38 @@ def _retrieval_text(document: Document, heading: str, text: str) -> str:
     )
 
 
-def _matches_ref(note: str, state: _State) -> bool:
+def _note_specificity(note: str, state: _State) -> int | None:
     normalized = strip_accents(normalize_text(note))
     if state.article and f"dieu {state.article}" not in normalized:
-        return False
-    if state.clause and f"khoan {state.clause}" not in normalized:
-        return False
-    if state.point and f"diem {state.point}" not in normalized:
-        return False
-    return bool(state.article or state.clause or state.point)
+        return None
+    if not any([state.article, state.clause, state.point]):
+        return None
+
+    specificity = 1 if state.article else 0
+    clause_refs = re.findall(r"\bkhoan\s+(\d+)\b", normalized)
+    if clause_refs:
+        if not state.clause or state.clause not in clause_refs:
+            return None
+        specificity += 1
+
+    point_refs = re.findall(r"\bdiem\s+([a-zd])\b", normalized)
+    state_point = "d" if state.point == "đ" else state.point
+    if point_refs:
+        if not state_point or state_point not in point_refs:
+            return None
+        specificity += 1
+
+    return specificity
+
+
+def _to_exclusive_end(value: str, note: str) -> str:
+    normalized = strip_accents(normalize_text(note))
+    if "den het ngay" not in normalized:
+        return value
+    try:
+        return (date.fromisoformat(value) + timedelta(days=1)).isoformat()
+    except ValueError:
+        return value
 
 
 def _provision_effective_dates(document: Document, state: _State) -> tuple[str | None, str | None, str | None]:
@@ -113,18 +137,26 @@ def _provision_effective_dates(document: Document, state: _State) -> tuple[str |
     if isinstance(notes, str):
         notes = [notes]
 
+    best_note: tuple[int, str] | None = None
     for note in notes:
-        if not _matches_ref(str(note), state):
+        specificity = _note_specificity(str(note), state)
+        if specificity is None:
             continue
         dates = ISO_DATE_RE.findall(str(note))
         if not dates:
             continue
+        if best_note is not None and specificity < best_note[0]:
+            continue
+        best_note = (specificity, str(note))
+
+    if best_note:
+        note = best_note[1]
         normalized = strip_accents(normalize_text(str(note)))
         matched_note = str(note)
         if any(term in normalized for term in ["het hieu luc", "den het ngay", "truoc ngay"]):
-            valid_to = dates[-1]
+            valid_to = _to_exclusive_end(ISO_DATE_RE.findall(str(note))[-1], str(note))
         else:
-            valid_from = dates[-1]
+            valid_from = ISO_DATE_RE.findall(str(note))[-1]
 
     return valid_from, valid_to, matched_note
 

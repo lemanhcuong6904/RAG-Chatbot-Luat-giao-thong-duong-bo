@@ -21,6 +21,18 @@ SYNONYMS = {
 }
 
 
+def _dedupe(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        key = strip_accents(normalize_text(value))
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(value)
+    return result
+
+
 def normalize_text(text: str) -> str:
     text = unicodedata.normalize("NFC", text).lower()
     return re.sub(r"\s+", " ", text).strip()
@@ -37,7 +49,7 @@ def tokenize(text: str) -> list[str]:
     no_accents = strip_accents(normalized)
     tokens = TOKEN_RE.findall(normalized)
     tokens.extend(TOKEN_RE.findall(no_accents))
-    return tokens
+    return _dedupe(tokens)
 
 
 def expand_query(query: str) -> str:
@@ -47,4 +59,4 @@ def expand_query(query: str) -> str:
     for key, value in SYNONYMS.items():
         if key in normalized or strip_accents(key) in no_accents:
             expanded.append(value)
-    return " ".join(expanded)
+    return " ".join(_dedupe(expanded))

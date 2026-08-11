@@ -32,6 +32,10 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 RAG_LLM_PROVIDER = os.getenv("RAG_LLM_PROVIDER", "extractive").lower()
 RAG_OPENAI_TEMPERATURE = float(os.getenv("RAG_OPENAI_TEMPERATURE", "0"))
 RAG_OPENAI_MAX_TOKENS = int(os.getenv("RAG_OPENAI_MAX_TOKENS", "1200"))
+RAG_PRERAG_PROVIDER = os.getenv("RAG_PRERAG_PROVIDER", "rule").lower()
+RAG_PRERAG_MODEL = os.getenv("RAG_PRERAG_MODEL", OPENAI_MODEL)
+RAG_PRERAG_TEMPERATURE = float(os.getenv("RAG_PRERAG_TEMPERATURE", "0"))
+RAG_PRERAG_MAX_TOKENS = int(os.getenv("RAG_PRERAG_MAX_TOKENS", "900"))
 
 RAG_DENSE_ENABLED = os.getenv("RAG_DENSE_ENABLED", "false").lower() == "true"
 RAG_EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "BAAI/bge-m3")

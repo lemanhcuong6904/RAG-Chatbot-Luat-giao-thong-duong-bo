@@ -5,6 +5,7 @@ from rag_luat_gt.generation.answerer import build_answer
 from rag_luat_gt.generation.multi_sanction_answerer import build_multi_sanction_response
 from rag_luat_gt.generation.sanction_answerer import build_sanction_response
 from rag_luat_gt.retrieval.hybrid import HybridRetriever
+from rag_luat_gt.retrieval.llm_query_transformer import transform_query_with_llm
 from rag_luat_gt.retrieval.query_parser import parse_query
 from rag_luat_gt.sanction.behavior_catalog import behavior_contains_from_query
 from rag_luat_gt.sanction.composition_engine import compose_sanctions
@@ -34,12 +35,19 @@ class RAGService:
 
     def answer(self, request: ChatRequest) -> ChatResponse:
         parsed = parse_query(request)
-        routing_debug: dict[str, object] = {"sanction_attempted": False, "fallback_to_rag": False}
+        parsed, prerag_debug = transform_query_with_llm(parsed)
+        routing_debug: dict[str, object] = {
+            "sanction_attempted": False,
+            "fallback_to_rag": False,
+            "pre_rag": prerag_debug,
+        }
         if SANCTION_ENABLED and parsed.intent == "PENALTY_LOOKUP":
             if len(parsed.violations) >= 2:
                 resolutions = resolve_violations(self.sanctions, parsed)
                 composition = compose_sanctions(resolutions)
                 response = build_multi_sanction_response(parsed, composition)
+                if request.debug and response.debug is not None:
+                    response.debug["routing"] = routing_debug
                 if not request.debug:
                     response.debug = None
                 return response
@@ -64,6 +72,8 @@ class RAGService:
             explicit_ref = any([parsed.document_number, parsed.article, parsed.clause, parsed.point])
             if lookup.status == "FOUND" or lookup.status in {"NOT_FOUND", "TEMPORAL_AMBIGUOUS"} and explicit_ref:
                 response = build_sanction_response(parsed, lookup)
+                if request.debug and response.debug is not None:
+                    response.debug["routing"] = routing_debug
                 if not request.debug:
                     response.debug = None
                 return response

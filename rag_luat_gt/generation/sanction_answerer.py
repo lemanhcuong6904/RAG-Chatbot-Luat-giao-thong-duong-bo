@@ -54,7 +54,14 @@ def _citation(rule: SanctionRule) -> Citation:
 
 
 def build_sanction_response(parsed: ParsedQuery, lookup: SanctionLookup) -> ChatResponse:
-    if lookup.status in {"UNAVAILABLE", "NOT_FOUND", "AMBIGUOUS", "TEMPORAL_AMBIGUOUS"}:
+    if lookup.status in {
+        "UNAVAILABLE",
+        "NOT_FOUND",
+        "AMBIGUOUS",
+        "NEEDS_CLARIFICATION",
+        "NOT_MAPPED",
+        "TEMPORAL_AMBIGUOUS",
+    }:
         return ChatResponse(
             answer=_build_unanswered(parsed, lookup),
             citations=[_citation(rule) for rule in lookup.rules],

@@ -43,16 +43,16 @@ class SanctionRepository:
 
         if not vehicle_code:
             return SanctionLookup(
-                status="AMBIGUOUS",
+                status="NEEDS_CLARIFICATION",
                 missing_fields=["vehicle_code"],
                 warnings=["Câu hỏi xử phạt chưa xác định rõ loại phương tiện."],
             )
 
         if not behavior_code and not behavior_contains:
             return SanctionLookup(
-                status="AMBIGUOUS",
+                status="NOT_MAPPED",
                 missing_fields=["behavior"],
-                warnings=["Câu hỏi xử phạt chưa xác định rõ hành vi vi phạm."],
+                warnings=["Chưa ánh xạ được hành vi sang Structured Sanction Layer."],
             )
 
         where = [

@@ -33,6 +33,10 @@ def _effective_at(chunk: Chunk, event_date: str | None) -> bool:
     return True
 
 
+def _should_filter_effective(parsed: ParsedQuery) -> bool:
+    return parsed.temporal_intent in {"APPLICABLE_RULE", "HISTORICAL_RULE", "FUTURE_RULE", "CURRENT_RULE"}
+
+
 def _matches_metadata(chunk: Chunk, parsed: ParsedQuery) -> bool:
     if parsed.document_number and chunk.document_number != parsed.document_number:
         return False
@@ -61,7 +65,7 @@ def _query_filter(parsed: ParsedQuery) -> models.Filter | None:
         if value:
             must.append(models.FieldCondition(key=field, match=models.MatchValue(value=value)))
 
-    if parsed.legal_effective_date:
+    if _should_filter_effective(parsed) and parsed.legal_effective_date:
         target = _datetime(parsed.legal_effective_date)
         must_not.append(
             models.FieldCondition(
@@ -121,7 +125,7 @@ class DenseRetriever:
             chunk = Chunk(**hit.payload)
             if not _matches_metadata(chunk, parsed):
                 continue
-            if not _effective_at(chunk, parsed.legal_effective_date):
+            if _should_filter_effective(parsed) and not _effective_at(chunk, parsed.legal_effective_date):
                 continue
             results.append((chunk, float(hit.score)))
             if len(results) >= top_k:

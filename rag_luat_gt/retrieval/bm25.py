@@ -41,6 +41,10 @@ def _effective_at(chunk: Chunk, event_date: str | None) -> bool:
     return True
 
 
+def _should_filter_effective(parsed: ParsedQuery) -> bool:
+    return parsed.temporal_intent in {"APPLICABLE_RULE", "HISTORICAL_RULE", "FUTURE_RULE", "CURRENT_RULE"}
+
+
 class BM25Retriever:
     def __init__(
         self,
@@ -78,7 +82,7 @@ class BM25Retriever:
                 continue
             if score <= 0 and not has_filter:
                 continue
-            if not _effective_at(chunk, parsed.legal_effective_date):
+            if _should_filter_effective(parsed) and not _effective_at(chunk, parsed.legal_effective_date):
                 continue
             results.append((chunk, float(score) + self._reference_boost(parsed, chunk)))
             if len(results) >= top_k:
@@ -91,7 +95,7 @@ class BM25Retriever:
 
         results: list[tuple[Chunk, float]] = []
         for chunk in self.chunks:
-            if not _effective_at(chunk, parsed.legal_effective_date):
+            if _should_filter_effective(parsed) and not _effective_at(chunk, parsed.legal_effective_date):
                 continue
             if parsed.document_number and chunk.document_number != parsed.document_number:
                 continue

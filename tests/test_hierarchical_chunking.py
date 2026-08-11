@@ -57,6 +57,16 @@ def test_exhaustive_context_expands_clause_children() -> None:
     assert [chunk.point for chunk, _score in expanded[1:]] == ["a", "b", "c"]
 
 
+def test_parent_context_attaches_without_replacing_leaf_slot() -> None:
+    retriever = HybridRetriever()
+    retriever.bm25.chunks = _sample_chunks()
+    point = next(chunk for chunk in retriever.bm25.chunks if chunk.chunk_type == "POINT" and chunk.point == "a")
+
+    expanded = retriever._expand_parent_context([(point, 1.0)], top_k=1)
+
+    assert [chunk.chunk_type for chunk, _score in expanded] == ["CLAUSE", "POINT"]
+
+
 def test_temporal_note_inherits_from_article_to_point_with_exclusive_end() -> None:
     document = normalize_document(
         {

@@ -127,6 +127,19 @@ def _requested_facets(query: str) -> list[str]:
     return facets
 
 
+def _detect_temporal_intent(query: str, intent: str, has_request_event_date: bool) -> str:
+    q = strip_accents(normalize_text(query))
+    if any(term in q for term in ["hieu luc", "ngay ap dung", "bat dau ap dung"]):
+        return "EFFECTIVE_DATE_LOOKUP"
+    if any(term in q for term in ["sua doi", "bo sung", "thay the", "bai bo", "sua nhung gi", "noi dung gi"]):
+        return "AMENDMENT_COMPARE" if intent == "AMENDMENT_COMPARE" else "DOCUMENT_CONTENT"
+    if intent == "PENALTY_LOOKUP":
+        return "APPLICABLE_RULE"
+    if has_request_event_date or any(term in q for term in ["hien nay", "dang ap dung", "tai thoi diem", "ngay"]):
+        return "APPLICABLE_RULE"
+    return "DOCUMENT_CONTENT"
+
+
 def _document_number(query: str) -> str | None:
     match = DOCUMENT_RE.search(query)
     if not match:
@@ -165,6 +178,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
     intent = _detect_intent(query)
     expanded_query = expand_query(query)
     behavior_contains = behavior_contains_from_query(query)
+    temporal_intent = _detect_temporal_intent(query, intent, request.event_date is not None)
     return ParsedQuery(
         query=query,
         original_query=query,
@@ -187,6 +201,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
         as_of_date=request.as_of_date.isoformat() if request.as_of_date else None,
         legal_effective_date=legal_effective_date.isoformat(),
         query_reference_date=query_reference_date.isoformat(),
+        temporal_intent=temporal_intent,
         retrieval_mode="EXHAUSTIVE" if is_enumeration else "FACTOID",
         answer_scope="ALL_CHILDREN" if is_enumeration else None,
         keywords=[],

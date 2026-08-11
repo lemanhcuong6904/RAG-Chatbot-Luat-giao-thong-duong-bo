@@ -267,7 +267,7 @@ class HybridRetriever:
 
         expanded: list[tuple[Chunk, float]] = []
         seen: set[str] = set()
-        for chunk, score in results:
+        for chunk, score in results[:top_k]:
             if chunk.point:
                 parent = by_location.get((chunk.document_id, chunk.article, chunk.clause, None))
                 if parent and parent.chunk_id not in seen:
@@ -276,10 +276,8 @@ class HybridRetriever:
             if chunk.chunk_id not in seen:
                 expanded.append((chunk, score))
                 seen.add(chunk.chunk_id)
-            if len(expanded) >= top_k:
-                break
 
-        return expanded[:top_k]
+        return expanded
 
     def _expand_structural_context(
         self,

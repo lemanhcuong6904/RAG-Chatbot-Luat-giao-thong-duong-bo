@@ -37,7 +37,8 @@ with st.sidebar:
     st.header("Thiết lập")
     mode = st.radio("Chế độ chạy", ["Direct", "FastAPI"], index=0, horizontal=True)
     api_base = st.text_input("API", API_BASE, disabled=mode == "Direct")
-    event_date = st.date_input("Ngày áp dụng", value=date.today())
+    use_event_date = st.checkbox("Lọc theo ngày áp dụng", value=False)
+    event_date = st.date_input("Ngày áp dụng", value=date.today(), disabled=not use_event_date)
     top_k = st.slider("Top K", min_value=3, max_value=12, value=8)
     debug = st.toggle("Debug", value=False)
     st.divider()
@@ -71,10 +72,11 @@ if query:
 
     payload = {
         "query": query,
-        "event_date": event_date.isoformat(),
         "top_k": top_k,
         "debug": debug,
     }
+    if use_event_date:
+        payload["event_date"] = event_date.isoformat()
 
     with st.chat_message("assistant"):
         try:

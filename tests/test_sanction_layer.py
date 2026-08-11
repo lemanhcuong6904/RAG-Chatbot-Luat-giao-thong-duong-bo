@@ -37,11 +37,13 @@ def test_service_uses_structured_sanction_layer_for_penalty_query() -> None:
     assert response.citations[0].rule_id == "ND168_A07_K7_Pc_UNSPECIFIED_BASE"
 
 
-def test_penalty_query_without_vehicle_fails_closed() -> None:
+def test_penalty_query_without_vehicle_falls_back_to_rag() -> None:
     response = RAGService().answer(ChatRequest(query="Vượt đèn đỏ bị phạt bao nhiêu?", debug=True))
 
-    assert not response.answerable
-    assert "vehicle_code" in response.answer
+    assert response.answerable
+    assert response.debug
+    assert response.debug["routing"]["sanction_status"] == "NEEDS_CLARIFICATION"
+    assert response.debug["routing"]["fallback_to_rag"] is True
 
 
 def test_sanction_lookup_without_behavior_fails_closed() -> None:
@@ -50,7 +52,7 @@ def test_sanction_lookup_without_behavior_fails_closed() -> None:
         vehicle_code="MOTORCYCLE",
     )
 
-    assert lookup.status == "AMBIGUOUS"
+    assert lookup.status == "NOT_MAPPED"
     assert lookup.missing_fields == ["behavior"]
 
 

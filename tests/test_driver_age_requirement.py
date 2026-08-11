@@ -11,7 +11,7 @@ from rag_luat_gt.service import RAGService
 
 def test_driver_age_requirement_uses_eligibility_source() -> None:
     root = Path(".").resolve()
-    build_index(root / "data" / "markdown", root)
+    build_index(root / "data" / "markdown", root, invalidate_dense=False)
 
     response = RAGService().answer(
         ChatRequest(query="Người từ bao nhiêu tuổi được phép điều khiển ô tô?", top_k=8, debug=True)

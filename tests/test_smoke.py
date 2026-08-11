@@ -9,7 +9,7 @@ from rag_luat_gt.service import RAGService
 
 def test_build_index_and_answer() -> None:
     root = Path(".").resolve()
-    manifest = build_index(root / "data" / "markdown", root)
+    manifest = build_index(root / "data" / "markdown", root, invalidate_dense=False)
     assert manifest["documents"] > 0
     assert manifest["chunks"] > 0
 
@@ -19,4 +19,3 @@ def test_build_index_and_answer() -> None:
     )
     assert response.citations
     assert response.answerable
-

@@ -30,7 +30,7 @@ def test_penalty_license_points_are_not_parsed_as_legal_point_ref() -> None:
 
 def test_license_point_balance_retrieves_article_58_clause_1_first() -> None:
     root = Path(".").resolve()
-    build_index(root / "data" / "markdown", root)
+    build_index(root / "data" / "markdown", root, invalidate_dense=False)
     parsed = parse_query(ChatRequest(query="Một giấy phép lái xe có bao nhiêu điểm?"))
 
     results = HybridRetriever().search(parsed, top_k=8)
@@ -45,7 +45,7 @@ def test_license_point_balance_retrieves_article_58_clause_1_first() -> None:
 
 def test_license_point_balance_answer_contains_12_points() -> None:
     root = Path(".").resolve()
-    build_index(root / "data" / "markdown", root)
+    build_index(root / "data" / "markdown", root, invalidate_dense=False)
 
     response = RAGService().answer(ChatRequest(query="Một giấy phép lái xe có bao nhiêu điểm?", top_k=8, debug=True))
 

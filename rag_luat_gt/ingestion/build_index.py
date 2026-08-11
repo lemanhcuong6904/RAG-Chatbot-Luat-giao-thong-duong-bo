@@ -44,7 +44,12 @@ def _corpus_hash(markdown_files: list[Path], root_dir: Path) -> str:
     return digest.hexdigest()
 
 
-def build_index(markdown_dir: Path, root_dir: Path, index_dir: Path = INDEX_DIR) -> dict:
+def build_index(
+    markdown_dir: Path,
+    root_dir: Path,
+    index_dir: Path = INDEX_DIR,
+    invalidate_dense: bool = True,
+) -> dict:
     documents = []
     chunks = []
     markdown_files = sorted(markdown_dir.rglob("*.md"))
@@ -57,13 +62,24 @@ def build_index(markdown_dir: Path, root_dir: Path, index_dir: Path = INDEX_DIR)
         chunks.extend(parse_chunks(document, body, source_file))
 
     index_dir.mkdir(parents=True, exist_ok=True)
-    write_jsonl(DOCUMENTS_PATH, [document.model_dump() for document in documents])
-    write_jsonl(CHUNKS_PATH, [chunk.model_dump() for chunk in chunks])
+    documents_path = index_dir / "documents.jsonl"
+    chunks_path = index_dir / "chunks.jsonl"
+    bm25_path = index_dir / "bm25.pkl"
+    manifest_path = index_dir / "manifest.json"
+    write_jsonl(documents_path, [document.model_dump() for document in documents])
+    write_jsonl(chunks_path, [chunk.model_dump() for chunk in chunks])
 
     tokenized_corpus = [tokenize(chunk.retrieval_text) for chunk in chunks]
     bm25 = BM25Okapi(tokenized_corpus)
-    with BM25_PATH.open("wb") as file:
+    with bm25_path.open("wb") as file:
         pickle.dump({"bm25": bm25, "chunks": [chunk.model_dump() for chunk in chunks]}, file)
+
+    previous_manifest = {}
+    if manifest_path.exists():
+        try:
+            previous_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            previous_manifest = {}
 
     manifest = {
         "built_at": datetime.now(timezone.utc).isoformat(),
@@ -74,8 +90,20 @@ def build_index(markdown_dir: Path, root_dir: Path, index_dir: Path = INDEX_DIR)
         "chunks": len(chunks),
         "retriever": "BM25Okapi",
     }
-    MANIFEST_PATH.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    if QDRANT_READY_FILE.exists():
+    previous_dense = previous_manifest.get("dense")
+    if (
+        not invalidate_dense
+        and isinstance(previous_dense, dict)
+        and previous_dense.get("corpus_hash") == manifest["corpus_hash"]
+        and previous_dense.get("chunking_version") == manifest["chunking_version"]
+        and previous_dense.get("chunks") == manifest["chunks"]
+    ):
+        manifest["dense"] = previous_dense
+    if not invalidate_dense and "runtime" in previous_manifest:
+        manifest["runtime"] = previous_manifest["runtime"]
+
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if invalidate_dense and index_dir.resolve() == INDEX_DIR.resolve() and QDRANT_READY_FILE.exists():
         QDRANT_READY_FILE.unlink()
     return manifest
 

@@ -1,2 +1,7 @@
 data/markdown/
 data/raw/
+data/index/
+data/qdrant/
+.env
+__pycache__/
+*.pyc

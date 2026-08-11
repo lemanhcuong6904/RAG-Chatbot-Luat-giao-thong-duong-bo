@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+streamlit==1.49.1
+pydantic
+pyyaml
+rank-bm25
+requests
+pytest
+openai
+sentence-transformers
+qdrant-client

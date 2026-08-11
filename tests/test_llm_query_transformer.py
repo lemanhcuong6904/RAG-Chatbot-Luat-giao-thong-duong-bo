@@ -113,3 +113,30 @@ def test_llm_transform_preserves_catalog_behavior_codes_for_license_violation() 
     license_violation = next(item for item in transformed.violations if item.catalog_code == "NO_DRIVER_LICENSE")
     assert license_violation.behavior_code.startswith("KHONG_CO_GIAY_PHEP_LAI_XE")
     assert len(license_violation.conditions["behavior_codes"]) == 2
+
+
+def test_llm_transform_does_not_use_unmapped_penalty_behavior_code_for_structured_lookup() -> None:
+    parsed = parse_query(ChatRequest(query="Người điều khiển xe máy bay qua vỉa hè bị phạt bao nhiêu?"))
+
+    transformed = merge_llm_transform(
+        parsed,
+        {
+            "intent": "PENALTY_LOOKUP",
+            "behavior_code": "HANH_VI_LLM_TU_SINH",
+            "violations": [
+                {
+                    "behavior_code": "HANH_VI_LLM_TU_SINH",
+                    "behavior_text": "bay qua vỉa hè",
+                    "raw_span": "bay qua vỉa hè",
+                }
+            ],
+            "query_plan": {
+                "strategy": ["EXPANSION", "STRUCTURED_LOOKUP"],
+                "use_structured_sanction": True,
+            },
+        },
+    )
+
+    assert transformed.behavior_code is None
+    assert transformed.violations[0].behavior_code == "HANH_VI_LLM_TU_SINH"
+    assert transformed.violations[0].catalog_code is None

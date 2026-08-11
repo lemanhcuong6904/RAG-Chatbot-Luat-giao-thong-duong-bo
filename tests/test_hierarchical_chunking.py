@@ -61,8 +61,9 @@ def test_parent_context_attaches_without_replacing_leaf_slot() -> None:
     retriever = HybridRetriever()
     retriever.bm25.chunks = _sample_chunks()
     point = next(chunk for chunk in retriever.bm25.chunks if chunk.chunk_type == "POINT" and chunk.point == "a")
+    parsed = ParsedQuery(query="q", normalized_query="q")
 
-    expanded = retriever._expand_parent_context([(point, 1.0)], top_k=1)
+    expanded = retriever._expand_parent_context(parsed, [(point, 1.0)], top_k=1)
 
     assert [chunk.chunk_type for chunk, _score in expanded] == ["CLAUSE", "POINT"]
 

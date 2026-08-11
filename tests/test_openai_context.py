@@ -60,3 +60,30 @@ def test_openai_context_contains_legal_fields_without_retrieval_scores() -> None
     assert "chunk_id:" not in context
     assert "parent_id:" not in context
     assert "sibling_group_id:" not in context
+
+
+def test_factoid_openai_context_does_not_report_partial_expansion() -> None:
+    parsed = ParsedQuery(
+        query="q",
+        normalized_query="q",
+        answer_mode="FACTOID",
+        retrieval_mode="FACTOID",
+    )
+    parent = Chunk(
+        chunk_id="parent",
+        chunk_type="CLAUSE",
+        document_id="doc",
+        document_number="168/2024/NĐ-CP",
+        article="7",
+        clause="4",
+        children_ids=["child-a", "child-b"],
+        text="4. Phạt tiền từ 800.000 đồng đến 1.000.000 đồng.",
+        retrieval_text="4. Phạt tiền từ 800.000 đồng đến 1.000.000 đồng.",
+        source_file="source.md",
+    )
+
+    context = _context_from_chunks(parsed, [(parent, 1.0)])
+
+    assert "ANSWER_MODE: FACTOID" in context
+    assert "EXPANSION_STATUS: COMPLETE" in context
+    assert "EXPECTED_CHILD_COUNT: 0" in context

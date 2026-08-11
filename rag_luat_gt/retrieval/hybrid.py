@@ -166,6 +166,8 @@ class HybridRetriever:
         reranked = self._apply_license_point_preferences(parsed, reranked)
         reranked = self._apply_vehicle_preferences(parsed, reranked)
         reranked = self._apply_penalty_focus(parsed, reranked)
+        reranked = self._apply_behavior_text_focus(parsed, reranked)
+        reranked = self._filter_vehicle_penalty_scope(parsed, reranked)
         reranked = self._filter_primary_penalty_scope(parsed, reranked)
         reranked = self._apply_amount_focus(parsed, reranked)
         return sorted(reranked, key=lambda item: item[1], reverse=True)
@@ -298,6 +300,45 @@ class HybridRetriever:
         return reranked
 
     @staticmethod
+    def _apply_behavior_text_focus(
+        parsed: ParsedQuery,
+        results: list[tuple[Chunk, float]],
+    ) -> list[tuple[Chunk, float]]:
+        if parsed.intent != "PENALTY_LOOKUP":
+            return results
+
+        query = strip_accents(normalize_text(parsed.query))
+        focus_terms = HybridRetriever._behavior_focus_terms(query)
+        if not focus_terms:
+            return results
+
+        reranked: list[tuple[Chunk, float]] = []
+        for chunk, score in results:
+            text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:1200]}"))
+            adjusted = score
+            base = max(abs(score), 1.0)
+            if any(term in text for term in focus_terms):
+                adjusted += base * (3.0 if chunk.chunk_type == "POINT" else 1.8)
+            elif chunk.chunk_type == "CLAUSE" and any(term in query for term in ["bao nhieu", "muc phat"]):
+                adjusted -= base * 0.25
+            reranked.append((chunk, adjusted))
+        return reranked
+
+    @staticmethod
+    def _behavior_focus_terms(query_ascii: str) -> list[str]:
+        groups = [
+            (["dien thoai", "thiet bi dien tu"], ["dien thoai", "thiet bi dien tu"]),
+            (["mu bao hiem", "khong doi mu"], ["mu bao hiem"]),
+            (["giay phep lai xe", "gplx", "bang lai"], ["giay phep lai xe", "gplx", "bang lai"]),
+            (["den do", "den tin hieu"], ["den tin hieu", "khong chap hanh hieu lenh"]),
+        ]
+        terms: list[str] = []
+        for triggers, expansions in groups:
+            if any(trigger in query_ascii for trigger in triggers):
+                terms.extend(expansions)
+        return terms
+
+    @staticmethod
     def _filter_primary_penalty_scope(
         parsed: ParsedQuery,
         results: list[tuple[Chunk, float]],
@@ -324,6 +365,45 @@ class HybridRetriever:
             if chunk.document_number == "168/2024/NĐ-CP" and chunk.article == expected_article
         ]
         if len(primary) >= 2:
+            return primary
+        return results
+
+    @staticmethod
+    def _filter_vehicle_penalty_scope(
+        parsed: ParsedQuery,
+        results: list[tuple[Chunk, float]],
+    ) -> list[tuple[Chunk, float]]:
+        if parsed.intent != "PENALTY_LOOKUP" or not parsed.vehicle_code:
+            return results
+
+        expected_article = {
+            "CAR": "6",
+            "TRUCK": "6",
+            "BUS": "6",
+            "MOTORCYCLE": "7",
+            "MOPED": "7",
+            "SPECIALIZED_MOTOR_VEHICLE": "8",
+            "BICYCLE": "9",
+        }.get(parsed.vehicle_code)
+        if not expected_article:
+            return results
+
+        query = strip_accents(normalize_text(parsed.query))
+        focus_terms = HybridRetriever._behavior_focus_terms(query)
+        if not focus_terms:
+            return results
+
+        primary = [
+            (chunk, score)
+            for chunk, score in results
+            if chunk.document_number == "168/2024/NĐ-CP" and chunk.article == expected_article
+        ]
+        has_behavior_point = any(
+            chunk.chunk_type == "POINT"
+            and any(term in strip_accents(normalize_text(chunk.text)) for term in focus_terms)
+            for chunk, _score in primary
+        )
+        if len(primary) >= 2 and has_behavior_point:
             return primary
         return results
 
@@ -363,6 +443,7 @@ class HybridRetriever:
 
     def _expand_parent_context(
         self,
+        parsed: ParsedQuery,
         results: list[tuple[Chunk, float]],
         top_k: int,
     ) -> list[tuple[Chunk, float]]:
@@ -370,6 +451,8 @@ class HybridRetriever:
             (chunk.document_id, chunk.article, chunk.clause, chunk.point): chunk
             for chunk in self.bm25.chunks
         }
+        by_id = {chunk.chunk_id: chunk for chunk in self.bm25.chunks}
+        focus_terms = self._behavior_focus_terms(strip_accents(normalize_text(parsed.query)))
 
         expanded: list[tuple[Chunk, float]] = []
         seen: set[str] = set()
@@ -392,6 +475,22 @@ class HybridRetriever:
                 expanded.append((chunk, score))
                 seen.add(chunk.chunk_id)
                 trace.append(self._context_trace_item(chunk, score, reason="retrieved"))
+            if chunk.children_ids:
+                matching_children = self._matching_children(chunk, by_id, focus_terms)
+                for child in matching_children:
+                    if child.chunk_id in seen:
+                        continue
+                    child_score = score + 0.0015
+                    expanded.append((child, child_score))
+                    seen.add(child.chunk_id)
+                    trace.append(
+                        self._context_trace_item(
+                            child,
+                            child_score,
+                            reason="child_behavior_expansion",
+                            anchor_chunk_id=chunk.chunk_id,
+                        )
+                    )
 
         self.last_context_trace = trace
         return expanded
@@ -404,7 +503,7 @@ class HybridRetriever:
     ) -> list[tuple[Chunk, float]]:
         if parsed.retrieval_mode == "EXHAUSTIVE":
             return self._expand_exhaustive_context(results, top_k)
-        return self._expand_parent_context(results, top_k)
+        return self._expand_parent_context(parsed, results, top_k)
 
     def _expand_exhaustive_context(
         self,
@@ -492,6 +591,22 @@ class HybridRetriever:
             )
             return [anchor, *siblings] if anchor.chunk_id not in {item.chunk_id for item in siblings} else siblings
         return []
+
+    @staticmethod
+    def _matching_children(
+        chunk: Chunk,
+        by_id: dict[str, Chunk],
+        focus_terms: list[str],
+    ) -> list[Chunk]:
+        if not focus_terms:
+            return []
+        children = [by_id[chunk_id] for chunk_id in chunk.children_ids if chunk_id in by_id]
+        matches = []
+        for child in children:
+            text = strip_accents(normalize_text(child.text))
+            if any(term in text for term in focus_terms):
+                matches.append(child)
+        return matches[:3]
 
     @staticmethod
     def _expansion_bonus(anchor: Chunk, candidate: Chunk) -> float:

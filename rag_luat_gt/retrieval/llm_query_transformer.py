@@ -77,13 +77,19 @@ def merge_llm_transform(parsed: ParsedQuery, payload: dict[str, Any]) -> ParsedQ
         "evidence_validation_query",
         "vehicle_type",
         "vehicle_code",
-        "behavior_code",
         "behavior_text_query",
         "desired_rule_function",
     ]:
         value = payload.get(field)
         if isinstance(value, str) and value.strip():
             updates[field] = value.strip()
+    behavior_code = payload.get("behavior_code")
+    if (
+        transformed_intent(payload, parsed) != "PENALTY_LOOKUP"
+        and isinstance(behavior_code, str)
+        and behavior_code.strip()
+    ):
+        updates["behavior_code"] = behavior_code.strip()
 
     for field in ["requested_facets", "conditions", "keywords"]:
         value = payload.get(field)
@@ -93,7 +99,8 @@ def merge_llm_transform(parsed: ParsedQuery, payload: dict[str, Any]) -> ParsedQ
     violations = _merge_violations(parsed.violations, _violations_from_payload(payload.get("violations")))
     if violations:
         updates["violations"] = violations
-        updates.setdefault("behavior_code", violations[0].behavior_code)
+        if _is_catalog_mapped(violations[0]):
+            updates.setdefault("behavior_code", violations[0].behavior_code)
         updates.setdefault("behavior_text_query", violations[0].behavior_contains)
 
     transformed = parsed.model_copy(update=updates)
@@ -105,6 +112,16 @@ def merge_llm_transform(parsed: ParsedQuery, payload: dict[str, Any]) -> ParsedQ
         plan.strategy = ["DIRECT", "EXPANSION", "HYBRID_RETRIEVAL"]
     transformed.query_plan = plan
     return transformed
+
+
+def transformed_intent(payload: dict[str, Any], parsed: ParsedQuery) -> str:
+    intent = payload.get("intent")
+    return intent if isinstance(intent, str) and intent in ALLOWED_INTENTS else parsed.intent
+
+
+def _is_catalog_mapped(violation: ViolationFact) -> bool:
+    codes = violation.conditions.get("behavior_codes")
+    return bool(violation.catalog_code or (isinstance(codes, list) and codes))
 
 
 def _violations_from_payload(value: Any) -> list[ViolationFact]:

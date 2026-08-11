@@ -85,7 +85,10 @@ def _expansion_metadata(results: list[tuple[Chunk, float]]) -> tuple[str, int, i
 
 
 def _context_from_chunks(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> str:
-    expansion_status, expected_children, actual_children = _expansion_metadata(results)
+    if parsed.retrieval_mode == "EXHAUSTIVE":
+        expansion_status, expected_children, actual_children = _expansion_metadata(results)
+    else:
+        expansion_status, expected_children, actual_children = "COMPLETE", 0, 0
     header = "\n".join(
         [
             f"QUERY_INTENT: {parsed.primary_intent or parsed.intent}",

@@ -4,6 +4,7 @@ from rag_luat_gt.config import SANCTION_ENABLED
 from rag_luat_gt.generation.answerer import build_answer
 from rag_luat_gt.generation.multi_sanction_answerer import build_multi_sanction_response
 from rag_luat_gt.generation.sanction_answerer import build_sanction_response
+from rag_luat_gt.generation.structured_sanction_llm import maybe_render_structured_sanction_with_llm
 from rag_luat_gt.retrieval.hybrid import HybridRetriever
 from rag_luat_gt.retrieval.llm_query_transformer import transform_query_with_llm
 from rag_luat_gt.retrieval.query_parser import parse_query
@@ -48,6 +49,7 @@ class RAGService:
                 response = build_multi_sanction_response(parsed, composition)
                 if request.debug and response.debug is not None:
                     response.debug["routing"] = routing_debug
+                response = maybe_render_structured_sanction_with_llm(parsed, response)
                 if not request.debug:
                     response.debug = None
                 return response
@@ -74,6 +76,7 @@ class RAGService:
                 response = build_sanction_response(parsed, lookup)
                 if request.debug and response.debug is not None:
                     response.debug["routing"] = routing_debug
+                response = maybe_render_structured_sanction_with_llm(parsed, response)
                 if not request.debug:
                     response.debug = None
                 return response

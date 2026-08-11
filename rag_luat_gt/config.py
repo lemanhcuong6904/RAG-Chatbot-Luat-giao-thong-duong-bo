@@ -39,8 +39,20 @@ RAG_EMBEDDING_DEVICE = os.getenv("RAG_EMBEDDING_DEVICE", "cpu")
 RAG_EMBEDDING_BATCH_SIZE = int(os.getenv("RAG_EMBEDDING_BATCH_SIZE", "8"))
 RAG_EMBEDDING_VECTOR_SIZE = int(os.getenv("RAG_EMBEDDING_VECTOR_SIZE", "1024"))
 RAG_EMBEDDING_LOCAL_FILES_ONLY = os.getenv("RAG_EMBEDDING_LOCAL_FILES_ONLY", "false").lower() == "true"
+RAG_RERANKER_ENABLED = os.getenv("RAG_RERANKER_ENABLED", "false").lower() == "true"
+RAG_RERANKER_MODEL = os.getenv("RAG_RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+RAG_RERANKER_TOP_N = int(os.getenv("RAG_RERANKER_TOP_N", "40"))
+RAG_RERANKER_LOCAL_FILES_ONLY = os.getenv("RAG_RERANKER_LOCAL_FILES_ONLY", "false").lower() == "true"
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "traffic_law_chunks")
 QDRANT_PATH = Path(os.getenv("QDRANT_PATH", ROOT_DIR / "data" / "qdrant"))
 QDRANT_URL = os.getenv("QDRANT_URL", "")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
 QDRANT_READY_FILE = INDEX_DIR / f"{QDRANT_COLLECTION}.ready"
+
+SANCTION_DB_PATH = Path(
+    os.getenv(
+        "SANCTION_DB_PATH",
+        ROOT_DIR / "structured_sanction_layer" / "structured_sanction_layer" / "sanctions.sqlite",
+    )
+)
+SANCTION_ENABLED = os.getenv("SANCTION_ENABLED", "true").lower() == "true"

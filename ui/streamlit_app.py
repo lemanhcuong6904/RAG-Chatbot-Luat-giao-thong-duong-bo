@@ -104,6 +104,8 @@ if query:
                         st.divider()
                         st.write(f"Source: {citation['source_file']}")
                         st.write(f"Chunk: {citation['chunk_id']}")
+                        if citation.get("rule_id"):
+                            st.write(f"Rule: {citation['rule_id']}")
                         st.write(f"Parent: {citation.get('parent_id')}")
                         st.write(f"Sibling group: {citation.get('sibling_group_id')}")
                         st.write(f"Coverage: {citation.get('coverage_status', 'UNKNOWN')}")

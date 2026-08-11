@@ -62,6 +62,7 @@ class ChatRequest(BaseModel):
 class Citation(BaseModel):
     chunk_id: str
     chunk_type: str = "SPAN"
+    rule_id: str | None = None
     document_number: str | None = None
     document_title: str | None = None
     article: str | None = None
@@ -94,6 +95,9 @@ class ParsedQuery(BaseModel):
     clause: str | None = None
     point: str | None = None
     vehicle_type: str | None = None
+    vehicle_code: str | None = None
+    behavior_code: str | None = None
+    requested_facets: list[str] = Field(default_factory=list)
     event_date: str | None = None
     as_of_date: str | None = None
     legal_effective_date: str | None = None

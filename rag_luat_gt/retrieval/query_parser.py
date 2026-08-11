@@ -86,6 +86,59 @@ def _detect_vehicle(query: str) -> str | None:
     return None
 
 
+def _detect_vehicle_code(query: str) -> str | None:
+    q = normalize_text(query)
+    q_ascii = strip_accents(q)
+    if "xe máy chuyên dùng" in q or "xe may chuyen dung" in q_ascii:
+        return "SPECIALIZED_MOTOR_VEHICLE"
+    if any(term in q for term in ["ô tô", "xe hơi", "xe con"]) or any(
+        term in q_ascii for term in ["o to", "xe hoi", "xe con"]
+    ):
+        return "CAR"
+    if any(term in q for term in ["xe tải"]) or "xe tai" in q_ascii:
+        return "TRUCK"
+    if any(term in q for term in ["xe khách", "xe buýt"]) or any(term in q_ascii for term in ["xe khach", "xe buyt"]):
+        return "BUS"
+    if any(term in q for term in ["xe máy", "mô tô", "gắn máy"]) or any(
+        term in q_ascii for term in ["xe may", "mo to", "gan may"]
+    ):
+        return "MOTORCYCLE"
+    if "xe đạp" in q or "xe dap" in q_ascii:
+        return "BICYCLE"
+    if "người đi bộ" in q or "nguoi di bo" in q_ascii:
+        return "PEDESTRIAN"
+    return None
+
+
+def _detect_behavior_code(query: str) -> str | None:
+    q = strip_accents(normalize_text(query))
+    if any(
+        term in q
+        for term in [
+            "den do",
+            "den tin hieu",
+            "vuot den",
+            "chay den do",
+            "di den do",
+            "khong chap hanh hieu lenh cua den",
+        ]
+    ):
+        return "KHONG_CHAP_HANH_HIEU_LENH_CUA_DEN_TIN_HIEU_GIAO_THONG"
+    return None
+
+
+def _requested_facets(query: str) -> list[str]:
+    q = strip_accents(normalize_text(query))
+    facets: list[str] = []
+    if any(term in q for term in ["phat bao nhieu", "muc phat", "phat tien", "bao nhieu tien", "dong"]):
+        facets.append("FINE")
+    if any(term in q for term in ["tru diem", "diem gplx", "tru may diem", "mat may diem"]):
+        facets.append("LICENSE_POINTS")
+    if any(term in q for term in ["tuoc", "giay phep lai xe", "gplx"]):
+        facets.append("LICENSE_SUSPENSION")
+    return facets
+
+
 def _document_number(query: str) -> str | None:
     match = DOCUMENT_RE.search(query)
     if not match:
@@ -130,6 +183,9 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
         clause=clause.group(1) if clause else None,
         point=point.group(1).lower() if point else None,
         vehicle_type=_detect_vehicle(query),
+        vehicle_code=_detect_vehicle_code(query),
+        behavior_code=_detect_behavior_code(query),
+        requested_facets=_requested_facets(query),
         event_date=event_date.isoformat() if event_date else None,
         as_of_date=request.as_of_date.isoformat() if request.as_of_date else None,
         legal_effective_date=legal_effective_date.isoformat(),

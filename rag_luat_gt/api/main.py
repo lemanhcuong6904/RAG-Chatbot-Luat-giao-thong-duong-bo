@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 
-from rag_luat_gt.config import CHUNKS_PATH, DOCUMENTS_PATH, MANIFEST_PATH
+from rag_luat_gt.config import CHUNKS_PATH, DOCUMENTS_PATH, MANIFEST_PATH, SANCTION_DB_PATH, SANCTION_ENABLED
 from rag_luat_gt.schemas import ChatRequest
 from rag_luat_gt.service import RAGService
 
@@ -27,7 +27,15 @@ def health() -> dict:
     manifest = {}
     if MANIFEST_PATH.exists():
         manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    return {"status": "ok", "index": manifest}
+    return {
+        "status": "ok",
+        "index": manifest,
+        "sanctions": {
+            "enabled": SANCTION_ENABLED,
+            "db_path": str(SANCTION_DB_PATH),
+            "available": SANCTION_DB_PATH.exists(),
+        },
+    }
 
 
 @app.post("/api/v1/chat")

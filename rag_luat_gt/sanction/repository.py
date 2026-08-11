@@ -101,6 +101,36 @@ class SanctionRepository:
             return SanctionLookup(status="TEMPORAL_AMBIGUOUS", rules=rows, warnings=temporal_warnings)
         return SanctionLookup(status="FOUND", rules=rows)
 
+    def lookup_behavior_codes(
+        self,
+        *,
+        event_date: str,
+        behavior_codes: list[str],
+        limit: int = 20,
+    ) -> SanctionLookup:
+        if not self.available():
+            return SanctionLookup(status="UNAVAILABLE", warnings=[f"Sanction DB not found: {self.db_path}"])
+        if not behavior_codes:
+            return SanctionLookup(status="NOT_MAPPED", missing_fields=["behavior"])
+
+        placeholders = ", ".join("?" for _ in behavior_codes)
+        sql = (
+            "SELECT * FROM sanction_rules WHERE "
+            "(valid_from IS NULL OR valid_from <= ?) AND "
+            "(valid_to IS NULL OR ? < valid_to) AND "
+            "validation_status = 'PASS' AND "
+            f"behavior_code IN ({placeholders}) "
+            "ORDER BY CAST(article AS INTEGER), CAST(clause AS INTEGER), point LIMIT ?"
+        )
+        values: list[object] = [event_date, event_date, *behavior_codes, limit]
+        with sqlite3.connect(self.db_path) as connection:
+            connection.row_factory = sqlite3.Row
+            rows = [self._row_to_rule(dict(row), event_date) for row in connection.execute(sql, values)]
+
+        if not rows:
+            return SanctionLookup(status="NOT_FOUND", warnings=["Không tìm thấy sanction rule phù hợp."])
+        return SanctionLookup(status="FOUND", rules=rows)
+
     @staticmethod
     def _row_to_rule(row: dict, event_date: str) -> SanctionRule:
         data = dict(row)

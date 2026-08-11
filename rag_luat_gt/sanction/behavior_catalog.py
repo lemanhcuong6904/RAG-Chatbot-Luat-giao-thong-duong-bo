@@ -24,12 +24,24 @@ def _catalog() -> dict[str, dict[str, Any]]:
 
 
 def match_behavior(query: str) -> dict[str, Any] | None:
+    matches = match_behaviors(query)
+    return matches[0] if matches else None
+
+
+def match_behaviors(query: str) -> list[dict[str, Any]]:
     normalized = _norm(query)
+    matches: list[dict[str, Any]] = []
+    seen_codes: set[str] = set()
+
     for catalog_code, item in _catalog().items():
         aliases = item.get("aliases") or []
-        if any(_norm(str(alias)) in normalized for alias in aliases):
-            return {"catalog_code": catalog_code, **item}
-    return None
+        matched_alias = next((str(alias) for alias in aliases if _norm(str(alias)) in normalized), None)
+        if not matched_alias or catalog_code in seen_codes:
+            continue
+        seen_codes.add(catalog_code)
+        matches.append({"catalog_code": catalog_code, "matched_alias": matched_alias, **item})
+
+    return matches
 
 
 def behavior_code_from_query(query: str) -> str | None:

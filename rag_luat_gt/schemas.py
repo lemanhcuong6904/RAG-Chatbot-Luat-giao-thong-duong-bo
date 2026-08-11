@@ -88,6 +88,16 @@ class ChatResponse(BaseModel):
     debug: dict[str, Any] | None = None
 
 
+class ViolationFact(BaseModel):
+    behavior_code: str
+    behavior_text: str
+    raw_span: str | None = None
+    behavior_contains: str | None = None
+    catalog_code: str | None = None
+    conditions: dict[str, Any] = Field(default_factory=dict)
+    confidence: float = 1.0
+
+
 class ParsedQuery(BaseModel):
     query: str
     normalized_query: str
@@ -107,6 +117,7 @@ class ParsedQuery(BaseModel):
     vehicle_code: str | None = None
     behavior_code: str | None = None
     behavior_text_query: str | None = None
+    violations: list[ViolationFact] = Field(default_factory=list)
     desired_rule_function: str | None = None
     conditions: list[str] = Field(default_factory=list)
     requested_facets: list[str] = Field(default_factory=list)

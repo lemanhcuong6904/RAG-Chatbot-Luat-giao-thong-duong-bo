@@ -3,8 +3,8 @@ from __future__ import annotations
 import re
 from datetime import date
 
-from rag_luat_gt.schemas import ChatRequest, ParsedQuery
-from rag_luat_gt.sanction.behavior_catalog import behavior_code_from_query, behavior_contains_from_query
+from rag_luat_gt.schemas import ChatRequest, ParsedQuery, ViolationFact
+from rag_luat_gt.sanction.behavior_catalog import behavior_code_from_query, behavior_contains_from_query, match_behaviors
 from rag_luat_gt.text import expand_query, normalize_text, strip_accents
 
 
@@ -136,6 +136,27 @@ def _detect_behavior_code(query: str) -> str | None:
     return behavior_code_from_query(query)
 
 
+def _detect_violations(query: str) -> list[ViolationFact]:
+    violations: list[ViolationFact] = []
+    for match in match_behaviors(query):
+        codes = [str(code) for code in match.get("rule_behavior_codes") or [] if code]
+        if not codes:
+            continue
+        raw_span = str(match.get("matched_alias") or "")
+        violations.append(
+            ViolationFact(
+                behavior_code=codes[0],
+                behavior_text=str(match.get("canonical_text") or raw_span or codes[0]),
+                raw_span=raw_span or None,
+                behavior_contains=str(match.get("behavior_contains") or "") or None,
+                catalog_code=str(match.get("catalog_code") or "") or None,
+                conditions={"behavior_codes": codes},
+                confidence=1.0,
+            )
+        )
+    return violations
+
+
 def _requested_facets(query: str) -> list[str]:
     q = strip_accents(normalize_text(query))
     facets: list[str] = []
@@ -234,6 +255,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
     intent = _detect_intent(query)
     expanded_query = expand_query(_intent_query_expansion(query, intent))
     behavior_contains = behavior_contains_from_query(query)
+    violations = _detect_violations(query)
     temporal_intent = _detect_temporal_intent(query, intent, request.event_date is not None)
     return ParsedQuery(
         query=query,
@@ -252,6 +274,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
         vehicle_code=_detect_vehicle_code(query),
         behavior_code=_detect_behavior_code(query),
         behavior_text_query=behavior_contains,
+        violations=violations,
         desired_rule_function=_desired_rule_function(intent),
         requested_facets=_requested_facets(query),
         event_date=event_date.isoformat() if event_date else None,

@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from rag_luat_gt.config import SANCTION_ENABLED
 from rag_luat_gt.generation.answerer import build_answer
+from rag_luat_gt.generation.multi_sanction_answerer import build_multi_sanction_response
 from rag_luat_gt.generation.sanction_answerer import build_sanction_response
 from rag_luat_gt.retrieval.hybrid import HybridRetriever
 from rag_luat_gt.retrieval.query_parser import parse_query
 from rag_luat_gt.sanction.behavior_catalog import behavior_contains_from_query
+from rag_luat_gt.sanction.composition_engine import compose_sanctions
+from rag_luat_gt.sanction.condition_resolver import resolve_violations
 from rag_luat_gt.sanction.repository import SanctionRepository
 from rag_luat_gt.schemas import ChatRequest, ChatResponse
 
@@ -33,6 +36,14 @@ class RAGService:
         parsed = parse_query(request)
         routing_debug: dict[str, object] = {"sanction_attempted": False, "fallback_to_rag": False}
         if SANCTION_ENABLED and parsed.intent == "PENALTY_LOOKUP":
+            if len(parsed.violations) >= 2:
+                resolutions = resolve_violations(self.sanctions, parsed)
+                composition = compose_sanctions(resolutions)
+                response = build_multi_sanction_response(parsed, composition)
+                if not request.debug:
+                    response.debug = None
+                return response
+
             lookup = self.sanctions.lookup(
                 event_date=parsed.legal_effective_date or parsed.event_date or parsed.query_reference_date or "",
                 vehicle_code=parsed.vehicle_code,

@@ -25,5 +25,33 @@
     ],
     "rule_behavior_codes": [],
     "behavior_contains": "làn đường"
+  },
+  "NO_HELMET": {
+    "canonical_text": "Khong doi mu bao hiem khi dieu khien xe may",
+    "aliases": [
+      "khong doi mu",
+      "khong doi mu bao hiem",
+      "khong doi non bao hiem",
+      "khong cai quai mu bao hiem"
+    ],
+    "rule_behavior_codes": [
+      "KHONG_DOI_MU_BAO_HIEM_CHO_NGUOI_DI_MO_TO_XE_MAY_HOAC_DOI_MU_BAO_HIEM_CHO_NGUOI_DI_MO_TO_XE"
+    ],
+    "behavior_contains": "mu bao hiem"
+  },
+  "NO_DRIVER_LICENSE": {
+    "canonical_text": "Khong co giay phep lai xe",
+    "aliases": [
+      "khong co giay phep lai xe",
+      "khong co gplx",
+      "khong co bang lai",
+      "chua co bang lai",
+      "khong co giay phep lai"
+    ],
+    "rule_behavior_codes": [
+      "KHONG_CO_GIAY_PHEP_LAI_XE_HOAC_SU_DUNG_GIAY_PHEP_LAI_XE_DA_BI_TRU_HET_DIEM_HOAC_SU_DUNG_GI",
+      "KHONG_CO_GIAY_PHEP_LAI_XE_HOAC_SU_DUNG_GIAY_PHEP_LAI_XE_DA_BI_TRU_HET_DIEM_GIAY_PHEP_LAI_X"
+    ],
+    "behavior_contains": "khong co giay phep lai xe"
   }
 }

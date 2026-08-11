@@ -53,3 +53,44 @@ class SanctionLookup(BaseModel):
     rules: list[SanctionRule] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     missing_fields: list[str] = Field(default_factory=list)
+
+
+class ViolationResolution(BaseModel):
+    status: str
+    behavior_code: str
+    behavior_text: str
+    raw_span: str | None = None
+    rules: list[SanctionRule] = Field(default_factory=list)
+    selected_rule: SanctionRule | None = None
+    missing_conditions: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class MoneyAggregation(BaseModel):
+    status: str
+    min_total: int | None = None
+    max_total: int | None = None
+    default_total: int | None = None
+
+
+class MoneyBranch(BaseModel):
+    label: str
+    min_total: int
+    max_total: int
+    default_total: int | None = None
+    rule_ids: list[str] = Field(default_factory=list)
+
+
+class LicensePointAggregation(BaseModel):
+    status: str
+    points_deducted: int | None = None
+    strategy: str = "MAX_POINTS_SAME_DECISION"
+
+
+class SanctionComposition(BaseModel):
+    status: str
+    money: MoneyAggregation
+    money_branches: list[MoneyBranch] = Field(default_factory=list)
+    license_points: LicensePointAggregation
+    resolutions: list[ViolationResolution]
+    warnings: list[str] = Field(default_factory=list)

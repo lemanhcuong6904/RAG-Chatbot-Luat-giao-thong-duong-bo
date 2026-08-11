@@ -257,7 +257,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
     behavior_contains = behavior_contains_from_query(query)
     violations = _detect_violations(query)
     temporal_intent = _detect_temporal_intent(query, intent, request.event_date is not None)
-    return ParsedQuery(
+    parsed = ParsedQuery(
         query=query,
         original_query=query,
         normalized_query=expanded_query,
@@ -286,3 +286,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
         answer_scope="ALL_CHILDREN" if is_enumeration else None,
         keywords=[],
     )
+    from rag_luat_gt.retrieval.query_planner import build_query_plan
+
+    parsed.query_plan = build_query_plan(parsed)
+    return parsed

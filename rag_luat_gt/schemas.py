@@ -98,6 +98,16 @@ class ViolationFact(BaseModel):
     confidence: float = 1.0
 
 
+class QueryPlan(BaseModel):
+    strategy: list[str] = Field(default_factory=list)
+    use_structured_sanction: bool = False
+    expanded_query: str | None = None
+    subqueries: list[str] = Field(default_factory=list)
+    multi_queries: list[str] = Field(default_factory=list)
+    step_back_query: str | None = None
+    hyde_text: str | None = None
+
+
 class ParsedQuery(BaseModel):
     query: str
     normalized_query: str
@@ -129,3 +139,4 @@ class ParsedQuery(BaseModel):
     retrieval_mode: str = "FACTOID"
     answer_scope: str | None = None
     keywords: list[str] = Field(default_factory=list)
+    query_plan: QueryPlan | None = None

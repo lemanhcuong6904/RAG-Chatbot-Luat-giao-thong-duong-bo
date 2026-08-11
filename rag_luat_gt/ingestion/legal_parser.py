@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from rag_luat_gt.schemas import Chunk, Document
+from rag_luat_gt.rule_function import classify_rule_function
 from rag_luat_gt.text import normalize_text, strip_accents
 
 
@@ -253,6 +254,7 @@ def _make_chunks(
                 valid_from=valid_from,
                 valid_to=valid_to,
                 source_file=source_file,
+                rule_function=classify_rule_function(text, state.article_title),
                 coverage_status=document.coverage_status,
                 source_quality=document.source_quality,
                 ocr_quality=document.ocr_quality,

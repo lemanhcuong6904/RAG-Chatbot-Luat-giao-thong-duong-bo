@@ -24,7 +24,7 @@ from rag_luat_gt.ingestion.normalizer import normalize_document
 from rag_luat_gt.text import tokenize
 
 
-CHUNKING_VERSION = "legal-parser-v3-hierarchy"
+CHUNKING_VERSION = "legal-parser-v4-rule-function"
 
 
 def write_jsonl(path: Path, rows: list[dict]) -> None:

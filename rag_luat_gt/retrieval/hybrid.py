@@ -12,6 +12,7 @@ from rag_luat_gt.config import (
     RAG_RERANKER_TOP_N,
 )
 from rag_luat_gt.retrieval.bm25 import BM25Retriever
+from rag_luat_gt.rule_function import effective_rule_function
 from rag_luat_gt.schemas import Chunk, ParsedQuery
 from rag_luat_gt.text import normalize_text, strip_accents
 
@@ -123,11 +124,44 @@ class HybridRetriever:
         if not results:
             return []
 
-        reranked = self._apply_vehicle_preferences(parsed, results)
+        reranked = self._apply_rule_function_preferences(parsed, results)
+        reranked = self._apply_vehicle_preferences(parsed, reranked)
         reranked = self._apply_penalty_focus(parsed, reranked)
         reranked = self._filter_primary_penalty_scope(parsed, reranked)
         reranked = self._apply_amount_focus(parsed, reranked)
         return sorted(reranked, key=lambda item: item[1], reverse=True)
+
+    @staticmethod
+    def _apply_rule_function_preferences(
+        parsed: ParsedQuery,
+        results: list[tuple[Chunk, float]],
+    ) -> list[tuple[Chunk, float]]:
+        if not parsed.desired_rule_function:
+            return results
+
+        reranked: list[tuple[Chunk, float]] = []
+        for chunk, score in results:
+            rule_function = effective_rule_function(chunk.rule_function, chunk.text, chunk.article_title)
+            adjusted = score
+            base = max(abs(score), 1.0)
+
+            if rule_function == parsed.desired_rule_function:
+                adjusted += base * 2.5
+            elif parsed.desired_rule_function == "ELIGIBILITY" and rule_function == "SANCTION":
+                adjusted -= base * 2.0
+
+            if parsed.intent == "DRIVER_AGE_REQUIREMENT":
+                text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:900]}"))
+                if chunk.document_number == "36/2024/QH15":
+                    adjusted += base * 1.5
+                if chunk.article == "59" and any(term in text for term in ["tuoi", "suc khoe", "duoc cap giay phep"]):
+                    adjusted += base * 3.0
+                if any(term in text for term in ["phat tien", "xu phat", "vi pham"]):
+                    adjusted -= base * 1.5
+
+            reranked.append((chunk, adjusted))
+
+        return reranked
 
     @staticmethod
     def _apply_vehicle_preferences(

@@ -4,6 +4,17 @@ from rag_luat_gt.config import RAG_RERANKER_LOCAL_FILES_ONLY, RAG_RERANKER_MODEL
 from rag_luat_gt.schemas import Chunk, ParsedQuery
 
 
+def _reranker_query(parsed: ParsedQuery) -> str:
+    if parsed.intent == "DRIVER_AGE_REQUIREMENT":
+        return (
+            "[INTENT=DRIVER_AGE_REQUIREMENT] "
+            "Tìm quy định về điều kiện độ tuổi tối thiểu được phép/cấp giấy phép lái xe; "
+            "không ưu tiên quy định xử phạt người chưa đủ tuổi. "
+            + parsed.query
+        )
+    return parsed.query
+
+
 class BGEReranker:
     def __init__(self) -> None:
         from sentence_transformers import CrossEncoder
@@ -23,7 +34,8 @@ class BGEReranker:
         if not results:
             return []
         candidates = results[:top_n]
-        pairs = [(parsed.query, chunk.retrieval_text) for chunk, _score in candidates]
+        query = _reranker_query(parsed)
+        pairs = [(query, chunk.retrieval_text) for chunk, _score in candidates]
         scores = self.model.predict(pairs)
         rescored = [
             (chunk, float(score))

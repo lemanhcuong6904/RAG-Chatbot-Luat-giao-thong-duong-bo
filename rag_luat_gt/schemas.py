@@ -45,6 +45,7 @@ class Chunk(BaseModel):
     valid_from: str | None = None
     valid_to: str | None = None
     source_file: str
+    rule_function: str = "UNKNOWN"
     coverage_status: str = "UNKNOWN"
     source_quality: str = "UNKNOWN"
     ocr_quality: str | None = None
@@ -73,6 +74,7 @@ class Citation(BaseModel):
     sibling_group_id: str | None = None
     source_file: str
     text: str
+    rule_function: str = "UNKNOWN"
     coverage_status: str = "UNKNOWN"
     source_quality: str = "UNKNOWN"
     score: float | None = None
@@ -105,6 +107,7 @@ class ParsedQuery(BaseModel):
     vehicle_code: str | None = None
     behavior_code: str | None = None
     behavior_text_query: str | None = None
+    desired_rule_function: str | None = None
     conditions: list[str] = Field(default_factory=list)
     requested_facets: list[str] = Field(default_factory=list)
     event_date: str | None = None

@@ -58,3 +58,12 @@ def test_parse_query_maps_behavior_catalog_alias() -> None:
     assert parsed.intent == "PENALTY_LOOKUP"
     assert parsed.vehicle_code == "MOTORCYCLE"
     assert parsed.behavior_text_query == "làn đường"
+
+
+def test_parse_query_detects_driver_age_requirement() -> None:
+    parsed = parse_query(ChatRequest(query="Người từ bao nhiêu tuổi được phép điều khiển ô tô?"))
+
+    assert parsed.intent == "DRIVER_AGE_REQUIREMENT"
+    assert parsed.vehicle_code == "CAR"
+    assert parsed.desired_rule_function == "ELIGIBILITY"
+    assert "MINIMUM_AGE" in parsed.requested_facets

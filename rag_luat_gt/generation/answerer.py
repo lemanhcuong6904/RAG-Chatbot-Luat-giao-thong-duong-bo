@@ -3,6 +3,7 @@ from __future__ import annotations
 from rag_luat_gt.config import OPENAI_API_KEY, RAG_LLM_PROVIDER
 from rag_luat_gt.generation.openai_provider import generate_with_openai
 from rag_luat_gt.legal_notes import legal_notes
+from rag_luat_gt.rule_function import effective_rule_function
 from rag_luat_gt.schemas import ChatResponse, Citation, Chunk, ParsedQuery
 from rag_luat_gt.text import normalize_text, strip_accents, tokenize
 
@@ -35,6 +36,7 @@ def _citation_from_result(chunk: Chunk, score: float) -> Citation:
         sibling_group_id=chunk.sibling_group_id,
         source_file=chunk.source_file,
         text=chunk.text,
+        rule_function=effective_rule_function(chunk.rule_function, chunk.text, chunk.article_title),
         coverage_status=chunk.coverage_status,
         source_quality=chunk.source_quality,
         score=score,
@@ -70,6 +72,20 @@ def _evidence_gate(
     )
     if parsed.intent == "PENALTY_LOOKUP" and asks_amount and not has_amount_evidence:
         notes.append("Nguồn truy xuất chưa có mức tiền phạt cụ thể.")
+
+    if parsed.desired_rule_function == "ELIGIBILITY":
+        top_functions = [
+            effective_rule_function(chunk.rule_function, chunk.text, chunk.article_title)
+            for chunk, _score in results[:6]
+        ]
+        has_positive_basis = "ELIGIBILITY" in top_functions
+        only_sanction_basis = bool(top_functions) and all(rule_function == "SANCTION" for rule_function in top_functions)
+        if not has_positive_basis:
+            notes.append("Chưa tìm thấy quy định trực tiếp xác lập điều kiện được phép.")
+        if only_sanction_basis:
+            notes.append(
+                "Nguồn truy xuất chỉ chứa quy định xử phạt; quy định xử phạt không chứng minh hành vi được phép."
+            )
 
     asks_missing_appendix = any(term in query for term in ["phu luc", "bieu mau", "mau so", "bang"])
     weak_coverage = [

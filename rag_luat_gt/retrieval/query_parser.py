@@ -38,6 +38,23 @@ def _detect_intent(query: str) -> str:
         term in q_ascii for term in ["phat", "xu phat", "muc phat", "tru diem"]
     ):
         return "PENALTY_LOOKUP"
+    if any(
+        term in q_ascii
+        for term in [
+            "bao nhieu tuoi",
+            "may tuoi",
+            "do tuoi",
+            "tuoi toi thieu",
+            "tuoi toi da",
+            "du tuoi",
+            "tu bao nhieu tuoi",
+            "duoc phep lai",
+            "duoc phep dieu khien",
+            "duoc lai",
+            "duoc dieu khien",
+        ]
+    ):
+        return "DRIVER_AGE_REQUIREMENT"
     if _is_enumeration_query(query):
         return "ENUMERATION"
     if any(term in q for term in ["giấy phép lái xe", "gplx", "bằng lái", "sát hạch"]) or any(
@@ -118,6 +135,8 @@ def _detect_behavior_code(query: str) -> str | None:
 def _requested_facets(query: str) -> list[str]:
     q = strip_accents(normalize_text(query))
     facets: list[str] = []
+    if any(term in q for term in ["bao nhieu tuoi", "may tuoi", "do tuoi", "tuoi toi thieu", "du tuoi"]):
+        facets.append("MINIMUM_AGE")
     if any(term in q for term in ["phat bao nhieu", "muc phat", "phat tien", "bao nhieu tien", "dong"]):
         facets.append("FINE")
     if any(term in q for term in ["tru diem", "diem gplx", "tru may diem", "mat may diem"]):
@@ -125,6 +144,23 @@ def _requested_facets(query: str) -> list[str]:
     if any(term in q for term in ["tuoc", "giay phep lai xe", "gplx"]):
         facets.append("LICENSE_SUSPENSION")
     return facets
+
+
+def _desired_rule_function(intent: str) -> str | None:
+    if intent == "DRIVER_AGE_REQUIREMENT":
+        return "ELIGIBILITY"
+    if intent == "PENALTY_LOOKUP":
+        return "SANCTION"
+    return None
+
+
+def _intent_query_expansion(query: str, intent: str) -> str:
+    if intent != "DRIVER_AGE_REQUIREMENT":
+        return query
+    return (
+        f"{query} tuổi sức khỏe người điều khiển phương tiện được cấp giấy phép lái xe "
+        "hạng B hạng C1 đủ 18 tuổi điều kiện người lái xe"
+    )
 
 
 def _detect_temporal_intent(query: str, intent: str, has_request_event_date: bool) -> str:
@@ -176,7 +212,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
     query_reference_date = request.as_of_date or date.today()
     legal_effective_date = event_date or query_reference_date
     intent = _detect_intent(query)
-    expanded_query = expand_query(query)
+    expanded_query = expand_query(_intent_query_expansion(query, intent))
     behavior_contains = behavior_contains_from_query(query)
     temporal_intent = _detect_temporal_intent(query, intent, request.event_date is not None)
     return ParsedQuery(
@@ -196,6 +232,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
         vehicle_code=_detect_vehicle_code(query),
         behavior_code=_detect_behavior_code(query),
         behavior_text_query=behavior_contains,
+        desired_rule_function=_desired_rule_function(intent),
         requested_facets=_requested_facets(query),
         event_date=event_date.isoformat() if event_date else None,
         as_of_date=request.as_of_date.isoformat() if request.as_of_date else None,

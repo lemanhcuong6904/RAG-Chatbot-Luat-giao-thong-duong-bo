@@ -45,7 +45,7 @@ def recreate_collection(client: QdrantClient, collection_name: str = QDRANT_COLL
             distance=models.Distance.COSINE,
         ),
     )
-    for field in ["document_number", "article", "clause", "point", "coverage_status", "chunk_type"]:
+    for field in ["document_number", "article", "clause", "point", "coverage_status", "chunk_type", "rule_function"]:
         client.create_payload_index(
             collection_name=collection_name,
             field_name=field,

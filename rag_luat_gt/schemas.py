@@ -57,6 +57,7 @@ class Citation(BaseModel):
     clause: str | None = None
     point: str | None = None
     source_file: str
+    text: str
     score: float | None = None
 
 

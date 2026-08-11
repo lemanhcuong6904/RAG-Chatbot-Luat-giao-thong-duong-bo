@@ -30,6 +30,7 @@ def _citation_from_result(chunk: Chunk, score: float) -> Citation:
         clause=chunk.clause,
         point=chunk.point,
         source_file=chunk.source_file,
+        text=chunk.text,
         score=score,
     )
 

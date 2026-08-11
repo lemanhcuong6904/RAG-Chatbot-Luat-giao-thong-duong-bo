@@ -92,6 +92,9 @@ if query:
                     ]
                     ref = " - ".join(part for part in ref_parts if part)
                     with st.expander(f"{label} | {ref}"):
+                        st.markdown("**Nội dung nguồn**")
+                        st.markdown(citation.get("text") or "_Không có nội dung nguồn._")
+                        st.divider()
                         st.write(f"Source: {citation['source_file']}")
                         st.write(f"Chunk: {citation['chunk_id']}")
                         st.write(f"Score: {citation.get('score')}")

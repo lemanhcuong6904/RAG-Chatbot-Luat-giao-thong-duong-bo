@@ -76,11 +76,17 @@ def _explicit_date(query: str) -> date | None:
     dmy = DMY_DATE_RE.search(query)
     if dmy:
         day, month, year = map(int, dmy.groups())
-        return date(year, month, day)
+        try:
+            return date(year, month, day)
+        except ValueError:
+            return None
     ymd = YMD_DATE_RE.search(query)
     if ymd:
         year, month, day = map(int, ymd.groups())
-        return date(year, month, day)
+        try:
+            return date(year, month, day)
+        except ValueError:
+            return None
     return None
 
 
@@ -89,7 +95,10 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
     article = ARTICLE_RE.search(query) or ARTICLE_RE.search(strip_accents(query))
     clause = CLAUSE_RE.search(query) or CLAUSE_RE.search(strip_accents(query))
     point = POINT_RE.search(query) or POINT_RE.search(strip_accents(query))
-    effective_date = _explicit_date(query) or request.event_date or request.as_of_date or date.today()
+    explicit_event_date = _explicit_date(query)
+    event_date = explicit_event_date or request.event_date
+    query_reference_date = request.as_of_date or date.today()
+    legal_effective_date = event_date or query_reference_date
     return ParsedQuery(
         query=query,
         normalized_query=expand_query(query),
@@ -99,7 +108,9 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
         clause=clause.group(1) if clause else None,
         point=point.group(1).lower() if point else None,
         vehicle_type=_detect_vehicle(query),
-        event_date=effective_date.isoformat(),
+        event_date=event_date.isoformat() if event_date else None,
         as_of_date=request.as_of_date.isoformat() if request.as_of_date else None,
+        legal_effective_date=legal_effective_date.isoformat(),
+        query_reference_date=query_reference_date.isoformat(),
         keywords=[],
     )

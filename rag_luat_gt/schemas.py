@@ -18,6 +18,8 @@ class Document(BaseModel):
     source_markdown: str
     source_original: str | list[str] | None = None
     coverage_status: str = "UNKNOWN"
+    source_quality: str = "UNKNOWN"
+    ocr_quality: str | None = None
     keywords: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -37,6 +39,9 @@ class Chunk(BaseModel):
     valid_from: str | None = None
     valid_to: str | None = None
     source_file: str
+    coverage_status: str = "UNKNOWN"
+    source_quality: str = "UNKNOWN"
+    ocr_quality: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -58,6 +63,8 @@ class Citation(BaseModel):
     point: str | None = None
     source_file: str
     text: str
+    coverage_status: str = "UNKNOWN"
+    source_quality: str = "UNKNOWN"
     score: float | None = None
 
 
@@ -80,4 +87,6 @@ class ParsedQuery(BaseModel):
     vehicle_type: str | None = None
     event_date: str | None = None
     as_of_date: str | None = None
+    legal_effective_date: str | None = None
+    query_reference_date: str | None = None
     keywords: list[str] = Field(default_factory=list)

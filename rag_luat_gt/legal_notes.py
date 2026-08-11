@@ -21,7 +21,7 @@ def _date_or_none(value: str | None) -> date | None:
 
 
 def amendment_notes(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> list[str]:
-    event_date = _date_or_none(parsed.event_date)
+    event_date = _date_or_none(parsed.legal_effective_date or parsed.event_date)
     if not event_date or event_date < ND_238_EFFECTIVE_FROM:
         return []
 

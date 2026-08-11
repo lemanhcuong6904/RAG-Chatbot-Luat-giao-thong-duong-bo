@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass, field
 
 from rag_luat_gt.schemas import Chunk, Document
+from rag_luat_gt.text import normalize_text, strip_accents
 
 
 CHAPTER_RE = re.compile(r"^(?:#{1,6}\s*)?Chương\s+([IVXLCDM\d]+)\b\.?\s*(.*)", re.IGNORECASE)
@@ -12,6 +13,7 @@ ARTICLE_RE = re.compile(r"^(?:#{1,6}\s*)?Điều\s+(\d+[A-Za-z]?)\.\s*(.*)", re.
 CLAUSE_RE = re.compile(r"^\s*(\d+)\.\s+(.+)")
 POINT_RE = re.compile(r"^\s*([a-zđ])\)\s+(.+)", re.IGNORECASE)
 HEADING_PREFIX_RE = re.compile(r"^#{1,6}\s*")
+ISO_DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
 
 MAX_CHUNK_CHARS = 2200
 CHUNK_OVERLAP_LINES = 2
@@ -77,6 +79,42 @@ def _retrieval_text(document: Document, heading: str, text: str) -> str:
     )
 
 
+def _matches_ref(note: str, state: _State) -> bool:
+    normalized = strip_accents(normalize_text(note))
+    if state.article and f"dieu {state.article}" not in normalized:
+        return False
+    if state.clause and f"khoan {state.clause}" not in normalized:
+        return False
+    if state.point and f"diem {state.point}" not in normalized:
+        return False
+    return bool(state.article or state.clause or state.point)
+
+
+def _provision_effective_dates(document: Document, state: _State) -> tuple[str | None, str | None, str | None]:
+    valid_from = document.effective_from
+    valid_to = document.effective_to
+    matched_note = None
+
+    notes = document.metadata.get("ghi_chu_hieu_luc") or []
+    if isinstance(notes, str):
+        notes = [notes]
+
+    for note in notes:
+        if not _matches_ref(str(note), state):
+            continue
+        dates = ISO_DATE_RE.findall(str(note))
+        if not dates:
+            continue
+        normalized = strip_accents(normalize_text(str(note)))
+        matched_note = str(note)
+        if any(term in normalized for term in ["het hieu luc", "den het ngay", "truoc ngay"]):
+            valid_to = dates[-1]
+        else:
+            valid_from = dates[-1]
+
+    return valid_from, valid_to, matched_note
+
+
 def _split_long_line(line: str) -> list[str]:
     parts: list[str] = []
     start = 0
@@ -140,6 +178,7 @@ def _make_chunks(
     heading_path = _heading_path(state)
     heading = "\n".join(heading_path)
     base_chunk_id = _base_chunk_id(document, state, counter)
+    valid_from, valid_to, provision_note = _provision_effective_dates(document, state)
     chunks: list[Chunk] = []
 
     for part_index, text in enumerate(text_parts, start=1):
@@ -160,14 +199,18 @@ def _make_chunks(
                 heading_path=heading_path,
                 text=text,
                 retrieval_text=_retrieval_text(document, heading, text),
-                valid_from=document.effective_from,
-                valid_to=document.effective_to,
+                valid_from=valid_from,
+                valid_to=valid_to,
                 source_file=source_file,
+                coverage_status=document.coverage_status,
+                source_quality=document.source_quality,
+                ocr_quality=document.ocr_quality,
                 metadata={
                     "chapter": state.chapter,
                     "section": state.section,
                     "split_part": part_index if len(text_parts) > 1 else None,
                     "split_total": len(text_parts) if len(text_parts) > 1 else None,
+                    "provision_effective_note": provision_note,
                 },
             )
         )

@@ -16,6 +16,18 @@ def test_parse_query_detects_license_point_balance() -> None:
     assert parsed.requested_facets == ["LICENSE_POINT_TOTAL"]
 
 
+def test_penalty_license_points_are_not_parsed_as_legal_point_ref() -> None:
+    parsed = parse_query(
+        ChatRequest(
+            query="Người điều khiển xe máy vượt đèn đỏ bị phạt bao nhiêu tiền và bị trừ bao nhiêu điểm giấy phép lái xe?"
+        )
+    )
+
+    assert parsed.intent == "PENALTY_LOOKUP"
+    assert parsed.point is None
+    assert parsed.requested_facets == ["FINE", "LICENSE_POINTS"]
+
+
 def test_license_point_balance_retrieves_article_58_clause_1_first() -> None:
     root = Path(".").resolve()
     build_index(root / "data" / "markdown", root)

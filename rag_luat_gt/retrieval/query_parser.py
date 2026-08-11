@@ -139,13 +139,21 @@ def _detect_behavior_code(query: str) -> str | None:
 def _requested_facets(query: str) -> list[str]:
     q = strip_accents(normalize_text(query))
     facets: list[str] = []
-    if "giay phep lai xe" in q and any(term in q for term in ["bao nhieu diem", "co bao nhieu diem", "may diem", "so diem"]):
+    asks_deduction = any(
+        term in q
+        for term in ["tru diem", "bi tru diem", "tru bao nhieu diem", "bi tru bao nhieu diem", "tru may diem"]
+    )
+    if (
+        not asks_deduction
+        and "giay phep lai xe" in q
+        and any(term in q for term in ["bao nhieu diem", "co bao nhieu diem", "may diem", "so diem"])
+    ):
         facets.append("LICENSE_POINT_TOTAL")
     if any(term in q for term in ["bao nhieu tuoi", "may tuoi", "do tuoi", "tuoi toi thieu", "du tuoi"]):
         facets.append("MINIMUM_AGE")
     if any(term in q for term in ["phat bao nhieu", "muc phat", "phat tien", "bao nhieu tien", "dong"]):
         facets.append("FINE")
-    if any(term in q for term in ["tru diem", "diem gplx", "tru may diem", "mat may diem"]):
+    if asks_deduction or any(term in q for term in ["diem gplx", "mat may diem"]):
         facets.append("LICENSE_POINTS")
     if any(term in q for term in ["tuoc", "bi tuoc", "tuoc gplx", "tuoc giay phep lai xe"]):
         facets.append("LICENSE_SUSPENSION")
@@ -217,6 +225,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
     article = ARTICLE_RE.search(query) or ARTICLE_RE.search(strip_accents(query))
     clause = CLAUSE_RE.search(query) or CLAUSE_RE.search(strip_accents(query))
     point = POINT_RE.search(query) or POINT_RE.search(strip_accents(query))
+    point_value = point.group(1).lower() if point and (article or clause) else None
     is_enumeration = _is_enumeration_query(query)
     explicit_event_date = _explicit_date(query)
     event_date = explicit_event_date or request.event_date
@@ -238,7 +247,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
         document_number=_document_number(query),
         article=article.group(1) if article else None,
         clause=clause.group(1) if clause else None,
-        point=point.group(1).lower() if point else None,
+        point=point_value,
         vehicle_type=_detect_vehicle(query),
         vehicle_code=_detect_vehicle_code(query),
         behavior_code=_detect_behavior_code(query),

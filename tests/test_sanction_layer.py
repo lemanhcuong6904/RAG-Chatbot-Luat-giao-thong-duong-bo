@@ -37,6 +37,22 @@ def test_service_uses_structured_sanction_layer_for_penalty_query() -> None:
     assert response.citations[0].rule_id == "ND168_A07_K7_Pc_UNSPECIFIED_BASE"
 
 
+def test_penalty_query_with_license_points_phrase_does_not_filter_by_point_g() -> None:
+    response = RAGService().answer(
+        ChatRequest(
+            query="Người điều khiển xe máy vượt đèn đỏ bị phạt bao nhiêu tiền và bị trừ bao nhiêu điểm giấy phép lái xe?",
+            debug=True,
+        )
+    )
+
+    assert response.answerable
+    assert "4.000.000 đồng" in response.answer
+    assert "6.000.000 đồng" in response.answer
+    assert "trừ 4 điểm" in response.answer
+    assert response.debug
+    assert response.debug["parsed_query"]["point"] is None
+
+
 def test_penalty_query_without_vehicle_falls_back_to_rag() -> None:
     response = RAGService().answer(ChatRequest(query="Vượt đèn đỏ bị phạt bao nhiêu?", debug=True))
 

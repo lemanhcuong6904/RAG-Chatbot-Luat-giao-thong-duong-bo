@@ -308,7 +308,9 @@ class HybridRetriever:
             return results
 
         query = strip_accents(normalize_text(parsed.query))
-        focus_terms = HybridRetriever._behavior_focus_terms(query)
+        behavior_terms = HybridRetriever._behavior_focus_terms(query)
+        condition_terms = HybridRetriever._condition_focus_terms(query)
+        focus_terms = [*behavior_terms, *condition_terms]
         if not focus_terms:
             return results
 
@@ -317,8 +319,15 @@ class HybridRetriever:
             text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:1200]}"))
             adjusted = score
             base = max(abs(score), 1.0)
-            if any(term in text for term in focus_terms):
+            behavior_matched = any(term in text for term in behavior_terms)
+            condition_matched = any(term in text for term in condition_terms)
+            any_matched = behavior_matched or condition_matched
+            if behavior_terms and condition_terms and behavior_matched and condition_matched:
+                adjusted += base * (7.0 if chunk.chunk_type == "POINT" else 2.2)
+            elif any_matched:
                 adjusted += base * (3.0 if chunk.chunk_type == "POINT" else 1.8)
+                if condition_terms and behavior_matched and not condition_matched:
+                    adjusted -= base * (2.0 if chunk.chunk_type == "POINT" else 0.75)
             elif chunk.chunk_type == "CLAUSE" and any(term in query for term in ["bao nhieu", "muc phat"]):
                 adjusted -= base * 0.25
             reranked.append((chunk, adjusted))
@@ -331,6 +340,23 @@ class HybridRetriever:
             (["mu bao hiem", "khong doi mu"], ["mu bao hiem"]),
             (["giay phep lai xe", "gplx", "bang lai"], ["giay phep lai xe", "gplx", "bang lai"]),
             (["den do", "den tin hieu"], ["den tin hieu", "khong chap hanh hieu lenh"]),
+            (["quay dau", "quay dau xe"], ["quay dau", "quay dau xe"]),
+            (["lui xe"], ["lui xe"]),
+        ]
+        terms: list[str] = []
+        for triggers, expansions in groups:
+            if any(trigger in query_ascii for trigger in triggers):
+                terms.extend(expansions)
+        return terms
+
+    @staticmethod
+    def _condition_focus_terms(query_ascii: str) -> list[str]:
+        groups = [
+            (["trong ham", "duong ham", "ham duong bo"], ["trong ham", "duong ham", "ham duong bo"]),
+            (["cao toc", "duong cao toc"], ["cao toc", "duong cao toc"]),
+            (["via he", "le duong", "long duong"], ["via he", "le duong", "long duong"]),
+            (["cau", "gam cau", "dau cau"], ["cau", "gam cau", "dau cau"]),
+            (["duong sat", "giao nhau voi duong sat"], ["duong sat", "giao nhau voi duong sat"]),
         ]
         terms: list[str] = []
         for triggers, expansions in groups:
@@ -389,7 +415,10 @@ class HybridRetriever:
             return results
 
         query = strip_accents(normalize_text(parsed.query))
-        focus_terms = HybridRetriever._behavior_focus_terms(query)
+        focus_terms = [
+            *HybridRetriever._behavior_focus_terms(query),
+            *HybridRetriever._condition_focus_terms(query),
+        ]
         if not focus_terms:
             return results
 
@@ -452,7 +481,11 @@ class HybridRetriever:
             for chunk in self.bm25.chunks
         }
         by_id = {chunk.chunk_id: chunk for chunk in self.bm25.chunks}
-        focus_terms = self._behavior_focus_terms(strip_accents(normalize_text(parsed.query)))
+        query_ascii = strip_accents(normalize_text(parsed.query))
+        focus_terms = [
+            *self._behavior_focus_terms(query_ascii),
+            *self._condition_focus_terms(query_ascii),
+        ]
 
         expanded: list[tuple[Chunk, float]] = []
         seen: set[str] = set()

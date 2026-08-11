@@ -91,8 +91,47 @@ def missing_amount_notes(parsed: ParsedQuery, results: list[tuple[Chunk, float]]
     return []
 
 
+def vehicle_scope_notes(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> list[str]:
+    if parsed.intent != "PENALTY_LOOKUP" or parsed.vehicle_code:
+        return []
+
+    question = strip_accents(normalize_text(parsed.query))
+    if not any(term in question for term in ["xe", "phuong tien", "nguoi dieu khien"]):
+        return []
+
+    penalty_articles = {
+        chunk.article
+        for chunk, _score in results[:8]
+        if chunk.document_number == "168/2024/NĐ-CP"
+        and chunk.article in {"6", "7", "8", "9"}
+        and effective_penalty_source(chunk)
+    }
+    if len(penalty_articles) < 2:
+        return []
+
+    labels = {
+        "6": "ô tô và xe tương tự ô tô",
+        "7": "mô tô, xe gắn máy và xe tương tự",
+        "8": "xe máy chuyên dùng",
+        "9": "xe thô sơ",
+    }
+    scopes = ", ".join(labels[article] for article in sorted(penalty_articles, key=int))
+    return [
+        (
+            "Câu hỏi chưa nêu rõ loại phương tiện. Các nguồn truy xuất đang thuộc nhiều phạm vi khác nhau "
+            f"({scopes}); không được chọn một mức phạt duy nhất nếu không có nguồn hoặc câu hỏi xác định đúng loại xe."
+        )
+    ]
+
+
+def effective_penalty_source(chunk: Chunk) -> bool:
+    text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:900]}"))
+    return any(term in text for term in ["phat tien", "xu phat", "vi pham", "quay dau", "lui xe"])
+
+
 def legal_notes(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> list[str]:
     return [
         *amendment_notes(parsed, results),
         *missing_amount_notes(parsed, results),
+        *vehicle_scope_notes(parsed, results),
     ]

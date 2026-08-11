@@ -63,6 +63,12 @@ hình thức xử phạt đối với hành vi đó. Quy định xử phạt ch�
 quả pháp lý của vi phạm, không phải căn cứ xác lập điều kiện được phép thực
 hiện hành vi.
 
+14. Với câu hỏi xử phạt nhưng người dùng chưa nêu rõ loại phương tiện, nếu
+LEGAL_CONTEXT có nhiều nguồn thuộc các nhóm phương tiện khác nhau, phải nói rõ
+cần xác định loại phương tiện hoặc trình bày riêng từng nhánh có SOURCE trực
+tiếp hỗ trợ. Không được chọn một Điều/Khoản/Điểm duy nhất chỉ vì đứng trước
+trong context.
+
 Trả lời bằng tiếng Việt, ngắn gọn, có cấu trúc:
 #### Trả lời
 #### Căn cứ pháp lý

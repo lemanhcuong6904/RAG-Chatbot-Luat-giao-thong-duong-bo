@@ -109,6 +109,9 @@ def _build_extractive_answer(
     citations: list[Citation],
     legal_notes: list[str],
 ) -> str:
+    if parsed.intent == "PENALTY_LOOKUP" and not parsed.vehicle_code and _has_vehicle_scope_note(legal_notes):
+        return _build_vehicle_scope_answer(parsed, citations, legal_notes)
+
     evidence_limit = 30 if parsed.retrieval_mode == "EXHAUSTIVE" else 3
     refs_limit = 30 if parsed.retrieval_mode == "EXHAUSTIVE" else 5
     evidence = "\n\n".join(
@@ -135,6 +138,104 @@ def _build_extractive_answer(
         "### Lưu ý\n"
         "Với câu hỏi về mức phạt hoặc quy định có văn bản sửa đổi, cần kiểm tra kỹ các nguồn được dẫn."
     )
+
+
+def _has_vehicle_scope_note(notes: list[str]) -> bool:
+    return any("chưa nêu rõ loại phương tiện" in note for note in notes)
+
+
+def _build_vehicle_scope_answer(
+    parsed: ParsedQuery,
+    citations: list[Citation],
+    notes: list[str],
+) -> str:
+    grouped: dict[str, list[Citation]] = {}
+    for citation in citations:
+        if citation.document_number != "168/2024/NĐ-CP" or citation.article not in {"6", "7", "8", "9"}:
+            continue
+        grouped.setdefault(citation.article or "", []).append(citation)
+
+    labels = {
+        "6": "ô tô và xe tương tự ô tô",
+        "7": "mô tô, xe gắn máy và xe tương tự",
+        "8": "xe máy chuyên dùng",
+        "9": "xe thô sơ",
+    }
+    lines: list[str] = []
+    refs: list[str] = []
+    ref_index = 1
+    for article in sorted(grouped, key=int):
+        clause = next((item for item in grouped[article] if item.chunk_type == "CLAUSE" and item.clause), None)
+        points = [
+            item
+            for item in grouped[article]
+            if item.chunk_type == "POINT" and _citation_matches_query_focus(parsed, item)
+        ]
+        if not clause or not points:
+            continue
+        point_refs = ", ".join(f"Điểm {point.point}" for point in points if point.point)
+        lines.append(
+            f"- Với {labels.get(article, 'nhóm phương tiện liên quan')}: {_legal_ref(clause)}"
+            f"{' (' + point_refs + ')' if point_refs else ''}: {clause.text}"
+        )
+        refs.append(f"{ref_index}. {clause.document_number}: {_legal_ref(clause)}")
+        ref_index += 1
+        for point in points:
+            refs.append(f"{ref_index}. {point.document_number}: {_legal_ref(point)}")
+            ref_index += 1
+
+    note_text = "\n".join(f"- {note}" for note in notes)
+    date_line = parsed.legal_effective_date or parsed.event_date or parsed.as_of_date or "ngày hiện tại"
+    return (
+        "### Trả lời\n"
+        "Câu hỏi chưa nêu rõ loại phương tiện, nên không thể chốt một mức phạt duy nhất. "
+        "Các nhánh căn cứ trực tiếp trong corpus là:\n\n"
+        f"{chr(10).join(lines) if lines else 'Chưa đủ cặp nguồn khoản/điểm để trình bày từng nhánh.'}\n\n"
+        "### Căn cứ pháp lý\n"
+        f"{chr(10).join(refs[:10]) if refs else 'Không có nguồn đủ mạnh.'}\n\n"
+        "### Thời điểm áp dụng\n"
+        f"Đang xét theo ngày hiệu lực pháp lý {date_line}.\n\n"
+        "### Lưu ý\n"
+        f"{note_text}"
+    )
+
+
+def _citation_matches_query_focus(parsed: ParsedQuery, citation: Citation) -> bool:
+    query = strip_accents(normalize_text(parsed.query))
+    text = strip_accents(normalize_text(citation.text))
+
+    behavior_groups = [
+        (["quay dau", "quay dau xe"], ["quay dau"]),
+        (["lui xe"], ["lui xe"]),
+        (["dien thoai", "thiet bi dien tu"], ["dien thoai", "thiet bi dien tu"]),
+        (["mu bao hiem", "khong doi mu"], ["mu bao hiem"]),
+        (["den do", "den tin hieu"], ["den tin hieu", "khong chap hanh hieu lenh"]),
+    ]
+    condition_groups = [
+        (["trong ham", "duong ham", "ham duong bo"], ["trong ham", "duong ham", "ham duong bo"]),
+        (["cao toc", "duong cao toc"], ["cao toc", "duong cao toc"]),
+        (["via he", "le duong", "long duong"], ["via he", "le duong", "long duong"]),
+        (["duong sat", "giao nhau voi duong sat"], ["duong sat", "giao nhau voi duong sat"]),
+    ]
+
+    behavior_terms = [
+        term
+        for triggers, expansions in behavior_groups
+        if any(trigger in query for trigger in triggers)
+        for term in expansions
+    ]
+    condition_terms = [
+        term
+        for triggers, expansions in condition_groups
+        if any(trigger in query for trigger in triggers)
+        for term in expansions
+    ]
+
+    if behavior_terms and not any(term in text for term in behavior_terms):
+        return False
+    if condition_terms and not any(term in text for term in condition_terms):
+        return False
+    return bool(behavior_terms or condition_terms)
 
 
 def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> ChatResponse:

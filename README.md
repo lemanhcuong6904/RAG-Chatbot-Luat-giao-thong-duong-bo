@@ -30,6 +30,12 @@ python -m rag_luat_gt.ingestion.build_index
 python -m rag_luat_gt.ingestion.build_dense_index
 ```
 
+Hoặc dùng một lệnh build thống nhất. Lệnh này build BM25 trước, sau đó build dense nếu `RAG_DENSE_ENABLED=true`, rồi ghi trạng thái runtime vào manifest:
+
+```powershell
+python scripts\build_all_indexes.py
+```
+
 Nếu muốn bật neural reranker:
 
 ```text

@@ -30,6 +30,14 @@ def health() -> dict:
     return {
         "status": "ok",
         "index": manifest,
+        "pipeline": {
+            "bm25_active": service.retriever.bm25.bm25 is not None,
+            "dense_active": service.retriever.dense is not None,
+            "dense_error": service.retriever.dense_error,
+            "reranker_active": service.retriever.reranker is not None,
+            "reranker_error": service.retriever.reranker_error,
+            "warmup_error": service.warmup_error,
+        },
         "sanctions": {
             "enabled": SANCTION_ENABLED,
             "db_path": str(SANCTION_DB_PATH),

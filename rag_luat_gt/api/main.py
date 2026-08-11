@@ -12,6 +12,7 @@ from rag_luat_gt.service import RAGService
 
 app = FastAPI(title="RAG Chatbot Luat Giao Thong", version="0.1.0")
 service = RAGService()
+service.warm_up()
 
 
 def _load_jsonl(path: Path) -> list[dict]:
@@ -60,4 +61,3 @@ def retrieval_search(request: ChatRequest) -> dict:
     request.debug = True
     response = service.answer(request)
     return response.model_dump()
-

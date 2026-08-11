@@ -10,12 +10,13 @@ from rag_luat_gt.service import RAGService
 
 
 API_BASE = "http://127.0.0.1:8010"
-DEFAULT_MODE = "Direct"
 
 
-@st.cache_resource(show_spinner="Đang tải RAG service...")
+@st.cache_resource(show_spinner="Đang tải RAG service và warm-up model...")
 def get_service() -> RAGService:
-    return RAGService()
+    service = RAGService()
+    service.warm_up()
+    return service
 
 
 def answer_direct(payload: dict) -> dict:
@@ -47,6 +48,11 @@ with st.sidebar:
             st.json(requests.get(f"{api_base}/api/v1/health", timeout=10).json())
         except requests.RequestException as exc:
             st.error(str(exc))
+
+if mode == "Direct":
+    service = get_service()
+    if service.warmup_error:
+        st.sidebar.warning(f"Không thể warm-up model: {service.warmup_error}")
 
 st.title("Chatbot hỏi đáp Luật giao thông đường bộ")
 
@@ -83,7 +89,7 @@ if query:
                     st.warning(warning)
             if data.get("citations"):
                 st.subheader("Nguồn")
-                for citation in data["citations"][:6]:
+                for citation in data["citations"][:12]:
                     label = citation.get("document_number") or citation.get("document_title")
                     ref_parts = [
                         f"Điều {citation['article']}" if citation.get("article") else None,
@@ -91,12 +97,15 @@ if query:
                         f"Điểm {citation['point']}" if citation.get("point") else None,
                     ]
                     ref = " - ".join(part for part in ref_parts if part)
-                    with st.expander(f"{label} | {ref}"):
+                    chunk_type = citation.get("chunk_type", "SPAN")
+                    with st.expander(f"{label} | {ref} | {chunk_type}"):
                         st.markdown("**Nội dung nguồn**")
                         st.markdown(citation.get("text") or "_Không có nội dung nguồn._")
                         st.divider()
                         st.write(f"Source: {citation['source_file']}")
                         st.write(f"Chunk: {citation['chunk_id']}")
+                        st.write(f"Parent: {citation.get('parent_id')}")
+                        st.write(f"Sibling group: {citation.get('sibling_group_id')}")
                         st.write(f"Coverage: {citation.get('coverage_status', 'UNKNOWN')}")
                         st.write(f"Source quality: {citation.get('source_quality', 'UNKNOWN')}")
                         st.write(f"Score: {citation.get('score')}")

@@ -20,19 +20,29 @@ class RAGService:
         self.retriever = HybridRetriever()
         self.sanctions = SanctionRepository()
         self.warmup_error: str | None = None
+        self.warmup_status: str = "NOT_STARTED"
 
     def warm_up(self) -> None:
         dense = getattr(self.retriever, "dense", None)
         if not dense:
+            self.warmup_status = "SKIPPED_DENSE_INACTIVE"
+            reason = self.retriever.dense_error or "dense index is not ready or dense retrieval is disabled"
+            print(f"[RAG] Warm-up skipped: {reason}", flush=True)
             return
         try:
+            self.warmup_status = "LOADING_DENSE_MODEL"
+            print("[RAG] Loading dense retrieval model for warm-up...", flush=True)
             if dense.embedder is None:
                 from rag_luat_gt.embedding.bge_m3 import BGEM3Embedder
 
                 dense.embedder = BGEM3Embedder()
             dense.embedder.encode_query("khởi động mô hình truy xuất")
+            self.warmup_status = "READY"
+            print("[RAG] Dense retrieval model warm-up complete.", flush=True)
         except Exception as exc:
             self.warmup_error = str(exc)
+            self.warmup_status = "ERROR"
+            print(f"[RAG] Dense retrieval model warm-up failed: {exc}", flush=True)
 
     def answer(self, request: ChatRequest) -> ChatResponse:
         parsed = parse_query(request)

@@ -52,6 +52,10 @@ with st.sidebar:
 
 if mode == "Direct":
     service = get_service()
+    st.sidebar.caption(f"Warm-up: {service.warmup_status}")
+    st.sidebar.caption(f"Dense: {'active' if service.retriever.dense is not None else 'inactive'}")
+    if service.retriever.dense_error:
+        st.sidebar.warning(f"Dense inactive: {service.retriever.dense_error}")
     if service.warmup_error:
         st.sidebar.warning(f"Không thể warm-up model: {service.warmup_error}")
 

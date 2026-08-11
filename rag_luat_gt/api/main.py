@@ -36,6 +36,7 @@ def health() -> dict:
             "dense_error": service.retriever.dense_error,
             "reranker_active": service.retriever.reranker is not None,
             "reranker_error": service.retriever.reranker_error,
+            "warmup_status": service.warmup_status,
             "warmup_error": service.warmup_error,
         },
         "sanctions": {

@@ -21,6 +21,16 @@ python -m rag_luat_gt.ingestion.build_index
 python scripts\run_api.py
 ```
 
+Nếu muốn bật dense retrieval BGE-M3 + Qdrant local:
+
+```powershell
+conda activate nlp
+python -m rag_luat_gt.ingestion.build_index
+python -m rag_luat_gt.ingestion.build_dense_index
+```
+
+`build_index` ghi `corpus_hash/chunking_version` vào manifest và tự xóa ready marker của Qdrant để tránh dùng dense index cũ với BM25/chunk mới. Sau khi build dense thành công, hệ thống chỉ bật dense retrieval khi ready marker khớp manifest hiện tại.
+
 Mở một terminal khác:
 
 ```powershell
@@ -58,13 +68,17 @@ Ví dụ:
 - parser cấu trúc Chương/Mục/Điều/Khoản/Điểm;
 - legal-aware chunking;
 - BM25 retrieval với tokenizer giữ số hiệu văn bản;
-- exact lookup theo văn bản/Điều/Khoản/Điểm;
-- lọc ngày hiệu lực cơ bản theo metadata;
+- exact filter theo văn bản/Điều/Khoản/Điểm, sau đó vẫn rank theo nội dung truy vấn;
+- lọc ngày hiệu lực cơ bản theo metadata văn bản/chunk/provision note;
+- BGE-M3 dense retrieval với Qdrant local/từ xa;
+- stale dense-index guard bằng `corpus_hash` và `chunking_version`;
+- coverage-aware metadata (`COMPLETE`, `PARTIAL`, `MISSING_APPENDIX`, `MISSING_TABLE`, `MISSING_PAGES`, `UNKNOWN`);
+- evidence gate cơ bản để abstain khi nguồn yếu hoặc corpus thiếu phụ lục/bảng;
 - FastAPI và Streamlit UI.
 
 Chưa có trong MVP:
 
-- dense embedding BGE-M3;
-- Qdrant;
 - reranker;
-- amendment resolver cấp provision.
+- legal version graph/amendment resolver đầy đủ cấp provision;
+- claim-level citation verifier;
+- golden evaluation set.

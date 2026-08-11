@@ -56,11 +56,11 @@ def missing_amount_notes(parsed: ParsedQuery, results: list[tuple[Chunk, float]]
     asks_amount = any(
         term in question
         for term in [
-            "bao nhieu",
             "muc thu",
             "muc phi",
             "le phi",
             "phi sat hach",
+            "bao nhieu tien",
             "dong",
         ]
     )

@@ -38,6 +38,10 @@ def _detect_intent(query: str) -> str:
         term in q_ascii for term in ["phat", "xu phat", "muc phat", "tru diem"]
     ):
         return "PENALTY_LOOKUP"
+    if "giay phep lai xe" in q_ascii and any(
+        term in q_ascii for term in ["bao nhieu diem", "co bao nhieu diem", "may diem", "so diem"]
+    ):
+        return "LICENSE_POINT_BALANCE"
     if any(
         term in q_ascii
         for term in [
@@ -135,13 +139,15 @@ def _detect_behavior_code(query: str) -> str | None:
 def _requested_facets(query: str) -> list[str]:
     q = strip_accents(normalize_text(query))
     facets: list[str] = []
+    if "giay phep lai xe" in q and any(term in q for term in ["bao nhieu diem", "co bao nhieu diem", "may diem", "so diem"]):
+        facets.append("LICENSE_POINT_TOTAL")
     if any(term in q for term in ["bao nhieu tuoi", "may tuoi", "do tuoi", "tuoi toi thieu", "du tuoi"]):
         facets.append("MINIMUM_AGE")
     if any(term in q for term in ["phat bao nhieu", "muc phat", "phat tien", "bao nhieu tien", "dong"]):
         facets.append("FINE")
     if any(term in q for term in ["tru diem", "diem gplx", "tru may diem", "mat may diem"]):
         facets.append("LICENSE_POINTS")
-    if any(term in q for term in ["tuoc", "giay phep lai xe", "gplx"]):
+    if any(term in q for term in ["tuoc", "bi tuoc", "tuoc gplx", "tuoc giay phep lai xe"]):
         facets.append("LICENSE_SUSPENSION")
     return facets
 
@@ -155,6 +161,11 @@ def _desired_rule_function(intent: str) -> str | None:
 
 
 def _intent_query_expansion(query: str, intent: str) -> str:
+    if intent == "LICENSE_POINT_BALANCE":
+        return (
+            f"{query} điểm của giấy phép lái xe bao gồm 12 điểm phục hồi đủ 12 điểm "
+            "Điều 58 Luật Trật tự an toàn giao thông đường bộ"
+        )
     if intent != "DRIVER_AGE_REQUIREMENT":
         return query
     return (

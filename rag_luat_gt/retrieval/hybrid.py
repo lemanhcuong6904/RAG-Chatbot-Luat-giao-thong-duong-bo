@@ -125,6 +125,7 @@ class HybridRetriever:
             return []
 
         reranked = self._apply_rule_function_preferences(parsed, results)
+        reranked = self._apply_license_point_preferences(parsed, reranked)
         reranked = self._apply_vehicle_preferences(parsed, reranked)
         reranked = self._apply_penalty_focus(parsed, reranked)
         reranked = self._filter_primary_penalty_scope(parsed, reranked)
@@ -159,6 +160,39 @@ class HybridRetriever:
                 if any(term in text for term in ["phat tien", "xu phat", "vi pham"]):
                     adjusted -= base * 1.5
 
+            reranked.append((chunk, adjusted))
+
+        return reranked
+
+    @staticmethod
+    def _apply_license_point_preferences(
+        parsed: ParsedQuery,
+        results: list[tuple[Chunk, float]],
+    ) -> list[tuple[Chunk, float]]:
+        if parsed.intent != "LICENSE_POINT_BALANCE":
+            return results
+
+        reranked: list[tuple[Chunk, float]] = []
+        for chunk, score in results:
+            text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:900]}"))
+            adjusted = score
+            base = max(abs(score), 1.0)
+            if chunk.document_number == "36/2024/QH15":
+                adjusted += base * 1.5
+            if chunk.article == "58":
+                adjusted += base * 3.0
+                if chunk.chunk_type == "ARTICLE":
+                    adjusted -= base * 1.5
+                if chunk.clause == "1":
+                    adjusted += base * 4.0
+            if "bao gom 12 diem" in text:
+                adjusted += base * 5.0
+            elif "diem cua giay phep lai xe" in text:
+                adjusted += base * 3.0
+            if "phuc hoi du 12 diem" in text and "bao gom 12 diem" not in text:
+                adjusted -= base * 0.8
+            if any(term in text for term in ["phi", "le phi", "sat hach", "dang ky xe", "bien so"]):
+                adjusted -= base * 1.5
             reranked.append((chunk, adjusted))
 
         return reranked

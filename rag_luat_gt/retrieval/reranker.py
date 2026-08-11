@@ -12,6 +12,13 @@ def _reranker_query(parsed: ParsedQuery) -> str:
             "không ưu tiên quy định xử phạt người chưa đủ tuổi. "
             + parsed.query
         )
+    if parsed.intent == "LICENSE_POINT_BALANCE":
+        return (
+            "[INTENT=LICENSE_POINT_BALANCE] "
+            "Tìm quy định trực tiếp về điểm của giấy phép lái xe, số điểm ban đầu/tối đa; "
+            "ưu tiên Điều 58 Luật 36/2024/QH15, không ưu tiên phí, sát hạch hoặc thủ tục cấp đổi. "
+            + parsed.query
+        )
     return parsed.query
 
 

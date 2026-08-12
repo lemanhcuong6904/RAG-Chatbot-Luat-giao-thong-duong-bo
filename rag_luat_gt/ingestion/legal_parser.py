@@ -26,6 +26,7 @@ CHUNK_OVERLAP_LINES = 2
 class _State:
     chapter: str | None = None
     section: str | None = None
+    appendix_title: str | None = None
     article: str | None = None
     article_title: str | None = None
     clause: str | None = None
@@ -47,12 +48,19 @@ def _normalize_inline_points(text: str) -> str:
     return INLINE_POINT_RE.sub(replace, text)
 
 
+def _is_appendix_heading(line: str) -> bool:
+    normalized = strip_accents(normalize_text(line))
+    return bool(re.match(r"^(?:#+\s*)?phu luc\b", normalized))
+
+
 def _heading_path(state: _State) -> list[str]:
     path: list[str] = []
     if state.chapter:
         path.append(f"Chương {state.chapter}")
     if state.section:
         path.append(f"Mục {state.section}")
+    if state.appendix_title:
+        path.append(state.appendix_title)
     if state.article:
         item = f"Điều {state.article}"
         if state.article_title:
@@ -67,6 +75,8 @@ def _heading_path(state: _State) -> list[str]:
 
 def _base_chunk_id(document: Document, state: _State, counter: int) -> str:
     parts = [document.document_id]
+    if state.appendix_title:
+        parts.append("PHU_LUC")
     if state.article:
         parts.append(f"DIEU_{state.article}")
     if state.clause:
@@ -84,6 +94,8 @@ def _chunk_type(state: _State) -> str:
         return "CLAUSE"
     if state.article:
         return "ARTICLE"
+    if state.appendix_title:
+        return "APPENDIX"
     if state.section:
         return "SECTION"
     if state.chapter:
@@ -272,6 +284,7 @@ def _make_chunks(
                 metadata={
                     "chapter": state.chapter,
                     "section": state.section,
+                    "appendix": state.appendix_title,
                     "split_part": part_index if len(text_parts) > 1 else None,
                     "split_total": len(text_parts) if len(text_parts) > 1 else None,
                     "provision_effective_note": provision_note,
@@ -305,6 +318,7 @@ def parse_chunks(document: Document, markdown_body: str, source_file: str) -> li
             flush()
             state.chapter = chapter_match.group(1)
             state.section = None
+            state.appendix_title = None
             state.article = None
             state.article_title = None
             state.clause = None
@@ -316,6 +330,19 @@ def parse_chunks(document: Document, markdown_body: str, source_file: str) -> li
         if section_match:
             flush()
             state.section = section_match.group(1)
+            state.appendix_title = None
+            state.article = None
+            state.article_title = None
+            state.clause = None
+            state.point = None
+            state.lines = [line]
+            continue
+
+        if _is_appendix_heading(line):
+            flush()
+            state.chapter = None
+            state.section = None
+            state.appendix_title = line
             state.article = None
             state.article_title = None
             state.clause = None
@@ -326,6 +353,7 @@ def parse_chunks(document: Document, markdown_body: str, source_file: str) -> li
         article_match = ARTICLE_RE.match(line)
         if article_match:
             flush()
+            state.appendix_title = None
             state.article = article_match.group(1)
             state.article_title = article_match.group(2).strip() or None
             state.clause = None
@@ -361,7 +389,8 @@ def _sort_key(chunk: Chunk) -> tuple[int, int, str]:
         "ARTICLE": 2,
         "CLAUSE": 3,
         "POINT": 4,
-        "SPAN": 5,
+        "APPENDIX": 5,
+        "SPAN": 6,
     }.get(chunk.chunk_type, 9)
     return (chunk.order, type_rank, chunk.chunk_id)
 

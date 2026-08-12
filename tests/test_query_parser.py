@@ -67,3 +67,9 @@ def test_parse_query_detects_driver_age_requirement() -> None:
     assert parsed.vehicle_code == "CAR"
     assert parsed.desired_rule_function == "ELIGIBILITY"
     assert "MINIMUM_AGE" in parsed.requested_facets
+
+
+def test_parse_query_detects_fee_lookup_before_driver_license() -> None:
+    parsed = parse_query(ChatRequest(query="Tổng lệ phí thi sát hạch lái xe A1 là bao nhiêu?"))
+
+    assert parsed.intent == "FEE_LOOKUP"

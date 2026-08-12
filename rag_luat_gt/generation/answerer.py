@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from rag_luat_gt.config import OPENAI_API_KEY, RAG_LLM_PROVIDER, RAG_REQUIRE_LLM
 from rag_luat_gt.generation.openai_provider import generate_with_openai
 from rag_luat_gt.legal_notes import legal_notes
@@ -9,6 +11,9 @@ from rag_luat_gt.text import normalize_text, strip_accents, tokenize
 
 
 def _legal_ref(citation: Citation) -> str:
+    if citation.chunk_type == "APPENDIX":
+        return "Phụ lục"
+
     parts = []
     if citation.article:
         text = f"Điều {citation.article}"
@@ -238,6 +243,68 @@ def _citation_matches_query_focus(parsed: ParsedQuery, citation: Citation) -> bo
     return bool(behavior_terms or condition_terms)
 
 
+def _format_vnd(value: int) -> str:
+    return f"{value:,}".replace(",", ".") + " đồng"
+
+
+def _parse_vnd_amount(value: str) -> int:
+    return int(value.replace(".", ""))
+
+
+def _a1_driving_test_fee_evidence(citations: list[Citation]) -> tuple[int, int, Citation] | None:
+    for citation in citations:
+        normalized = strip_accents(normalize_text(citation.text))
+        if citation.document_number != "154/2025/TT-BTC":
+            continue
+        if not all(term in normalized for term in ["a1", "sat hach ly thuyet", "sat hach thuc hanh"]):
+            continue
+
+        block = citation.text
+        start = re.search(r"Đối với thi sát hạch lái xe các hạng xe A1", block, flags=re.IGNORECASE)
+        if start:
+            block = block[start.start() :]
+        end = re.search(r"\*\*b\)|Đối với thi sát hạch lái xe ô tô", block, flags=re.IGNORECASE)
+        if end:
+            block = block[: end.start()]
+
+        theory = re.search(r"Sát hạch lý thuyết:\s*\*\*(\d{1,3}(?:\.\d{3})*)\s*đồng/lần\*\*", block)
+        practice = re.search(r"Sát hạch thực hành:\s*\*\*(\d{1,3}(?:\.\d{3})*)\s*đồng/lần\*\*", block)
+        if theory and practice:
+            return _parse_vnd_amount(theory.group(1)), _parse_vnd_amount(practice.group(1)), citation
+    return None
+
+
+def _build_fee_lookup_answer(parsed: ParsedQuery, citations: list[Citation]) -> str | None:
+    query = strip_accents(normalize_text(parsed.query))
+    if parsed.intent != "FEE_LOOKUP":
+        return None
+    if "sat hach" not in query or "a1" not in query:
+        return None
+    if not any(term in query for term in ["tong", "bao nhieu", "muc"]):
+        return None
+
+    evidence = _a1_driving_test_fee_evidence(citations)
+    if not evidence:
+        return None
+
+    theory_fee, practice_fee, citation = evidence
+    total = theory_fee + practice_fee
+    date_line = parsed.legal_effective_date or parsed.event_date or parsed.as_of_date or "hiện tại"
+    return (
+        "### Trả lời\n"
+        f"Thi sát hạch lái xe hạng A1 gồm phí sát hạch lý thuyết {_format_vnd(theory_fee)}/lần "
+        f"và phí sát hạch thực hành {_format_vnd(practice_fee)}/lần. Nếu phải nộp cả hai phần, "
+        f"tổng phí là {_format_vnd(total)}.\n\n"
+        "### Căn cứ pháp lý\n"
+        f"1. {citation.document_number or citation.document_title}: {_legal_ref(citation)}\n\n"
+        "### Thời điểm áp dụng\n"
+        f"Đang xét theo ngày {date_line}.\n\n"
+        "### Lưu ý\n"
+        "- Trong Thông tư 154/2025/TT-BTC, khoản này được gọi là phí sát hạch lái xe, không phải lệ phí cấp giấy phép lái xe.\n"
+        "- Người dự sát hạch phần nào thì nộp phí phần đó."
+    )
+
+
 def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> ChatResponse:
     if not results:
         return ChatResponse(
@@ -273,6 +340,16 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
             warnings=notes,
             answerable=False,
             debug={"parsed_query": parsed.model_dump(), "legal_notes": notes},
+        )
+
+    fee_answer = _build_fee_lookup_answer(parsed, citations)
+    if fee_answer:
+        return ChatResponse(
+            answer=fee_answer,
+            citations=citations,
+            warnings=warnings,
+            answerable=True,
+            debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "fee_lookup": {"resolved": True}},
         )
 
     if RAG_LLM_PROVIDER == "openai" and OPENAI_API_KEY:

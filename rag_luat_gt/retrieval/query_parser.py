@@ -34,6 +34,8 @@ ENUMERATION_PATTERNS = [
 def _detect_intent(query: str) -> str:
     q = normalize_text(query)
     q_ascii = strip_accents(q)
+    if any(term in q_ascii for term in ["phi", "le phi"]):
+        return "FEE_LOOKUP"
     if any(term in q for term in ["phạt", "xử phạt", "mức phạt", "trừ điểm"]) or any(
         term in q_ascii
         for term in [

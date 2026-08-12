@@ -35,7 +35,18 @@ def _detect_intent(query: str) -> str:
     q = normalize_text(query)
     q_ascii = strip_accents(q)
     if any(term in q for term in ["phạt", "xử phạt", "mức phạt", "trừ điểm"]) or any(
-        term in q_ascii for term in ["phat", "xu phat", "muc phat", "tru diem"]
+        term in q_ascii
+        for term in [
+            "phat",
+            "xu phat",
+            "muc phat",
+            "tru diem",
+            "bi tru",
+            "tru may diem",
+            "tru bao nhieu diem",
+            "bi tru may diem",
+            "bi tru bao nhieu diem",
+        ]
     ):
         return "PENALTY_LOOKUP"
     if "giay phep lai xe" in q_ascii and any(

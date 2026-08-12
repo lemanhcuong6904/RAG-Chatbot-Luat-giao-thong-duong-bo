@@ -30,16 +30,40 @@ def match_behavior(query: str) -> dict[str, Any] | None:
 
 def match_behaviors(query: str) -> list[dict[str, Any]]:
     normalized = _norm(query)
+    candidates: list[dict[str, Any]] = []
     matches: list[dict[str, Any]] = []
     seen_codes: set[str] = set()
+    seen_aliases: list[str] = []
 
     for catalog_code, item in _catalog().items():
         aliases = item.get("aliases") or []
         matched_alias = next((str(alias) for alias in aliases if _norm(str(alias)) in normalized), None)
-        if not matched_alias or catalog_code in seen_codes:
+        if not matched_alias:
+            continue
+        normalized_alias = _norm(matched_alias)
+        candidates.append(
+            {
+                "catalog_code": catalog_code,
+                "matched_alias": matched_alias,
+                "_match_start": normalized.find(normalized_alias),
+                **item,
+            }
+        )
+
+    candidates.sort(
+        key=lambda match: (
+            int(match.get("_match_start", 0)),
+            -len(_norm(str(match.get("matched_alias") or ""))),
+        )
+    )
+    for candidate in candidates:
+        catalog_code = str(candidate["catalog_code"])
+        matched_alias = _norm(str(candidate.get("matched_alias") or ""))
+        if catalog_code in seen_codes or any(matched_alias in alias for alias in seen_aliases):
             continue
         seen_codes.add(catalog_code)
-        matches.append({"catalog_code": catalog_code, "matched_alias": matched_alias, **item})
+        seen_aliases.append(matched_alias)
+        matches.append(candidate)
 
     return matches
 

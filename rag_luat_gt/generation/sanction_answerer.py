@@ -35,6 +35,7 @@ def _rule_ref(rule: SanctionRule) -> str:
 
 def _citation(rule: SanctionRule) -> Citation:
     text_parts = [part for part in [rule.parent_clause_text, rule.source_text] if part]
+    text_parts.extend(_secondary_statement_texts(rule))
     return Citation(
         chunk_id=rule.source_chunk_id or rule.rule_id,
         chunk_type="SANCTION_RULE",
@@ -79,7 +80,7 @@ def build_sanction_response(parsed: ParsedQuery, lookup: SanctionLookup) -> Chat
 
     answer = "\n\n".join(_rule_answer(rule, parsed) for rule in rules)
     refs = "\n".join(
-        f"{index}. {rule.document_number}: {_rule_ref(rule)} ({rule.rule_id})"
+        f"{index}. {rule.document_number}: {_rule_ref(rule)}"
         for index, rule in enumerate(rules, start=1)
     )
     note_lines = [
@@ -107,7 +108,7 @@ def build_sanction_response(parsed: ParsedQuery, lookup: SanctionLookup) -> Chat
     )
 
 
-def _rule_answer(rule: SanctionRule, parsed: ParsedQuery) -> str:
+def _rule_answer_base(rule: SanctionRule, parsed: ParsedQuery) -> str:
     points = (
         f" Đồng thời bị trừ {rule.license_points_deducted} điểm giấy phép lái xe."
         if rule.license_points_deducted is not None
@@ -120,13 +121,113 @@ def _rule_answer(rule: SanctionRule, parsed: ParsedQuery) -> str:
             f" từ {rule.license_suspension_min_months or '?'}"
             f" đến {rule.license_suspension_max_months or '?'} tháng."
         )
-    liable = f" Đối tượng chịu trách nhiệm: {rule.liable_entity_type}." if rule.liable_entity_type else ""
-    conditions = f" Điều kiện áp dụng: {', '.join(rule.conditions)}." if rule.conditions else ""
+    liable = _liable_text(rule)
     return (
-        f"Với hành vi “{rule.behavior_text}”"
-        f" ({', '.join(rule.vehicle_codes) or parsed.vehicle_code or 'không rõ loại phương tiện'}), "
-        f"mức xử phạt là {_fine_text(rule)}.{points}{suspension}{liable}{conditions}"
+        f"Với hành vi “{_behavior_label(rule, parsed)}”"
+        f" đối với {_vehicle_label(parsed, rule)}, "
+        f"mức xử phạt là {_fine_text(rule)}.{points}{suspension}{liable}"
     )
+
+
+def _behavior_label(rule: SanctionRule, parsed: ParsedQuery) -> str:
+    if parsed.behavior_text_query:
+        return parsed.behavior_text_query
+    for violation in parsed.violations:
+        codes = [str(code) for code in violation.conditions.get("behavior_codes", []) if code]
+        if rule.behavior_code in codes:
+            return violation.raw_span or violation.behavior_text
+    return rule.behavior_text or "hành vi vi phạm"
+
+
+def _vehicle_label(parsed: ParsedQuery, rule: SanctionRule) -> str:
+    labels = {
+        "CAR": "xe ô tô",
+        "FOUR_WHEEL_PASSENGER": "xe chở người bốn bánh có gắn động cơ",
+        "FOUR_WHEEL_CARGO": "xe chở hàng bốn bánh có gắn động cơ",
+        "CAR_SIMILAR": "xe tương tự xe ô tô",
+        "MOTORCYCLE": "xe mô tô, xe gắn máy",
+        "MOPED": "xe gắn máy",
+        "SPECIALIZED_MOTOR_VEHICLE": "xe máy chuyên dùng",
+        "BICYCLE": "xe đạp",
+        "PEDESTRIAN": "người đi bộ",
+    }
+    if parsed.vehicle_code:
+        return labels.get(parsed.vehicle_code, parsed.vehicle_type or parsed.vehicle_code)
+    for code in rule.vehicle_codes:
+        if code in labels:
+            return labels[code]
+    return parsed.vehicle_type or "loại phương tiện chưa xác định"
+
+
+def _liable_text(rule: SanctionRule) -> str:
+    if not rule.liable_entity_type or rule.liable_entity_type == "UNSPECIFIED":
+        return ""
+    labels = {
+        "DRIVER": "người điều khiển phương tiện",
+        "OWNER": "chủ phương tiện",
+        "ORGANIZATION": "tổ chức",
+        "INDIVIDUAL": "cá nhân",
+    }
+    return f" Đối tượng chịu trách nhiệm: {labels.get(rule.liable_entity_type, rule.liable_entity_type)}."
+
+
+def _rule_answer(rule: SanctionRule, parsed: ParsedQuery) -> str:
+    return f"{_rule_answer_base(rule, parsed)}{_additional_sanctions_text(rule)}{_remedial_measures_text(rule)}"
+
+
+def _additional_sanctions_text(rule: SanctionRule) -> str:
+    sanctions = _additional_sanctions_not_already_rendered(rule)
+    if not sanctions:
+        return ""
+    return f" Hình thức xử phạt bổ sung: {_join_items(sanctions)}."
+
+
+def _remedial_measures_text(rule: SanctionRule) -> str:
+    measures = _clean_items(rule.remedial_measures)
+    if not measures:
+        return ""
+    return f" Biện pháp khắc phục hậu quả: {_join_items(measures)}."
+
+
+def _additional_sanctions_not_already_rendered(rule: SanctionRule) -> list[str]:
+    sanctions = _clean_items(rule.additional_sanctions)
+    if rule.license_suspension_min_months is None and rule.license_suspension_max_months is None:
+        return sanctions
+    return [sanction for sanction in sanctions if not _looks_like_license_suspension(sanction)]
+
+
+def _secondary_statement_texts(rule: SanctionRule) -> list[str]:
+    statements: list[str] = []
+    additional = _clean_items(rule.additional_sanctions)
+    remedial = _clean_items(rule.remedial_measures)
+    if additional:
+        statements.append("Hình thức xử phạt bổ sung: " + _join_items(additional))
+    if remedial:
+        statements.append("Biện pháp khắc phục hậu quả: " + _join_items(remedial))
+    return statements
+
+
+def _clean_items(items: list[str]) -> list[str]:
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        value = item.strip()
+        if value.endswith(";"):
+            value = value[:-1].strip()
+        key = value.casefold()
+        if value and key not in seen:
+            cleaned.append(value)
+            seen.add(key)
+    return cleaned
+
+
+def _join_items(items: list[str]) -> str:
+    return "; ".join(items)
+
+
+def _looks_like_license_suspension(text: str) -> bool:
+    normalized = text.casefold()
+    return "tước quyền sử dụng giấy phép lái xe" in normalized or "tước quyền sử dụng giấy phép" in normalized
 
 
 def _build_unanswered(parsed: ParsedQuery, lookup: SanctionLookup) -> str:

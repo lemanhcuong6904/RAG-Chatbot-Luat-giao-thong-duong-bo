@@ -1,4 +1,32 @@
 {
+  "CAR_TURN_AROUND_IN_TUNNEL_CAUSES_ACCIDENT": {
+    "canonical_text": "O to quay dau xe trong ham duong bo gay tai nan giao thong",
+    "aliases": [
+      "quay dau xe trong ham trong truong hop gay tai nan giao thong",
+      "quay dau xe trong ham gay tai nan giao thong",
+      "quay dau trong ham gay tai nan",
+      "quay dau xe trong duong ham gay tai nan giao thong",
+      "lui xe quay dau xe trong ham gay tai nan giao thong"
+    ],
+    "rule_behavior_codes": [
+      "DIEU_KHIEN_XE_KHONG_QUAN_SAT_GIAM_TOC_DO_HOAC_DUNG_LAI_DE_BAO_DAM_AN_TOAN_THEO_QUY_DINH_MA"
+    ],
+    "behavior_contains": "quay đầu xe trong hầm đường bộ gây tai nạn giao thông"
+  },
+  "CAR_TURN_AROUND_IN_TUNNEL": {
+    "canonical_text": "O to lui xe, quay dau xe trong ham duong bo",
+    "aliases": [
+      "quay dau xe trong ham duong bo",
+      "quay dau xe trong ham",
+      "quay dau trong ham",
+      "lui xe quay dau xe trong ham duong bo",
+      "lui xe trong ham duong bo"
+    ],
+    "rule_behavior_codes": [
+      "LUI_XE_QUAY_DAU_XE_TRONG_HAM_DUONG_BO_DUNG_XE_DO_XE_TRONG_HAM_DUONG_BO_KHONG_DUNG_NOI_QUY_"
+    ],
+    "behavior_contains": "quay đầu xe trong hầm đường bộ"
+  },
   "TRAFFIC_SIGNAL_NONCOMPLIANCE": {
     "canonical_text": "Khong chap hanh hieu lenh cua den tin hieu giao thong",
     "aliases": [

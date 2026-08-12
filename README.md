@@ -104,3 +104,36 @@ Chưa có trong MVP:
 - post-generation claim verifier đầy đủ;
 - golden evaluation set 300-500 câu;
 - BGE-M3 sparse/multi-vector benchmark.
+
+## Frontend Next.js
+
+Frontend React/Next.js dùng Tailwind CSS và shadcn/ui-style components nằm trong `frontend/`.
+
+Chạy backend FastAPI trong môi trường Anaconda `nlp`:
+
+```powershell
+conda activate nlp
+python scripts\run_api.py
+```
+
+Mở terminal khác để chạy frontend:
+
+```powershell
+cd frontend
+npm.cmd install
+npm.cmd run dev -- --hostname 127.0.0.1 --port 3000
+```
+
+Mở `http://127.0.0.1:3000`. Nếu API chạy ở host/port khác, đặt biến:
+
+```powershell
+$env:NEXT_PUBLIC_API_URL="http://127.0.0.1:8010"
+npm.cmd run dev -- --hostname 127.0.0.1 --port 3000
+```
+
+Build kiểm tra:
+
+```powershell
+cd frontend
+npm.cmd run build
+```

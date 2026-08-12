@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+
+<html class="light" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Luật Giao Thông AI - Chi tiết mức phạt</title>
+<!-- Lucide Icons -->
+<script src="https://unpkg.com/lucide@latest"></script>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config injected from Brand Anchors -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "border": "hsl(214.3 31.8% 91.4%)",
+                        "input": "hsl(214.3 31.8% 91.4%)",
+                        "ring": "hsl(221.2 83.2% 53.3%)",
+                        "background": "#FAFAFA",
+                        "foreground": "hsl(222.2 84% 4.9%)",
+                        "primary": {
+                            "DEFAULT": "#1D4ED8",
+                            "foreground": "hsl(210 40% 98%)"
+                        },
+                        "secondary": {
+                            "DEFAULT": "hsl(210 40% 96.1%)",
+                            "foreground": "hsl(222.2 47.4% 11.2%)"
+                        },
+                        "destructive": {
+                            "DEFAULT": "hsl(0 84.2% 60.2%)",
+                            "foreground": "hsl(210 40% 98%)"
+                        },
+                        "warning": {
+                            "DEFAULT": "hsl(38 92% 50%)",
+                            "foreground": "hsl(48 96% 89%)"
+                        },
+                        "muted": {
+                            "DEFAULT": "hsl(210 40% 96.1%)",
+                            "foreground": "hsl(215.4 16.3% 46.9%)"
+                        },
+                        "accent": {
+                            "DEFAULT": "hsl(210 40% 96.1%)",
+                            "foreground": "hsl(222.2 47.4% 11.2%)"
+                        },
+                        "popover": {
+                            "DEFAULT": "hsl(0 0% 100%)",
+                            "foreground": "hsl(222.2 84% 4.9%)"
+                        },
+                        "card": {
+                            "DEFAULT": "#FFFFFF",
+                            "foreground": "hsl(222.2 84% 4.9%)"
+                        },
+                        "primary-soft": "#EFF6FF",
+                        "surface": "#FFFFFF",
+                        "border-strong": "#D4D4D8",
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.5rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "sans": ["Be Vietnam Pro", "sans-serif"],
+                        "mono": ["monospace"],
+                    },
+                    "fontSize": {
+                        "xs": ["12px", { "lineHeight": "16px" }],
+                        "sm": ["14px", { "lineHeight": "20px" }],
+                        "base": ["16px", { "lineHeight": "24px" }],
+                        "lg": ["18px", { "lineHeight": "28px" }],
+                        "xl": ["20px", { "lineHeight": "28px" }],
+                        "2xl": ["24px", { "lineHeight": "32px" }],
+                    }
+                }
+            }
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer utilities {
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-background text-foreground h-screen flex overflow-hidden font-sans antialiased">
+<!-- SideNavBar (Hidden on Mobile/Tablet, visible on lg screens) -->
+<nav class="hidden lg:flex w-[260px] h-screen sticky top-0 left-0 border-r border-border bg-card flex-col shrink-0 z-40">
+<!-- Header -->
+<div class="px-4 py-4 mb-2 flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-primary-soft flex items-center justify-center text-primary">
+<i class="w-5 h-5" data-lucide="scale"></i>
+</div>
+<span class="font-bold text-base text-foreground tracking-tight">Luật Giao Thông AI</span>
+</div>
+<!-- New Chat CTA -->
+<div class="px-4 mb-6">
+<button class="w-full flex items-center justify-start gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md font-medium text-sm transition-colors shadow-sm">
+<i class="w-4 h-4" data-lucide="plus"></i>
+            Cuộc trò chuyện mới
+        </button>
+</div>
+<!-- Navigation Groups -->
+<div class="flex-1 overflow-y-auto px-3 flex flex-col gap-6">
+<!-- HỎI ĐÁP -->
+<div>
+<h3 class="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Hỏi đáp</h3>
+<ul class="flex flex-col gap-1">
+<li>
+<a class="flex items-center gap-2 px-2 py-1.5 text-sm font-medium bg-muted text-foreground rounded-md transition-colors" href="#">
+<i class="w-4 h-4 text-primary" data-lucide="message-square"></i>
+<span>Hỏi đáp</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-md transition-colors" href="#">
+<i class="w-4 h-4" data-lucide="clock"></i>
+<span>Lịch sử</span>
+</a>
+</li>
+</ul>
+</div>
+<!-- TRA CỨU -->
+<div>
+<h3 class="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tra cứu</h3>
+<ul class="flex flex-col gap-1">
+<li>
+<a class="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-md transition-colors" href="#">
+<i class="w-4 h-4" data-lucide="book-open"></i>
+<span>Văn bản pháp luật</span>
+</a>
+</li>
+</ul>
+</div>
+</div>
+<!-- Footer Tabs -->
+<div class="mt-auto border-t border-border p-3 flex flex-col gap-1">
+<a class="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-md transition-colors" href="#">
+<i class="w-4 h-4" data-lucide="settings"></i>
+<span>Cài đặt</span>
+</a>
+<a class="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-md transition-colors" href="#">
+<i class="w-4 h-4" data-lucide="code"></i>
+<span>Developer</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col h-full min-w-0 relative bg-background">
+<!-- TopAppBar (Visible on Mobile/Tablet, hidden on Desktop) -->
+<header class="lg:hidden flex justify-between items-center px-4 h-14 w-full bg-card/80 backdrop-blur-md sticky top-0 z-50 border-b border-border">
+<div class="flex items-center gap-3">
+<button class="text-muted-foreground hover:text-foreground transition-colors">
+<i class="w-5 h-5" data-lucide="menu"></i>
+</button>
+<div class="flex items-center gap-2">
+<div class="w-7 h-7 rounded bg-primary-soft flex items-center justify-center text-primary">
+<i class="w-4 h-4" data-lucide="scale"></i>
+</div>
+<span class="font-bold text-sm text-foreground">Luật Giao Thông AI</span>
+</div>
+</div>
+</header>
+<!-- Canvas Container: Chat + Evidence Panel -->
+<div class="flex-1 flex overflow-hidden">
+<!-- Center: Chat Stream -->
+<main class="flex-1 overflow-y-auto flex flex-col items-center relative scroll-smooth">
+<!-- Chat Content -->
+<div class="w-full flex flex-col pb-40">
+<!-- User Message -->
+<div class="w-full py-6 px-4 md:px-8 flex justify-center">
+<div class="w-full max-w-3xl flex justify-end">
+<div class="bg-muted text-foreground rounded-2xl rounded-tr-sm px-5 py-3 max-w-[75%] text-base shadow-sm">
+                                Xe máy vượt đèn đỏ bị phạt bao nhiêu và trừ mấy điểm?
+                            </div>
+</div>
+</div>
+<!-- Assistant Message -->
+<div class="w-full py-6 px-4 md:px-8 flex justify-center bg-card border-y border-border/50 shadow-sm">
+<div class="w-full max-w-3xl flex gap-4">
+<div class="w-8 h-8 shrink-0 rounded-md bg-primary-soft border border-primary/20 flex items-center justify-center mt-1">
+<i class="w-5 h-5 text-primary" data-lucide="bot"></i>
+</div>
+<div class="flex flex-col gap-6 w-full pt-1">
+<!-- Introduction Text -->
+<div class="prose prose-sm md:prose-base max-w-none text-foreground">
+<p>
+                                        Hành vi điều khiển xe mô tô, xe gắn máy (kể cả xe máy điện) không chấp hành hiệu lệnh của đèn tín hiệu giao thông (vượt đèn đỏ, đèn vàng) sẽ bị xử lý nghiêm khắc. Căn cứ theo quy định mới nhất:
+                                    </p>
+</div>
+<!-- Sanction Summary (4 Cards Grid) -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+<!-- Phạt Tiền -->
+<div class="bg-card rounded-xl border border-border p-5 flex flex-col gap-2 shadow-sm relative overflow-hidden group">
+<div class="absolute top-0 left-0 w-1 h-full bg-destructive"></div>
+<div class="flex items-center gap-2 text-destructive mb-1">
+<i class="w-5 h-5" data-lucide="banknote"></i>
+<span class="text-xs font-semibold uppercase tracking-wider">Phạt Tiền</span>
+</div>
+<div class="text-2xl font-bold text-foreground">
+                                            4.000.000 - 6.000.000<span class="text-sm font-medium text-muted-foreground ml-1">VNĐ</span>
+</div>
+</div>
+<!-- Điểm GPLX -->
+<div class="bg-card rounded-xl border border-border p-5 flex flex-col gap-2 shadow-sm relative overflow-hidden group">
+<div class="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+<div class="flex items-center gap-2 text-amber-600 mb-1">
+<i class="w-5 h-5" data-lucide="id-card"></i>
+<span class="text-xs font-semibold uppercase tracking-wider">Điểm GPLX</span>
+</div>
+<div class="text-2xl font-bold text-foreground flex items-baseline gap-2">
+                                            Trừ 4 <span class="text-sm font-medium text-muted-foreground">điểm</span>
+</div>
+</div>
+<!-- Xử phạt bổ sung -->
+<div class="bg-card rounded-xl border border-border p-5 flex flex-col gap-2 shadow-sm relative overflow-hidden group opacity-60">
+<div class="absolute top-0 left-0 w-1 h-full bg-muted-foreground"></div>
+<div class="flex items-center gap-2 text-muted-foreground mb-1">
+<i class="w-5 h-5" data-lucide="shield-alert"></i>
+<span class="text-xs font-semibold uppercase tracking-wider">Xử phạt bổ sung</span>
+</div>
+<div class="text-base font-medium text-foreground">
+                                            Không có
+                                        </div>
+</div>
+<!-- Biện pháp khắc phục -->
+<div class="bg-card rounded-xl border border-border p-5 flex flex-col gap-2 shadow-sm relative overflow-hidden group opacity-60">
+<div class="absolute top-0 left-0 w-1 h-full bg-muted-foreground"></div>
+<div class="flex items-center gap-2 text-muted-foreground mb-1">
+<i class="w-5 h-5" data-lucide="wrench"></i>
+<span class="text-xs font-semibold uppercase tracking-wider">Biện pháp khắc phục</span>
+</div>
+<div class="text-base font-medium text-foreground">
+                                            Không có
+                                        </div>
+</div>
+</div>
+<!-- Detailed Explanation -->
+<div class="prose prose-sm md:prose-base max-w-none text-foreground">
+<ul class="space-y-3 marker:text-muted-foreground pl-5">
+<li>
+<strong>Phạt tiền từ 4.000.000 đồng đến 6.000.000 đồng</strong> đối với người điều khiển xe thực hiện hành vi vi phạm.
+                                            <span class="inline-flex items-center justify-center px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground text-xs font-medium ml-1 cursor-pointer hover:bg-secondary border border-border transition-colors align-middle">[NĐ 168 · Đ.6]</span>
+</li>
+<li>
+<strong>Trừ 4 điểm</strong> trong Giấy phép lái xe của người vi phạm.
+                                            <span class="inline-flex items-center justify-center px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground text-xs font-medium ml-1 cursor-pointer hover:bg-secondary border border-border transition-colors align-middle">[NĐ 168 · Đ.6]</span>
+</li>
+</ul>
+</div>
+<!-- Answer Toolbar -->
+<div class="flex items-center gap-2 mt-2 pt-4 border-t border-border/50">
+<button class="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Copy">
+<i class="w-4 h-4" data-lucide="copy"></i>
+</button>
+<button class="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Thích">
+<i class="w-4 h-4" data-lucide="thumbs-up"></i>
+</button>
+<button class="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Không thích">
+<i class="w-4 h-4" data-lucide="thumbs-down"></i>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Input Composer (Bottom Docked) -->
+<div class="absolute bottom-0 w-full left-0 right-0 p-4 md:p-6 bg-gradient-to-t from-background via-background to-transparent pointer-events-none flex justify-center">
+<div class="w-full max-w-3xl bg-card rounded-xl border border-border shadow-lg p-3 flex flex-col focus-within:ring-1 focus-within:ring-ring focus-within:border-ring transition-all pointer-events-auto">
+<textarea class="w-full bg-transparent border-0 focus:ring-0 resize-none max-h-32 min-h-[44px] py-2 px-2 text-base text-foreground placeholder:text-muted-foreground scrollbar-hide" placeholder="Hỏi thêm chi tiết pháp lý..."></textarea>
+<div class="flex justify-between items-center px-2 pt-2">
+<div class="flex items-center">
+<!-- Date Selector Pill -->
+<button class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/50 hover:bg-muted text-muted-foreground text-xs font-medium transition-colors border border-transparent hover:border-border">
+<i class="w-3.5 h-3.5" data-lucide="calendar"></i>
+                                Áp dụng: Hiện hành
+                            </button>
+</div>
+<button class="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center">
+<i class="w-4 h-4" data-lucide="send"></i>
+</button>
+</div>
+</div>
+<div class="text-center mt-3 pointer-events-auto">
+<span class="text-xs text-muted-foreground">Luật Giao Thông AI có thể mắc lỗi. Vui lòng kiểm tra lại các thông tin quan trọng.</span>
+</div>
+</div>
+<!-- Evidence Panel (Right Side - Visible on xl screens) -->
+<aside class="hidden xl:flex w-[460px] border-l border-border bg-card flex-col h-full shrink-0 shadow-[-4px_0_24px_rgba(0,0,0,0.02)] relative z-30">
+<!-- Panel Header -->
+<div class="h-14 flex items-center justify-between px-5 border-b border-border bg-card sticky top-0">
+<div class="flex items-center gap-2 text-foreground font-semibold text-sm">
+<i class="w-4 h-4" data-lucide="book-open"></i>
+<h2>Căn cứ pháp lý</h2>
+</div>
+<button class="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors">
+<i class="w-4 h-4" data-lucide="x"></i>
+</button>
+</div>
+<!-- Panel Content -->
+<div class="flex-1 overflow-y-auto p-5 pb-20">
+<!-- Category: Used Evidence -->
+<div class="mb-8">
+<h3 class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Căn cứ được sử dụng</h3>
+<!-- Source Document Info -->
+<div class="mb-5 pb-5 border-b border-border border-dashed">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-muted text-foreground text-xs font-medium mb-2">
+<i class="w-3.5 h-3.5" data-lucide="file-text"></i>
+                                [NĐ 168 · Đ.6]
+                            </div>
+<h4 class="text-base font-bold text-foreground mb-1">Nghị định 168/2024/NĐ-CP</h4>
+<p class="text-sm text-muted-foreground">Quy định xử phạt vi phạm hành chính về trật tự, an toàn giao thông đường bộ.</p>
+<div class="mt-3 flex gap-3 text-xs text-muted-foreground">
+<span class="flex items-center gap-1"><i class="w-3.5 h-3.5" data-lucide="calendar"></i> Hiệu lực: 01/01/2025</span>
+<span class="flex items-center gap-1"><i class="w-3.5 h-3.5" data-lucide="check-circle-2"></i> Chính thức</span>
+</div>
+</div>
+<!-- Article Content -->
+<div class="flex flex-col gap-4">
+<div class="bg-muted/30 p-4 rounded-lg border border-border">
+<h5 class="text-sm font-bold text-foreground mb-3">Điều 6. Xử phạt người điều khiển xe mô tô, xe gắn máy...</h5>
+<div class="text-sm text-foreground flex flex-col gap-3">
+<p class="text-muted-foreground">...</p>
+<div>
+<p class="font-semibold mb-2">5. Phạt tiền từ 4.000.000 đồng đến 6.000.000 đồng đối với người điều khiển xe thực hiện một trong các hành vi vi phạm sau đây:</p>
+<ul class="list-none pl-4 flex flex-col gap-2 relative">
+<!-- Vertical guideline -->
+<div class="absolute left-0 top-2 bottom-2 w-px bg-border"></div>
+<li class="relative">
+<span class="absolute -left-[17px] top-2 w-1.5 h-1.5 rounded-full bg-muted-foreground"></span>
+<span class="text-muted-foreground">a) Buông cả hai tay khi đang điều khiển xe...</span>
+</li>
+<li class="relative">
+<span class="absolute -left-[17px] top-2 w-1.5 h-1.5 rounded-full bg-muted-foreground"></span>
+<span class="text-muted-foreground">b) Dùng chân điều khiển từ xa...</span>
+</li>
+<li class="relative">
+<span class="absolute -left-[17px] top-2 w-1.5 h-1.5 rounded-full bg-muted-foreground"></span>
+<span class="text-muted-foreground">...</span>
+</li>
+<!-- Highlighted Point -->
+<li class="relative bg-primary/5 -mx-2 px-2 py-1.5 rounded border border-primary/20">
+<span class="absolute -left-[9px] top-2.5 w-1.5 h-1.5 rounded-full bg-primary ring-2 ring-background"></span>
+<strong class="text-primary font-medium">e) Không chấp hành hiệu lệnh của đèn tín hiệu giao thông;</strong>
+</li>
+</ul>
+</div>
+<p class="text-muted-foreground">...</p>
+<div class="mt-2 pt-3 border-t border-border">
+<p class="font-semibold mb-2">10. Trừ điểm Giấy phép lái xe:</p>
+<p class="mb-2 text-muted-foreground">Ngoài việc bị phạt tiền, người điều khiển xe thực hiện hành vi vi phạm còn bị trừ điểm Giấy phép lái xe như sau:</p>
+<ul class="list-none pl-4 relative">
+<div class="absolute left-0 top-2 bottom-2 w-px bg-border"></div>
+<li class="relative bg-amber-500/10 -mx-2 px-2 py-1.5 rounded border border-amber-500/20">
+<span class="absolute -left-[9px] top-2.5 w-1.5 h-1.5 rounded-full bg-amber-500 ring-2 ring-background"></span>
+<strong class="text-foreground font-medium">b) Thực hiện hành vi quy định tại điểm e khoản 5 Điều này bị trừ 04 điểm;</strong>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Category: Related Sources -->
+<div>
+<h3 class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Nguồn liên quan</h3>
+<div class="flex flex-col gap-2">
+<button class="w-full text-left p-3 rounded-lg border border-border hover:bg-muted transition-colors flex items-start gap-3">
+<div class="mt-0.5 text-muted-foreground"><i class="w-4 h-4" data-lucide="file-text"></i></div>
+<div>
+<h4 class="text-sm font-medium text-foreground">Luật Giao thông đường bộ 2008</h4>
+<p class="text-xs text-muted-foreground mt-1 line-clamp-1">Quy định chung về tín hiệu đèn giao thông</p>
+</div>
+</button>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</div>
+<script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+    </script>
+</body></html>

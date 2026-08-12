@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+
+<html class="light" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Luật Giao Thông AI - Bắt đầu</title>
+<!-- Lucide Icons -->
+<script src="https://unpkg.com/lucide@latest"></script>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "border": "hsl(214.3 31.8% 91.4%)",
+                        "input": "hsl(214.3 31.8% 91.4%)",
+                        "ring": "hsl(221.2 83.2% 53.3%)",
+                        "background": "#FAFAFA",
+                        "foreground": "hsl(222.2 84% 4.9%)",
+                        "primary": {
+                            "DEFAULT": "#1D4ED8",
+                            "foreground": "hsl(210 40% 98%)"
+                        },
+                        "secondary": {
+                            "DEFAULT": "hsl(210 40% 96.1%)",
+                            "foreground": "hsl(222.2 47.4% 11.2%)"
+                        },
+                        "destructive": {
+                            "DEFAULT": "hsl(0 84.2% 60.2%)",
+                            "foreground": "hsl(210 40% 98%)"
+                        },
+                        "warning": {
+                            "DEFAULT": "hsl(38 92% 50%)",
+                            "foreground": "hsl(48 96% 89%)"
+                        },
+                        "muted": {
+                            "DEFAULT": "hsl(210 40% 96.1%)",
+                            "foreground": "hsl(215.4 16.3% 46.9%)"
+                        },
+                        "accent": {
+                            "DEFAULT": "hsl(210 40% 96.1%)",
+                            "foreground": "hsl(222.2 47.4% 11.2%)"
+                        },
+                        "popover": {
+                            "DEFAULT": "hsl(0 0% 100%)",
+                            "foreground": "hsl(222.2 84% 4.9%)"
+                        },
+                        "card": {
+                            "DEFAULT": "#FFFFFF",
+                            "foreground": "hsl(222.2 84% 4.9%)"
+                        },
+                        "primary-soft": "#EFF6FF",
+                        "surface": "#FFFFFF",
+                        "border-strong": "#D4D4D8",
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.5rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "sans": ["Be Vietnam Pro", "sans-serif"],
+                        "mono": ["monospace"],
+                    },
+                    "fontSize": {
+                        "xs": ["12px", { "lineHeight": "16px" }],
+                        "sm": ["14px", { "lineHeight": "20px" }],
+                        "base": ["16px", { "lineHeight": "24px" }],
+                        "lg": ["18px", { "lineHeight": "28px" }],
+                        "xl": ["20px", { "lineHeight": "28px" }],
+                        "2xl": ["24px", { "lineHeight": "32px" }],
+                        "3xl": ["32px", { "lineHeight": "40px", "fontWeight": "650" }],
+                    }
+                }
+            }
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer utilities {
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-background text-foreground h-screen flex overflow-hidden font-sans antialiased">
+<!-- SideNavBar (Hidden on Mobile/Tablet, visible on lg screens) -->
+<nav class="hidden lg:flex w-[260px] h-screen sticky top-0 left-0 border-r border-border bg-card flex-col shrink-0 z-40">
+<!-- Header -->
+<div class="px-4 py-4 mb-2 flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-primary-soft flex items-center justify-center text-primary">
+<i class="w-5 h-5" data-lucide="scale"></i>
+</div>
+<span class="font-bold text-base text-foreground tracking-tight">Luật Giao Thông AI</span>
+</div>
+<!-- New Chat CTA -->
+<div class="px-4 mb-6">
+<button class="w-full flex items-center justify-start gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md font-medium text-sm transition-colors shadow-sm">
+<i class="w-4 h-4" data-lucide="plus"></i>
+                Cuộc trò chuyện mới
+            </button>
+</div>
+<!-- Navigation Groups -->
+<div class="flex-1 overflow-y-auto px-3 flex flex-col gap-6">
+<!-- HỎI ĐÁP -->
+<div>
+<h3 class="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Hỏi đáp</h3>
+<ul class="flex flex-col gap-1">
+<li>
+<a class="flex items-center gap-2 px-2 py-1.5 text-sm font-medium bg-muted text-foreground rounded-md transition-colors" href="#">
+<i class="w-4 h-4 text-primary" data-lucide="message-square"></i>
+<span>Hỏi đáp</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-md transition-colors" href="#">
+<i class="w-4 h-4" data-lucide="clock"></i>
+<span>Lịch sử</span>
+</a>
+</li>
+</ul>
+</div>
+<!-- TRA CỨU -->
+<div>
+<h3 class="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tra cứu</h3>
+<ul class="flex flex-col gap-1">
+<li>
+<a class="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-md transition-colors" href="#">
+<i class="w-4 h-4" data-lucide="book-open"></i>
+<span>Văn bản pháp luật</span>
+</a>
+</li>
+</ul>
+</div>
+</div>
+<!-- Footer Tabs -->
+<div class="mt-auto border-t border-border p-3 flex flex-col gap-1">
+<button class="w-full bg-primary-soft text-primary text-sm font-medium py-2 rounded-md hover:bg-primary/10 transition-colors mb-2">
+                Nâng cấp Premium
+            </button>
+<a class="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-md transition-colors" href="#">
+<i class="w-4 h-4" data-lucide="help-circle"></i>
+<span>Hỗ trợ</span>
+</a>
+<a class="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-md transition-colors" href="#">
+<i class="w-4 h-4" data-lucide="settings"></i>
+<span>Cài đặt</span>
+</a>
+<a class="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-md transition-colors" href="#">
+<i class="w-4 h-4" data-lucide="log-out"></i>
+<span>Đăng xuất</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col h-full min-w-0 relative bg-background">
+<!-- TopAppBar (Visible on Mobile/Tablet, hidden on Desktop) -->
+<header class="lg:hidden flex justify-between items-center px-4 h-14 w-full bg-card/80 backdrop-blur-md sticky top-0 z-50 border-b border-border">
+<div class="flex items-center gap-3">
+<button class="text-muted-foreground hover:text-foreground transition-colors">
+<i class="w-5 h-5" data-lucide="menu"></i>
+</button>
+<div class="flex items-center gap-2">
+<div class="w-7 h-7 rounded bg-primary-soft flex items-center justify-center text-primary">
+<i class="w-4 h-4" data-lucide="scale"></i>
+</div>
+<span class="font-bold text-sm text-foreground">Luật Giao Thông AI</span>
+</div>
+</div>
+</header>
+<main class="flex-1 flex flex-col items-center justify-center p-6 h-full overflow-y-auto scroll-smooth">
+<div class="w-full max-w-[860px] flex flex-col items-center justify-center -mt-12">
+<!-- Hero Section -->
+<div class="text-center mb-10 flex flex-col items-center">
+<div class="w-16 h-16 bg-primary-soft rounded-full flex items-center justify-center mb-4 text-primary">
+<i class="w-8 h-8" data-lucide="scale"></i>
+</div>
+<h2 class="text-3xl font-bold text-foreground mb-3">Hỏi luật giao thông, dễ hiểu hơn</h2>
+<p class="text-base text-muted-foreground max-w-lg mx-auto">
+                        Tra cứu quy định giao thông với câu trả lời có căn cứ và trích dẫn nguồn pháp luật.
+                    </p>
+</div>
+<!-- Chat Composer -->
+<div class="w-full bg-card rounded-xl border border-border shadow-lg p-3 flex flex-col focus-within:ring-1 focus-within:ring-ring focus-within:border-ring transition-all pointer-events-auto">
+<textarea aria-label="Nhập câu hỏi pháp lý" class="w-full bg-transparent border-0 focus:ring-0 resize-none max-h-32 min-h-[80px] py-2 px-2 text-base text-foreground placeholder:text-muted-foreground scrollbar-hide" placeholder="Ví dụ: Xe ô tô chạy quá tốc độ 10km/h bị phạt bao nhiêu tiền?"></textarea>
+<div class="flex justify-between items-center px-2 pt-2 mt-2 border-t border-border">
+<div class="flex items-center">
+<!-- Date Selector Pill -->
+<div class="relative group">
+<button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted text-muted-foreground text-xs font-medium transition-colors border border-transparent hover:border-border">
+<i class="w-3.5 h-3.5" data-lucide="calendar"></i>
+                                    Áp dụng: Hiện hành
+                                    <i class="w-3.5 h-3.5 ml-1" data-lucide="chevron-down"></i>
+</button>
+<!-- Hidden Dropdown for illustration -->
+<div class="hidden absolute top-full mt-1 bg-popover text-popover-foreground border border-border rounded-md shadow-md p-1 w-40 z-10">
+<button class="w-full text-left px-2 py-1.5 text-sm hover:bg-muted rounded">Hiện hành</button>
+<button class="w-full text-left px-2 py-1.5 text-sm hover:bg-muted rounded">Tại ngày cụ thể</button>
+</div>
+</div>
+</div>
+<button class="w-10 h-10 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center shadow-sm">
+<i class="w-5 h-5" data-lucide="send"></i>
+</button>
+</div>
+</div>
+<!-- Suggestion Cards (Bento-style hinting) -->
+<div class="w-full mt-12">
+<p class="text-sm font-medium text-muted-foreground mb-4 pl-1">Gợi ý cho bạn:</p>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<!-- Card 1 -->
+<button class="bg-card border border-border rounded-xl p-5 text-left hover:border-primary/50 hover:bg-accent/50 transition-all duration-200 group flex flex-col gap-4 items-start h-full shadow-sm">
+<div class="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:bg-primary-soft transition-colors">
+<i class="w-5 h-5" data-lucide="bike"></i>
+</div>
+<span class="text-base font-medium text-foreground leading-snug">Xe máy vượt đèn đỏ bị phạt bao nhiêu?</span>
+</button>
+<!-- Card 2 -->
+<button class="bg-card border border-border rounded-xl p-5 text-left hover:border-primary/50 hover:bg-accent/50 transition-all duration-200 group flex flex-col gap-4 items-start h-full shadow-sm">
+<div class="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:bg-primary-soft transition-colors">
+<i class="w-5 h-5" data-lucide="id-card"></i>
+</div>
+<span class="text-base font-medium text-foreground leading-snug">GPLX có bao nhiêu điểm?</span>
+</button>
+<!-- Card 3 -->
+<button class="bg-card border border-border rounded-xl p-5 text-left hover:border-primary/50 hover:bg-accent/50 transition-all duration-200 group flex flex-col gap-4 items-start h-full shadow-sm">
+<div class="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:text-warning group-hover:bg-warning/10 transition-colors">
+<i class="w-5 h-5" data-lucide="wine"></i>
+</div>
+<span class="text-base font-medium text-foreground leading-snug">Nồng độ cồn bị xử lý thế nào?</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+<script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+    </script>
+</body></html>

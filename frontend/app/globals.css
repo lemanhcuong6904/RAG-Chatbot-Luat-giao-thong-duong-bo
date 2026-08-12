@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 98%;
+  --foreground: 240 10% 8%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 8%;
+  --primary: 221 83% 53%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 240 5% 96%;
+  --secondary-foreground: 240 6% 10%;
+  --muted: 240 5% 96%;
+  --muted-foreground: 240 4% 46%;
+  --accent: 240 5% 96%;
+  --accent-foreground: 240 6% 10%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 240 6% 90%;
+  --input: 240 6% 90%;
+  --ring: 221 83% 53%;
+  --radius: 0.875rem;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+.answer-content {
+  @apply text-[15.5px] leading-7 text-zinc-800;
+}
+
+.answer-content p {
+  @apply my-3;
+}
+
+.answer-content h1,
+.answer-content h2,
+.answer-content h3 {
+  @apply mb-2 mt-5 font-semibold text-zinc-950;
+}
+
+.answer-content h1 {
+  @apply text-xl;
+}
+
+.answer-content h2 {
+  @apply text-lg;
+}
+
+.answer-content h3 {
+  @apply text-base;
+}
+
+.answer-content ul,
+.answer-content ol {
+  @apply my-3 space-y-1.5 pl-5;
+}
+
+.answer-content ul {
+  @apply list-disc;
+}
+
+.answer-content ol {
+  @apply list-decimal;
+}
+
+.answer-content strong {
+  @apply font-semibold text-zinc-950;
+}
+
+.answer-content table {
+  @apply my-4 w-full border-collapse overflow-hidden rounded-lg border text-sm;
+}
+
+.answer-content th {
+  @apply bg-zinc-50 px-3 py-2 text-left font-semibold;
+}
+
+.answer-content td {
+  @apply border-t px-3 py-2 align-top;
+}

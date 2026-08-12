@@ -9,7 +9,7 @@ from rag_luat_gt.text import expand_query, normalize_text, strip_accents
 
 
 DOCUMENT_RE = re.compile(
-    r"(\d{1,3})\s*/\s*(\d{4})\s*/\s*([A-Za-zÀ-ỹĐđ-]+)", re.IGNORECASE
+    r"(\d{1,3})\s*/\s*(\d{4})\s*/\s*([0-9A-Za-zÀ-ỹĐđ-]+)", re.IGNORECASE
 )
 ARTICLE_RE = re.compile(r"(?:điều|dieu)\s+(\d+[a-z]?)", re.IGNORECASE)
 CLAUSE_RE = re.compile(r"(?:khoản|khoan)\s+(\d+)", re.IGNORECASE)

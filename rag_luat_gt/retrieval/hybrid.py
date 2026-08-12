@@ -28,6 +28,7 @@ class HybridRetriever:
         self.reranker = None
         self.reranker_error: str | None = None
         self.last_context_trace: list[dict[str, object]] = []
+        self.last_score_trace: dict[str, dict[str, object]] = {}
         if RAG_DENSE_ENABLED and self._dense_ready_matches_manifest():
             try:
                 from rag_luat_gt.retrieval.dense import DenseRetriever
@@ -47,6 +48,11 @@ class HybridRetriever:
 
     def search(self, parsed: ParsedQuery, top_k: int = 8) -> list[tuple[Chunk, float]]:
         self.last_context_trace = []
+        self.last_score_trace = {}
+        exact_results = self._exact_reference_lookup(parsed, top_k=top_k)
+        if exact_results:
+            return self._expand_structural_context(parsed, exact_results, top_k)
+
         query_variants = self._planned_queries(parsed)
         if len(query_variants) > 1:
             result_sets: list[list[tuple[Chunk, float]]] = []
@@ -63,6 +69,17 @@ class HybridRetriever:
         ranked = self._apply_reranker(parsed, ranked)
         return self._expand_structural_context(parsed, ranked, top_k)
 
+    def _exact_reference_lookup(self, parsed: ParsedQuery, top_k: int) -> list[tuple[Chunk, float]]:
+        if not parsed.document_number or not parsed.article:
+            return []
+        exact = self.bm25.exact_lookup(parsed, top_k=top_k * 4)
+        if not exact:
+            return []
+        boosted = [(chunk, 100.0 + score) for chunk, score in exact]
+        self._record_source_scores("exact_reference", boosted)
+        self._record_stage_scores("preference_score", boosted)
+        return boosted
+
     def _search_single_query(self, parsed: ParsedQuery, top_k: int) -> list[tuple[Chunk, float]]:
         bm25_results = self.bm25.search(parsed, top_k=top_k * 4)
         dense_results = []
@@ -77,10 +94,15 @@ class HybridRetriever:
             except Exception as exc:
                 self.dense_error = str(exc)
 
+        self._record_source_scores("bm25", bm25_results)
+        self._record_source_scores("dense", dense_results)
         if not dense_results:
+            self._record_stage_scores("preference_input", bm25_results)
             return bm25_results
 
-        return self._rrf([dense_results, bm25_results])
+        hybrid = self._rrf([dense_results, bm25_results])
+        self._record_stage_scores("rrf_score", hybrid)
+        return hybrid
 
     @staticmethod
     def _planned_queries(parsed: ParsedQuery) -> list[str]:
@@ -114,7 +136,10 @@ class HybridRetriever:
         if not self.reranker or not results:
             return results
         try:
-            return self.reranker.rerank(parsed, results, top_n=RAG_RERANKER_TOP_N)
+            self._record_stage_scores("pre_reranker_score", results)
+            reranked = self.reranker.rerank(parsed, results, top_n=RAG_RERANKER_TOP_N)
+            self._record_stage_scores("reranker_score", reranked)
+            return reranked
         except Exception as exc:
             self.reranker_error = str(exc)
             return results
@@ -170,7 +195,24 @@ class HybridRetriever:
         reranked = self._filter_vehicle_penalty_scope(parsed, reranked)
         reranked = self._filter_primary_penalty_scope(parsed, reranked)
         reranked = self._apply_amount_focus(parsed, reranked)
-        return sorted(reranked, key=lambda item: item[1], reverse=True)
+        reranked = sorted(reranked, key=lambda item: item[1], reverse=True)
+        self._record_stage_scores("preference_score", reranked)
+        return reranked
+
+    def _record_source_scores(self, source: str, results: list[tuple[Chunk, float]]) -> None:
+        score_key = f"{source}_score"
+        rank_key = f"{source}_rank"
+        for rank, (chunk, score) in enumerate(results, start=1):
+            item = self.last_score_trace.setdefault(chunk.chunk_id, {})
+            item[score_key] = score
+            item[rank_key] = rank
+
+    def _record_stage_scores(self, stage: str, results: list[tuple[Chunk, float]]) -> None:
+        rank_key = f"{stage}_rank"
+        for rank, (chunk, score) in enumerate(results, start=1):
+            item = self.last_score_trace.setdefault(chunk.chunk_id, {})
+            item[stage] = score
+            item[rank_key] = rank
 
     @staticmethod
     def _apply_rule_function_preferences(

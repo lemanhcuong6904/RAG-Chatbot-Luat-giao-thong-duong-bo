@@ -78,6 +78,7 @@ class Citation(BaseModel):
     coverage_status: str = "UNKNOWN"
     source_quality: str = "UNKNOWN"
     score: float | None = None
+    score_details: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatResponse(BaseModel):

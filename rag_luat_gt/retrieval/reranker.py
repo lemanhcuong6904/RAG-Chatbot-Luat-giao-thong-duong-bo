@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from rag_luat_gt.config import RAG_RERANKER_LOCAL_FILES_ONLY, RAG_RERANKER_MODEL
+from rag_luat_gt.config import RAG_RERANKER_DEVICE, RAG_RERANKER_LOCAL_FILES_ONLY, RAG_RERANKER_MODEL
 from rag_luat_gt.schemas import Chunk, ParsedQuery
 
 
@@ -28,8 +28,8 @@ class BGEReranker:
 
         self.model = CrossEncoder(
             RAG_RERANKER_MODEL,
-            automodel_args={"local_files_only": RAG_RERANKER_LOCAL_FILES_ONLY},
-            tokenizer_args={"local_files_only": RAG_RERANKER_LOCAL_FILES_ONLY},
+            device=RAG_RERANKER_DEVICE,
+            local_files_only=RAG_RERANKER_LOCAL_FILES_ONLY,
         )
 
     def rerank(

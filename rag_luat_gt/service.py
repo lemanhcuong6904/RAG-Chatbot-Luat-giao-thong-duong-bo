@@ -54,46 +54,59 @@ class RAGService:
         }
         if SANCTION_ENABLED and parsed.intent == "PENALTY_LOOKUP":
             if len(parsed.violations) >= 2:
+                routing_debug["sanction_attempted"] = True
                 resolutions = resolve_violations(self.sanctions, parsed)
                 composition = compose_sanctions(resolutions)
-                response = build_multi_sanction_response(parsed, composition)
-                if request.debug and response.debug is not None:
-                    response.debug["routing"] = routing_debug
-                response = maybe_render_structured_sanction_with_llm(parsed, response)
-                if not request.debug:
-                    response.debug = None
-                return response
-
-            lookup = self.sanctions.lookup(
-                event_date=parsed.legal_effective_date or parsed.event_date or parsed.query_reference_date or "",
-                vehicle_code=parsed.vehicle_code,
-                behavior_code=parsed.behavior_code,
-                behavior_contains=parsed.behavior_text_query or behavior_contains_from_query(parsed.query),
-                document_number=parsed.document_number,
-                article=parsed.article,
-                clause=parsed.clause,
-                point=parsed.point,
-            )
-            routing_debug.update(
-                {
-                    "sanction_attempted": True,
-                    "sanction_status": lookup.status,
-                    "sanction_missing_fields": lookup.missing_fields,
-                }
-            )
-            explicit_ref = any([parsed.document_number, parsed.article, parsed.clause, parsed.point])
-            if lookup.status == "FOUND" or lookup.status in {"NOT_FOUND", "TEMPORAL_AMBIGUOUS"} and explicit_ref:
-                response = build_sanction_response(parsed, lookup)
-                if request.debug and response.debug is not None:
-                    response.debug["routing"] = routing_debug
-                response = maybe_render_structured_sanction_with_llm(parsed, response)
-                if not request.debug:
-                    response.debug = None
-                return response
-            routing_debug["fallback_to_rag"] = True
+                answerable = any(resolution.selected_rule or resolution.rules for resolution in composition.resolutions)
+                routing_debug.update(
+                    {
+                        "sanction_status": composition.status,
+                        "sanction_answerable": answerable,
+                        "sanction_resolution_statuses": [resolution.status for resolution in composition.resolutions],
+                    }
+                )
+                if not answerable:
+                    routing_debug["fallback_to_rag"] = True
+                else:
+                    response = build_multi_sanction_response(parsed, composition)
+                    if request.debug and response.debug is not None:
+                        response.debug["routing"] = routing_debug
+                    response = maybe_render_structured_sanction_with_llm(parsed, response)
+                    if not request.debug:
+                        response.debug = None
+                    return response
+            else:
+                lookup = self.sanctions.lookup(
+                    event_date=parsed.legal_effective_date or parsed.event_date or parsed.query_reference_date or "",
+                    vehicle_code=parsed.vehicle_code,
+                    behavior_code=parsed.behavior_code,
+                    behavior_contains=parsed.behavior_text_query or behavior_contains_from_query(parsed.query),
+                    document_number=parsed.document_number,
+                    article=parsed.article,
+                    clause=parsed.clause,
+                    point=parsed.point,
+                )
+                routing_debug.update(
+                    {
+                        "sanction_attempted": True,
+                        "sanction_status": lookup.status,
+                        "sanction_missing_fields": lookup.missing_fields,
+                    }
+                )
+                explicit_ref = any([parsed.document_number, parsed.article, parsed.clause, parsed.point])
+                if lookup.status == "FOUND" or lookup.status in {"NOT_FOUND", "TEMPORAL_AMBIGUOUS"} and explicit_ref:
+                    response = build_sanction_response(parsed, lookup)
+                    if request.debug and response.debug is not None:
+                        response.debug["routing"] = routing_debug
+                    response = maybe_render_structured_sanction_with_llm(parsed, response)
+                    if not request.debug:
+                        response.debug = None
+                    return response
+                routing_debug["fallback_to_rag"] = True
 
         results = self.retriever.search(parsed, top_k=request.top_k)
         response = build_answer(parsed, results)
+        self._attach_score_details(response)
         if request.debug:
             debug = response.debug or {}
             debug["routing"] = routing_debug
@@ -111,3 +124,19 @@ class RAGService:
         if not request.debug:
             response.debug = None
         return response
+
+    def _attach_score_details(self, response: ChatResponse) -> None:
+        score_trace = getattr(self.retriever, "last_score_trace", {})
+        context_by_id = {
+            str(item.get("chunk_id")): item
+            for item in getattr(self.retriever, "last_context_trace", [])
+            if item.get("chunk_id")
+        }
+        for citation in response.citations:
+            details = dict(score_trace.get(citation.chunk_id, {}))
+            if citation.chunk_id in context_by_id:
+                details["context_reason"] = context_by_id[citation.chunk_id].get("reason")
+                details["context_anchor_chunk_id"] = context_by_id[citation.chunk_id].get("anchor_chunk_id")
+            if citation.score is not None:
+                details["final_citation_score"] = citation.score
+            citation.score_details = details

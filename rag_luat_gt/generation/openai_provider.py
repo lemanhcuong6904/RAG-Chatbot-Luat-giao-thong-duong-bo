@@ -9,7 +9,6 @@ from rag_luat_gt.config import (
 from rag_luat_gt.rule_function import effective_rule_function
 from rag_luat_gt.schemas import Chunk, ParsedQuery
 
-
 SYSTEM_PROMPT = """Bạn là trợ lý tra cứu pháp luật giao thông đường bộ Việt Nam.
 
 NGUYÊN TẮC BẮT BUỘC
@@ -63,17 +62,40 @@ hình thức xử phạt đối với hành vi đó. Quy định xử phạt ch�
 quả pháp lý của vi phạm, không phải căn cứ xác lập điều kiện được phép thực
 hiện hành vi.
 
-14. Với câu hỏi xử phạt nhưng người dùng chưa nêu rõ loại phương tiện, nếu
-LEGAL_CONTEXT có nhiều nguồn thuộc các nhóm phương tiện khác nhau, phải nói rõ
-cần xác định loại phương tiện hoặc trình bày riêng từng nhánh có SOURCE trực
-tiếp hỗ trợ. Không được chọn một Điều/Khoản/Điểm duy nhất chỉ vì đứng trước
-trong context.
+14. Với câu hỏi xử phạt mà người dùng chưa nêu rõ loại phương tiện:
 
-Trả lời bằng tiếng Việt, ngắn gọn, có cấu trúc:
-#### Trả lời
-#### Căn cứ pháp lý
-#### Thời điểm áp dụng
-#### Lưu ý
+- Nếu LEGAL_CONTEXT chứa quy định áp dụng cho nhiều nhóm phương tiện khác nhau,
+  phải chủ động trả lời riêng cho từng trường hợp có SOURCE trực tiếp hỗ trợ,
+  thay vì yêu cầu người dùng cung cấp lại loại phương tiện.
+
+- Mỗi trường hợp phải ghi rõ loại phương tiện hoặc nhóm đối tượng áp dụng,
+  ví dụ: ô tô; mô tô/xe gắn máy; xe máy chuyên dùng; hoặc nhóm phương tiện khác
+  được thể hiện trong LEGAL_CONTEXT.
+
+- Không được lấy mức phạt, số điểm GPLX, hình thức xử phạt bổ sung hoặc
+  biện pháp khắc phục hậu quả của một nhóm phương tiện để áp dụng cho nhóm
+  phương tiện khác.
+
+- Nếu LEGAL_CONTEXT chỉ có evidence cho một số nhóm phương tiện, chỉ trả lời
+  các nhóm có evidence và nói rõ phạm vi thông tin hiện có; không suy đoán
+  quy định cho các nhóm còn thiếu.
+
+- Nếu các nhóm phương tiện có cùng một mức xử lý nhưng được quy định tại các
+  SOURCE khác nhau, mỗi nhánh vẫn phải có citation pháp lý trực tiếp tương ứng
+  với SOURCE hỗ trợ nhánh đó.
+
+15. Cấu trúc câu trả lời phải phù hợp với nội dung câu hỏi, không bắt buộc sử
+    dụng một mẫu tiêu đề cố định.
+
+- Ưu tiên trả lời trực tiếp, rõ ràng và dễ đọc.
+- Có thể dùng đoạn văn, bullet hoặc các mục nhỏ khi cần.
+- Với câu hỏi có nhiều loại phương tiện, nhiều hành vi hoặc nhiều chế tài,
+  nên tách từng trường hợp để tránh nhầm lẫn.
+- Trích dẫn pháp lý là bắt buộc đối với mọi kết luận pháp lý quan trọng,
+  bất kể câu trả lời được trình bày theo cấu trúc nào.
+
+Trả lời bằng tiếng Việt, ngắn gọn, chính xác, dễ hiểu và bám sát evidence.
+Không thêm thông tin pháp luật ngoài LEGAL_CONTEXT và LEGAL_NOTES.
 """
 
 
@@ -84,15 +106,25 @@ def _expansion_metadata(results: list[tuple[Chunk, float]]) -> tuple[str, int, i
     for chunk, _score in results:
         if chunk.children_ids:
             expected += len(chunk.children_ids)
-            actual += len([child_id for child_id in chunk.children_ids if child_id in included_ids])
+            actual += len(
+                [
+                    child_id
+                    for child_id in chunk.children_ids
+                    if child_id in included_ids
+                ]
+            )
     if not expected:
         return "UNKNOWN", 0, 0
     return ("COMPLETE" if expected == actual else "PARTIAL", expected, actual)
 
 
-def _context_from_chunks(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> str:
+def _context_from_chunks(
+    parsed: ParsedQuery, results: list[tuple[Chunk, float]]
+) -> str:
     if parsed.retrieval_mode == "EXHAUSTIVE":
-        expansion_status, expected_children, actual_children = _expansion_metadata(results)
+        expansion_status, expected_children, actual_children = _expansion_metadata(
+            results
+        )
     else:
         expansion_status, expected_children, actual_children = "COMPLETE", 0, 0
     header = "\n".join(

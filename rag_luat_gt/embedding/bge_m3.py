@@ -9,6 +9,7 @@ from rag_luat_gt.config import (
     RAG_EMBEDDING_DEVICE,
     RAG_EMBEDDING_LOCAL_FILES_ONLY,
     RAG_EMBEDDING_MODEL,
+    RAG_EMBEDDING_PROGRESS,
 )
 
 
@@ -36,7 +37,7 @@ class BGEM3Embedder:
             list(texts),
             batch_size=self.batch_size,
             normalize_embeddings=True,
-            show_progress_bar=True,
+            show_progress_bar=RAG_EMBEDDING_PROGRESS,
         )
         array = np.asarray(embeddings, dtype=np.float32)
         return array.tolist()

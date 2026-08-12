@@ -95,10 +95,6 @@ def vehicle_scope_notes(parsed: ParsedQuery, results: list[tuple[Chunk, float]])
     if parsed.intent != "PENALTY_LOOKUP" or parsed.vehicle_code:
         return []
 
-    question = strip_accents(normalize_text(parsed.query))
-    if not any(term in question for term in ["xe", "phuong tien", "nguoi dieu khien"]):
-        return []
-
     penalty_articles = {
         chunk.article
         for chunk, _score in results[:8]

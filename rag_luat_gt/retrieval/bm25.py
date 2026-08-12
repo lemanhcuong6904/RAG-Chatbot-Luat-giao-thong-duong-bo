@@ -89,6 +89,9 @@ class BM25Retriever:
                 break
         return results
 
+    def exact_lookup(self, parsed: ParsedQuery, top_k: int = 8) -> list[tuple[Chunk, float]]:
+        return self._exact_lookup(parsed)[:top_k]
+
     def _exact_lookup(self, parsed: ParsedQuery) -> list[tuple[Chunk, float]]:
         if not any([parsed.document_number, parsed.article, parsed.clause, parsed.point]):
             return []

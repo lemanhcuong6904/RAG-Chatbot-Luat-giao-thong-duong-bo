@@ -145,6 +145,54 @@ def _build_extractive_answer(
     )
 
 
+def _exact_reference_target(parsed: ParsedQuery, citations: list[Citation]) -> Citation | None:
+    if not parsed.document_number or not parsed.article:
+        return None
+
+    def matches(citation: Citation) -> bool:
+        if citation.document_number != parsed.document_number:
+            return False
+        if citation.article != parsed.article:
+            return False
+        if parsed.clause and citation.clause != parsed.clause:
+            return False
+        if parsed.point and citation.point != parsed.point:
+            return False
+        return True
+
+    exact = [citation for citation in citations if matches(citation)]
+    if not exact:
+        return None
+    if parsed.point:
+        return next((citation for citation in exact if citation.chunk_type == "POINT"), exact[0])
+    if parsed.clause:
+        return next((citation for citation in exact if citation.chunk_type == "CLAUSE"), exact[0])
+    return next((citation for citation in exact if citation.chunk_type == "ARTICLE"), exact[0])
+
+
+def _build_exact_reference_answer(parsed: ParsedQuery, citations: list[Citation]) -> str | None:
+    target = _exact_reference_target(parsed, citations)
+    if not target:
+        return None
+
+    label_parts = []
+    if target.point:
+        label_parts.append(f"Điểm {target.point}")
+    if target.clause:
+        label_parts.append(f"Khoản {target.clause}")
+    if target.article:
+        label_parts.append(f"Điều {target.article}")
+    label = " ".join(label_parts) or "Quy định được hỏi"
+    ref = _short_ref(target)
+    return (
+        "### Trả lời\n"
+        f"{label} {target.document_number or target.document_title} quy định:\n\n"
+        f"{target.text.strip()} [{ref}]\n\n"
+        "### Căn cứ pháp lý\n"
+        f"1. {ref}"
+    )
+
+
 def _has_vehicle_scope_note(notes: list[str]) -> bool:
     return any("chưa nêu rõ loại phương tiện" in note for note in notes)
 
@@ -167,42 +215,105 @@ def _build_vehicle_scope_answer(
         "9": "xe thô sơ",
     }
     lines: list[str] = []
-    refs: list[str] = []
-    ref_index = 1
     for article in sorted(grouped, key=int):
-        clause = next((item for item in grouped[article] if item.chunk_type == "CLAUSE" and item.clause), None)
         points = [
             item
             for item in grouped[article]
-            if item.chunk_type == "POINT" and _citation_matches_query_focus(parsed, item)
+            if item.chunk_type == "POINT" and item.clause and _citation_matches_query_focus(parsed, item)
         ]
-        if not clause or not points:
-            continue
-        point_refs = ", ".join(f"Điểm {point.point}" for point in points if point.point)
-        lines.append(
-            f"- Với {labels.get(article, 'nhóm phương tiện liên quan')}: {_legal_ref(clause)}"
-            f"{' (' + point_refs + ')' if point_refs else ''}: {clause.text}"
-        )
-        refs.append(f"{ref_index}. {clause.document_number}: {_legal_ref(clause)}")
-        ref_index += 1
+        points_by_clause: dict[str, list[Citation]] = {}
         for point in points:
-            refs.append(f"{ref_index}. {point.document_number}: {_legal_ref(point)}")
-            ref_index += 1
+            points_by_clause.setdefault(point.clause or "", []).append(point)
+
+        for clause_no, clause_points in sorted(points_by_clause.items(), key=lambda item: _numeric_key(item[0])):
+            clause = next(
+                (
+                    item
+                    for item in grouped[article]
+                    if item.chunk_type == "CLAUSE" and item.clause == clause_no
+                ),
+                None,
+            )
+            if not clause:
+                continue
+            point_refs = ", ".join(f"Điểm {point.point}" for point in clause_points if point.point)
+            citation_refs = "; ".join(_short_ref(point) for point in clause_points)
+            lines.append(
+                f"- **{labels.get(article, 'nhóm phương tiện liên quan')}**: "
+                f"{_extract_fine_text(clause.text)}"
+                f"{' (' + point_refs + ')' if point_refs else ''} [{citation_refs}]."
+            )
 
     note_text = "\n".join(f"- {note}" for note in notes)
     date_line = parsed.legal_effective_date or parsed.event_date or parsed.as_of_date or "ngày hiện tại"
     return (
         "### Trả lời\n"
-        "Câu hỏi chưa nêu rõ loại phương tiện, nên không thể chốt một mức phạt duy nhất. "
-        "Các nhánh căn cứ trực tiếp trong corpus là:\n\n"
-        f"{chr(10).join(lines) if lines else 'Chưa đủ cặp nguồn khoản/điểm để trình bày từng nhánh.'}\n\n"
-        "### Căn cứ pháp lý\n"
-        f"{chr(10).join(refs[:10]) if refs else 'Không có nguồn đủ mạnh.'}\n\n"
+        "Câu hỏi chưa nêu rõ loại phương tiện, nên mức xử phạt cần tách theo từng nhóm xe:\n\n"
+        f"{chr(10).join(lines) if lines else 'Chưa đủ nguồn trực tiếp để trình bày từng nhánh.'}\n\n"
         "### Thời điểm áp dụng\n"
         f"Đang xét theo ngày hiệu lực pháp lý {date_line}.\n\n"
         "### Lưu ý\n"
         f"{note_text}"
     )
+
+
+def _numeric_key(value: str) -> tuple[int, str]:
+    return (int(value), value) if value.isdigit() else (999, value)
+
+
+def _extract_fine_text(text: str) -> str:
+    match = re.search(r"Phạt tiền từ\s+[\d.]+\s+đồng\s+đến\s+[\d.]+\s+đồng", text, flags=re.IGNORECASE)
+    if match:
+        return match.group(0)
+    first_sentence = re.split(r"(?<=[.!?])\s+", text.strip(), maxsplit=1)[0]
+    return first_sentence.rstrip(".")
+
+
+def _short_ref(citation: Citation) -> str:
+    parts = [citation.document_number or citation.document_title or "Nguồn"]
+    if citation.article:
+        parts.append(f"Điều {citation.article}")
+    if citation.clause:
+        parts.append(f"Khoản {citation.clause}")
+    if citation.point:
+        parts.append(f"Điểm {citation.point}")
+    return ", ".join(parts)
+
+
+def _vehicle_scope_citations(parsed: ParsedQuery, citations: list[Citation]) -> list[Citation]:
+    grouped: dict[str, list[Citation]] = {}
+    for citation in citations:
+        if citation.document_number != "168/2024/NĐ-CP" or citation.article not in {"6", "7", "8", "9"}:
+            continue
+        grouped.setdefault(citation.article or "", []).append(citation)
+
+    selected: list[Citation] = []
+    seen: set[str] = set()
+    for article in sorted(grouped, key=int):
+        points = [
+            item
+            for item in grouped[article]
+            if item.chunk_type == "POINT" and item.clause and _citation_matches_query_focus(parsed, item)
+        ]
+        points_by_clause: dict[str, list[Citation]] = {}
+        for point in points:
+            points_by_clause.setdefault(point.clause or "", []).append(point)
+
+        for clause_no, clause_points in sorted(points_by_clause.items(), key=lambda item: _numeric_key(item[0])):
+            clause = next(
+                (
+                    item
+                    for item in grouped[article]
+                    if item.chunk_type == "CLAUSE" and item.clause == clause_no
+                ),
+                None,
+            )
+            for item in [clause, *clause_points]:
+                if item and item.chunk_id not in seen:
+                    selected.append(item)
+                    seen.add(item.chunk_id)
+
+    return selected or citations
 
 
 def _citation_matches_query_focus(parsed: ParsedQuery, citation: Citation) -> bool:
@@ -214,7 +325,7 @@ def _citation_matches_query_focus(parsed: ParsedQuery, citation: Citation) -> bo
         (["lui xe"], ["lui xe"]),
         (["dien thoai", "thiet bi dien tu"], ["dien thoai", "thiet bi dien tu"]),
         (["mu bao hiem", "khong doi mu"], ["mu bao hiem"]),
-        (["den do", "den tin hieu"], ["den tin hieu", "khong chap hanh hieu lenh"]),
+        (["den do", "den tin hieu"], ["den tin hieu"]),
     ]
     condition_groups = [
         (["trong ham", "duong ham", "ham duong bo"], ["trong ham", "duong ham", "ham duong bo"]),
@@ -320,6 +431,27 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
     citations = [_citation_from_result(chunk, score) for chunk, score in results]
     notes = legal_notes(parsed, results)
     warnings = []
+    llm_configured = RAG_LLM_PROVIDER == "openai" and bool(OPENAI_API_KEY)
+
+    exact_answer = _build_exact_reference_answer(parsed, citations)
+    if exact_answer and not llm_configured:
+        return ChatResponse(
+            answer=exact_answer,
+            citations=citations,
+            warnings=warnings,
+            answerable=True,
+            debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "exact_reference_lookup": True},
+        )
+
+    if parsed.intent == "PENALTY_LOOKUP" and not parsed.vehicle_code and _has_vehicle_scope_note(notes) and not llm_configured:
+        scoped_citations = _vehicle_scope_citations(parsed, citations)
+        return ChatResponse(
+            answer=_build_vehicle_scope_answer(parsed, scoped_citations, notes),
+            citations=scoped_citations,
+            warnings=notes,
+            answerable=True,
+            debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "vehicle_scope_split": True},
+        )
 
     gate_passed, gate_notes = _evidence_gate(parsed, results)
     if not gate_passed:
@@ -343,7 +475,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
         )
 
     fee_answer = _build_fee_lookup_answer(parsed, citations)
-    if fee_answer:
+    if fee_answer and not llm_configured:
         return ChatResponse(
             answer=fee_answer,
             citations=citations,
@@ -365,9 +497,9 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
                     warnings=[*notes, error],
                     answerable=False,
                     debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "llm_error": str(exc)},
-                )
+            )
             warnings.append(f"OpenAI generation failed, used extractive fallback: {exc}")
-            answer = _build_extractive_answer(parsed, results, citations, notes)
+            answer = exact_answer or _build_extractive_answer(parsed, results, citations, notes)
     else:
         if RAG_LLM_PROVIDER == "openai":
             warning = "OPENAI_API_KEY is empty, used extractive fallback."
@@ -384,14 +516,14 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
                     },
                 )
             warnings.append(warning)
-        answer = _build_extractive_answer(parsed, results, citations, notes)
+        answer = exact_answer or _build_extractive_answer(parsed, results, citations, notes)
 
     return ChatResponse(
         answer=answer,
         citations=citations,
         warnings=warnings,
         answerable=True,
-        debug={"parsed_query": parsed.model_dump(), "legal_notes": notes},
+        debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "exact_reference_lookup": bool(exact_answer)},
     )
 
 

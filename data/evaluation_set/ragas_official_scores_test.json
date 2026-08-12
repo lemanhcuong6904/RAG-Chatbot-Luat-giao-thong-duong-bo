@@ -1,0 +1,44 @@
+[
+  {
+    "error":null,
+    "latency_s":0.0274068,
+    "num_contexts":1,
+    "answerable":false,
+    "expected_answerable":true,
+    "difficulty":"easy",
+    "category":"exact_lookup",
+    "id":"GT_001",
+    "user_input":"Điểm d khoản 1 Điều 6 35\/2024\/QH15 quy định gì?",
+    "retrieved_contexts":[
+      "Không có context\/citation được hệ thống trả về."
+    ],
+    "response":"Tôi chưa đủ căn cứ trong bộ dữ liệu hiện tại để trả lời chính xác. Bạn có thể nêu rõ văn bản, điều khoản, loại phương tiện hoặc ngày xảy ra hành vi.",
+    "reference":"Cơ sở dữ liệu thanh toán điện tử giao thông đường bộ\nCơ sở dữ liệu thanh toán điện tử giao thông đường bộ\nCăn cứ kỳ vọng: 35\/2024\/QH15 - Điều 6 - Khoản 1 - Điểm d",
+    "faithfulness":0.2,
+    "answer_relevancy":0.0,
+    "context_precision":0.0,
+    "context_recall":0.0,
+    "answer_correctness":0.1045971079
+  },
+  {
+    "error":null,
+    "latency_s":0.0228488,
+    "num_contexts":1,
+    "answerable":false,
+    "expected_answerable":true,
+    "difficulty":"easy",
+    "category":"exact_lookup",
+    "id":"GT_002",
+    "user_input":"Điểm a khoản 1 Điều 8 35\/2024\/QH15 quy định gì?",
+    "retrieved_contexts":[
+      "Không có context\/citation được hệ thống trả về."
+    ],
+    "response":"Tôi chưa đủ căn cứ trong bộ dữ liệu hiện tại để trả lời chính xác. Bạn có thể nêu rõ văn bản, điều khoản, loại phương tiện hoặc ngày xảy ra hành vi.",
+    "reference":"Quốc lộ là đường nối liền Thủ đô Hà Nội với trung tâm hành chính cấp tỉnh; đường nối liền các trung tâm hành chính cấp tỉnh; đường có vị trí quan trọng đối với sự phát triển kinh tế - xã hội, bảo đảm quốc phòng, an ninh của vùng, khu vực\nQuốc lộ là đường nối liền Thủ đô Hà Nội với trung tâm hành chính cấp tỉnh; đường nối liền các trung tâm hành chính cấp tỉnh; đường có vị trí quan trọng đối với sự phát triển kinh tế - xã hội, bảo đảm quốc phòng, an ninh của vùng, khu vực\nCăn cứ kỳ vọng: 35\/2024\/QH15 - Điều 8 - Khoản 1 - Điểm a",
+    "faithfulness":0.2,
+    "answer_relevancy":0.0,
+    "context_precision":0.0,
+    "context_recall":0.0,
+    "answer_correctness":0.0789428295
+  }
+]

@@ -39,6 +39,30 @@ def test_parse_chunks_adds_hierarchy_metadata() -> None:
     assert all(chunk.sibling_group_id == clause.chunk_id for chunk in points)
 
 
+def test_parse_chunks_repairs_inline_l_point_ocr_as_number_one() -> None:
+    document = normalize_document(
+        {
+            "so_ky_hieu": "168/2024/NĐ-CP",
+            "title": "Nghị định test",
+            "ngay_co_hieu_luc": "2025-01-01",
+        },
+        "data/markdown/test.md",
+    )
+    body = "\n".join(
+        [
+            "Điều 6. Xử phạt",
+            "3. Phạt tiền đối với các hành vi sau đây:",
+            "k) Không thắt dây đai an toàn khi điều khiển xe chạy trên đường; 1) Chở người trên xe ô tô không thắt dây đai an toàn khi xe đang chạy; m) Chở trẻ em dưới 10 tuổi.",
+        ]
+    )
+
+    chunks = parse_chunks(document, body, "data/markdown/test.md")
+    points = [chunk for chunk in chunks if chunk.chunk_type == "POINT"]
+
+    assert [point.point for point in points] == ["k", "l", "m"]
+    assert "Chở người trên xe ô tô không thắt dây đai an toàn" in points[1].text
+
+
 def test_exhaustive_context_expands_clause_children() -> None:
     retriever = HybridRetriever()
     retriever.bm25.chunks = _sample_chunks()

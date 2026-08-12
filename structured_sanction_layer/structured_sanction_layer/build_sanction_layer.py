@@ -5,16 +5,18 @@ from dataclasses import dataclass
 from typing import Optional, Any
 import yaml
 
-OUT = Path('/mnt/data/structured_sanction_layer')
+ROOT = Path(__file__).resolve().parents[2]
+MARKDOWN = ROOT / 'data' / 'markdown'
+OUT = Path(__file__).resolve().parent
 OUT.mkdir(exist_ok=True)
 
 SOURCES = {
- '35/2024/QH15': Path('/mnt/data/35-2024-QH15_Luat-Duong-bo.md'),
- '36/2024/QH15-P1': Path('/mnt/data/36-2024-QH15_Phan-1_Dieu-1-23.md'),
- '36/2024/QH15-P2': Path('/mnt/data/36-2024-QH15_Phan-2_Dieu-24-89.md'),
- '165/2024/NĐ-CP': Path('/mnt/data/165-2024-ND-CP_Huong-dan-Luat-Duong-bo.md'),
- '168/2024/NĐ-CP': Path('/mnt/data/168-2024-ND-CP_Xu-phat-TTATGT-Tru-diem-GPLX.md'),
- '238/2026/NĐ-CP': Path('/mnt/data/238-2026-ND-CP_Sua-doi-ND-168-2024.md'),
+ '35/2024/QH15': MARKDOWN / '35-2024-QH15_Luat-Duong-bo.md',
+ '36/2024/QH15-P1': MARKDOWN / '36-2024-QH15_Phan-1_Dieu-1-23.md',
+ '36/2024/QH15-P2': MARKDOWN / '36-2024-QH15_Phan-2_Dieu-24-89.md',
+ '165/2024/NĐ-CP': MARKDOWN / '165-2024-ND-CP_Huong-dan-Luat-Duong-bo.md',
+ '168/2024/NĐ-CP': MARKDOWN / '168-2024-ND-CP_Xu-phat-TTATGT-Tru-diem-GPLX.md',
+ '238/2026/NĐ-CP': MARKDOWN / '238-2026-ND-CP_Sua-doi-ND-168-2024.md',
 }
 
 POINT_ORDER = ['a','b','c','d','đ','e','g','h','i','k','l','m','n','o','p','q','r','s','t','u','v','x','y']
@@ -702,7 +704,9 @@ def main():
     readme=f'''# Structured Sanction Layer – Luật giao thông đường bộ\n\nGenerated from the supplied Markdown files only.\n\n## Scope\n\n- Luật 35/2024/QH15, Luật 36/2024/QH15 (2 source files nhưng 1 logical document), NĐ 165/2024/NĐ-CP: indexed into `legal_provisions.jsonl` as legal context/definitions.\n- NĐ 168/2024/NĐ-CP: primary sanction source; rules extracted from Articles 6–40.\n- NĐ 238/2026/NĐ-CP: amendment overlay with versioned rules and amendment events. Its general effective date is **2026-08-15**, so on **2026-08-11** the amended versions are future rules.\n\n## Outputs\n\n- `sanction_rules.jsonl` / `sanction_rules.csv`: versioned structured sanction rules.\n- `sanctions.sqlite`: query-ready database.\n- `sanction_amendments.jsonl`: amendment/repeal/addition operations from NĐ 238.\n- `sanction_crossrefs.jsonl`: edges that join fine behaviors to point deduction/additional/remedial clauses.\n- `review_queue.jsonl`: cases that should not be silently trusted.\n- `source_registry.jsonl`, `legal_provisions.jsonl`, `schema.json`, `metrics.json`.\n\n## Metrics\n\n```json\n{json.dumps(metrics,ensure_ascii=False,indent=2)}\n```\n\n## Temporal lookup\n\nUse event date, not detection date. NĐ 238 Article 21 states violations occurring and ending before 2026-08-15 are handled under the decree effective at the time of the violation.\n\n```sql\nSELECT * FROM sanction_rules\nWHERE behavior_code = ?\n  AND (valid_from IS NULL OR valid_from <= :event_date)\n  AND (valid_to IS NULL OR :event_date < valid_to);\n```\n\nThen enforce `deferred_effective_from`/`deferred_scope_text` for special 2028/2029 provisions.\n\n## Important QA note\n\n`behavior_code` is generated deterministically from legal wording; it is not yet a hand-curated semantic ontology. For production, maintain a separate alias/catalog layer mapping user phrases such as “vượt đèn đỏ” to the stable rule/behavior codes.\n'''
     (OUT/'README.md').write_text(readme,encoding='utf-8')
     # copy builder
-    shutil.copy2(Path(__file__),OUT/'build_sanction_layer.py')
+    builder_copy = OUT / 'build_sanction_layer.py'
+    if Path(__file__).resolve() != builder_copy.resolve():
+        shutil.copy2(Path(__file__), builder_copy)
     print(json.dumps(metrics,ensure_ascii=False,indent=2))
 
 if __name__=='__main__': main()

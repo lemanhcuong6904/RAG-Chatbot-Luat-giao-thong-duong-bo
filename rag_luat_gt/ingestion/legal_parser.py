@@ -15,6 +15,7 @@ ARTICLE_RE = re.compile(r"^(?:#{1,6}\s*)?Điều\s+(\d+[A-Za-z]?)\.\s*(.*)", re.
 CLAUSE_RE = re.compile(r"^\s*(\d+)\.\s+(.+)")
 POINT_RE = re.compile(r"^\s*([a-zđ])\)\s+(.+)", re.IGNORECASE)
 HEADING_PREFIX_RE = re.compile(r"^#{1,6}\s*")
+INLINE_POINT_RE = re.compile(r"([:;])\s*\.?([a-zÄ‘A-ZÄ1])\)\s+")
 ISO_DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
 
 MAX_CHUNK_CHARS = 2200
@@ -34,6 +35,16 @@ class _State:
 
 def _clean_line(line: str) -> str:
     return HEADING_PREFIX_RE.sub("", line.strip()).strip()
+
+
+def _normalize_inline_points(text: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        point = match.group(2)
+        if point == "1":
+            point = "l"
+        return f"{match.group(1)}\n{point}) "
+
+    return INLINE_POINT_RE.sub(replace, text)
 
 
 def _heading_path(state: _State) -> list[str]:
@@ -282,7 +293,7 @@ def parse_chunks(document: Document, markdown_body: str, source_file: str) -> li
         chunks.extend(_make_chunks(document, state, source_file, counter))
         state.lines = []
 
-    for raw_line in markdown_body.splitlines():
+    for raw_line in _normalize_inline_points(markdown_body).splitlines():
         line = _clean_line(raw_line)
         if not line:
             if state.lines:

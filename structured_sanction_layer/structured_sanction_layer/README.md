@@ -16,8 +16,6 @@ Generated from the supplied Markdown files only.
 - `sanction_crossrefs.jsonl`: edges that join fine behaviors to point deduction/additional/remedial clauses.
 - `review_queue.jsonl`: cases that should not be silently trusted.
 - `source_registry.jsonl`, `legal_provisions.jsonl`, `schema.json`, `metrics.json`.
-- `query_sanctions.py`: CLI lookup helper.
-- `QA_REPORT.md`: structural and temporal spot-checks.
 
 ## Metrics
 

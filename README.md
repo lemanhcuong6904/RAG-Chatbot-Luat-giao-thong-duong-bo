@@ -10,9 +10,15 @@ MVP local cho hỏi đáp luật giao thông đường bộ Việt Nam dựa tr�
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o-mini
 RAG_LLM_PROVIDER=openai
+RAG_REQUIRE_LLM=true
+RAG_SANCTION_LLM_PROVIDER=openai
 SANCTION_ENABLED=true
 SANCTION_DB_PATH=structured_sanction_layer/structured_sanction_layer/sanctions.sqlite
 ```
+
+`RAG_LLM_PROVIDER=openai` dùng LLM để sinh câu trả lời RAG thường. `RAG_SANCTION_LLM_PROVIDER` mặc định kế thừa `RAG_LLM_PROVIDER`, nhưng có thể đặt rõ `openai` để câu trả lời Structured Sanction cũng đi qua LLM renderer.
+
+Nếu `RAG_REQUIRE_LLM=true`, hệ thống không trả fallback trích xuất/deterministic khi bước gọi LLM lỗi hoặc thiếu `OPENAI_API_KEY`; thay vào đó sẽ báo lỗi LLM rõ ràng. Nếu đặt `false`, hệ thống vẫn fallback để app tiếp tục trả lời được.
 
 Nếu `OPENAI_API_KEY` để trống, hệ thống tự dùng chế độ trả lời trích xuất từ nguồn.
 

@@ -52,3 +52,32 @@ def test_structured_sanction_llm_renderer_falls_back_on_error(monkeypatch) -> No
 
     assert rendered.answer == "deterministic"
     assert rendered.warnings
+
+
+def test_structured_sanction_llm_required_does_not_return_deterministic_on_error(monkeypatch) -> None:
+    import rag_luat_gt.generation.structured_sanction_llm as renderer
+
+    def fail(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(renderer, "RAG_SANCTION_LLM_PROVIDER", "openai")
+    monkeypatch.setattr(renderer, "RAG_REQUIRE_LLM", True)
+    monkeypatch.setattr(renderer, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(renderer, "_render_with_openai", fail)
+
+    response = ChatResponse(
+        answer="deterministic",
+        citations=[],
+        answerable=True,
+        debug={"sanction_lookup": {"status": "FOUND", "rules": []}},
+    )
+
+    rendered = maybe_render_structured_sanction_with_llm(
+        ParsedQuery(query="q", normalized_query="q"),
+        response,
+    )
+
+    assert rendered.answer != "deterministic"
+    assert rendered.answerable is False
+    assert "bắt buộc sinh câu trả lời bằng LLM" in rendered.answer
+    assert rendered.warnings

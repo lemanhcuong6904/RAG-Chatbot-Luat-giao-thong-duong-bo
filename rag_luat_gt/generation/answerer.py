@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from rag_luat_gt.config import OPENAI_API_KEY, RAG_LLM_PROVIDER
+from rag_luat_gt.config import OPENAI_API_KEY, RAG_LLM_PROVIDER, RAG_REQUIRE_LLM
 from rag_luat_gt.generation.openai_provider import generate_with_openai
 from rag_luat_gt.legal_notes import legal_notes
 from rag_luat_gt.rule_function import effective_rule_function
@@ -280,11 +280,33 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
             llm_limit = 30 if parsed.retrieval_mode == "EXHAUSTIVE" or parsed.answer_mode == "ENUMERATION" else 6
             answer = generate_with_openai(parsed, results[:llm_limit], notes)
         except Exception as exc:
+            if RAG_REQUIRE_LLM:
+                error = f"OpenAI generation failed and RAG_REQUIRE_LLM=true: {exc}"
+                return ChatResponse(
+                    answer=_build_llm_required_error_answer(parsed, citations, error),
+                    citations=citations,
+                    warnings=[*notes, error],
+                    answerable=False,
+                    debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "llm_error": str(exc)},
+                )
             warnings.append(f"OpenAI generation failed, used extractive fallback: {exc}")
             answer = _build_extractive_answer(parsed, results, citations, notes)
     else:
         if RAG_LLM_PROVIDER == "openai":
-            warnings.append("OPENAI_API_KEY is empty, used extractive fallback.")
+            warning = "OPENAI_API_KEY is empty, used extractive fallback."
+            if RAG_REQUIRE_LLM:
+                return ChatResponse(
+                    answer=_build_llm_required_error_answer(parsed, citations, "OPENAI_API_KEY is not configured."),
+                    citations=citations,
+                    warnings=[*notes, "OPENAI_API_KEY is not configured."],
+                    answerable=False,
+                    debug={
+                        "parsed_query": parsed.model_dump(),
+                        "legal_notes": notes,
+                        "llm_error": "OPENAI_API_KEY is not configured.",
+                    },
+                )
+            warnings.append(warning)
         answer = _build_extractive_answer(parsed, results, citations, notes)
 
     return ChatResponse(
@@ -315,6 +337,28 @@ def _build_missing_amount_answer(
         f"Truy vấn đang xét theo ngày {parsed.legal_effective_date or parsed.event_date or parsed.as_of_date or 'hiện tại'}.\n\n"
         "### Lưu ý\n"
         f"{note_text}"
+    )
+
+
+def _build_llm_required_error_answer(
+    parsed: ParsedQuery,
+    citations: list[Citation],
+    error: str,
+) -> str:
+    refs = "\n".join(
+        f"{index + 1}. {citation.document_number or citation.document_title}: {_legal_ref(citation)}"
+        for index, citation in enumerate(citations[:5])
+    )
+    return (
+        "### Trả lời\n"
+        "Hệ thống đang được cấu hình bắt buộc sinh câu trả lời bằng LLM, nhưng bước gọi LLM chưa thực hiện được. "
+        "Tôi không trả fallback trích xuất để tránh tạo cảm giác đây là câu trả lời đã được diễn đạt hoàn chỉnh.\n\n"
+        "### Căn cứ pháp lý đã truy xuất\n"
+        f"{refs or 'Không có nguồn đủ mạnh.'}\n\n"
+        "### Thời điểm áp dụng\n"
+        f"Đang xét theo ngày {parsed.legal_effective_date or parsed.event_date or parsed.as_of_date or 'hiện tại'}.\n\n"
+        "### Lưu ý\n"
+        f"- Lỗi LLM: {error}"
     )
 
 

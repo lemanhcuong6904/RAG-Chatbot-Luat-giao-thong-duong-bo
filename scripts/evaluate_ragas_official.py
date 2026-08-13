@@ -14,6 +14,14 @@ from dotenv import load_dotenv
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from langchain_core.embeddings import Embeddings
+
+from rag_luat_gt.config import RAG_EMBEDDING_MODEL
+from rag_luat_gt.embedding.bge_m3 import BGEM3Embedder
+
 DATA_DIR = ROOT / "data" / "evaluation_set"
 DEFAULT_INPUT = DATA_DIR / "eval_outputs.jsonl"
 DEFAULT_REPORT = DATA_DIR / "EVALUATION_REPORT_RAGAS.md"
@@ -28,12 +36,26 @@ LIMIT: int | None = None
 MAX_CONTEXTS = 8
 
 RAGAS_LLM_MODEL = "gpt-4o-mini"
-RAGAS_EMBEDDING_MODEL = "text-embedding-3-small"
+RAGAS_EMBEDDING_MODEL = RAG_EMBEDDING_MODEL
 BATCH_SIZE = 4
 
 REPORT_PATH = DEFAULT_REPORT
 JSON_OUTPUT_PATH = DEFAULT_JSON
 CSV_OUTPUT_PATH = DEFAULT_CSV
+
+
+class BGEEmbeddings(Embeddings):
+    """LangChain-compatible wrapper for the project's local BGE-M3 embedder."""
+
+    def __init__(self, model_name: str = RAGAS_EMBEDDING_MODEL) -> None:
+        self.model_name = model_name
+        self.embedder = BGEM3Embedder(model_name=model_name)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return self.embedder.encode(texts)
+
+    def embed_query(self, text: str) -> list[float]:
+        return self.embedder.encode_query(text)
 
 
 def install_ragas_vertexai_compat_shim() -> None:
@@ -233,7 +255,7 @@ def main() -> int:
     import pandas as pd
     import ragas
     from datasets import Dataset
-    from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+    from langchain_openai import ChatOpenAI
     from ragas import evaluate
     from ragas.metrics._answer_correctness import answer_correctness
     from ragas.metrics._answer_relevance import answer_relevancy
@@ -246,7 +268,7 @@ def main() -> int:
     dataset = Dataset.from_list(ragas_rows)
 
     llm = ChatOpenAI(model=RAGAS_LLM_MODEL, temperature=0)
-    embeddings = OpenAIEmbeddings(model=RAGAS_EMBEDDING_MODEL)
+    embeddings = BGEEmbeddings(model_name=RAGAS_EMBEDDING_MODEL)
     metrics = [faithfulness, answer_relevancy, context_precision, context_recall, answer_correctness]
 
     result = evaluate(

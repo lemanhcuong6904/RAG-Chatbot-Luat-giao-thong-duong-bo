@@ -120,6 +120,69 @@ def vehicle_scope_notes(parsed: ParsedQuery, results: list[tuple[Chunk, float]])
     ]
 
 
+def bicycle_helmet_scope_notes(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> list[str]:
+    query = strip_accents(normalize_text(parsed.query))
+    if parsed.vehicle_type != "xe đạp" or not any(term in query for term in ["mu bao hiem", "doi mu"]):
+        return []
+
+    top_texts = [
+        strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:1200]}"))
+        for chunk, _score in results[:8]
+    ]
+    helmet_texts = [text for text in top_texts if "mu bao hiem" in text]
+    if not helmet_texts:
+        return []
+
+    machine_or_motor_scope = any(
+        any(term in text for term in ["xe dap may", "mo to", "xe gan may", "xe may"])
+        for text in helmet_texts
+    )
+    ordinary_bicycle_scope = any(
+        "xe dap" in text
+        and "mu bao hiem" in text
+        and not any(term in text for term in ["xe dap may", "mo to", "xe gan may", "xe may"])
+        for text in helmet_texts
+    )
+    if machine_or_motor_scope and not ordinary_bicycle_scope:
+        return [
+            (
+                "Câu hỏi nêu xe đạp thông thường. Các nguồn truy xuất về mũ bảo hiểm đang áp dụng cho xe đạp máy, "
+                "mô tô hoặc xe gắn máy; không được suy rộng các nguồn này thành nghĩa vụ bắt buộc đội mũ bảo hiểm "
+                "đối với xe đạp thông thường."
+            )
+        ]
+
+    return []
+
+
+def vehicle_capacity_classification_notes(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> list[str]:
+    query = strip_accents(normalize_text(parsed.query))
+    if parsed.intent != "DRIVER_AGE_REQUIREMENT" or not any(
+        term in query for term in ["cm3", "cm³", "xi lanh", "dung tich", "kw", "cong suat"]
+    ):
+        return []
+
+    top_text = "\n".join(
+        strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:1200]}"))
+        for chunk, _score in results[:12]
+    )
+    has_license_classification = (
+        "hang a1" in top_text
+        and any(term in top_text for term in ["dung tich xi-lanh", "dung tich xi lanh", "125 cm3", "125 cm³"])
+    )
+    has_age_basis = "nguoi du 18 tuoi tro len duoc cap giay phep lai xe" in top_text
+    if has_license_classification and has_age_basis:
+        return [
+            (
+                "Câu hỏi có thông số dung tích/công suất. Phải phân loại phương tiện theo nguồn về hạng giấy phép "
+                "lái xe/dung tích trước, rồi mới áp dụng nguồn về độ tuổi; không được đồng nhất xe máy hoặc mô tô "
+                "có dung tích nêu trong câu hỏi với xe gắn máy nếu nguồn không thể hiện điều đó."
+            )
+        ]
+
+    return []
+
+
 def effective_penalty_source(chunk: Chunk) -> bool:
     text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:900]}"))
     return any(term in text for term in ["phat tien", "xu phat", "vi pham", "quay dau", "lui xe"])
@@ -130,4 +193,6 @@ def legal_notes(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> list
         *amendment_notes(parsed, results),
         *missing_amount_notes(parsed, results),
         *vehicle_scope_notes(parsed, results),
+        *bicycle_helmet_scope_notes(parsed, results),
+        *vehicle_capacity_classification_notes(parsed, results),
     ]

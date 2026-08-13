@@ -24,6 +24,8 @@ ENUMERATION_PATTERNS = [
         r"\bgồm\s+các\b",
         r"\bcác\s+.+\s+nào\b",
         r"\bnhững\s+.+\s+nào\b",
+        r"\bcó\s+những\s+.+\s+gì\b",
+        r"\bnhững\s+.+\s+gì\b",
         r"\bliệt\s+kê\b",
         r"\bcó\s+bao\s+nhiêu\b",
         r"\bnhững\s+nội\s+dung\s+nào\b",
@@ -108,6 +110,8 @@ def _is_enumeration_query(query: str) -> bool:
 def _detect_vehicle(query: str) -> str | None:
     q = normalize_text(query)
     q_ascii = strip_accents(q)
+    if "xe đạp máy" in q or "xe dap may" in q_ascii:
+        return "xe đạp máy"
     if "xe máy chuyên dùng" in q or "xe may chuyen dung" in q_ascii:
         return "xe máy chuyên dùng"
     if any(term in q for term in ["ô tô", "xe hơi", "xe con", "xe tải", "xe khách"]) or any(
@@ -118,6 +122,8 @@ def _detect_vehicle(query: str) -> str | None:
         term in q_ascii for term in ["xe may", "mo to", "gan may"]
     ):
         return "xe máy"
+    if "xe đạp" in q or "xe dap" in q_ascii:
+        return "xe đạp"
     return None
 
 

@@ -34,6 +34,11 @@ Không dùng kiến thức pháp luật từ trí nhớ của mô hình.
 5. Không ghép mức tiền, số điểm GPLX hoặc chế tài từ SOURCE A
 với hành vi ở SOURCE B nếu LEGAL_CONTEXT không thể hiện rõ quan hệ
 pháp lý giữa hai nguồn.
+LEGAL_CONTEXT được chia thành LEGAL_GROUP theo quan hệ document/article/clause/point.
+Chỉ được kết hợp mức phạt, điểm GPLX, tước GPLX hoặc biện pháp khác khi các SOURCE
+nằm trong cùng LEGAL_GROUP hoặc có quan hệ parent-child rõ trong LEGAL_GROUP.
+Nếu SOURCE nằm ở các LEGAL_GROUP khác nhau, phải trả lời thành các nhánh riêng
+theo phương tiện/điều khoản; không gộp thành một kết luận chung.
 
 6. Nếu người dùng nêu rõ số văn bản, Điều, Khoản hoặc Điểm nhưng
 LEGAL_CONTEXT không chứa đúng tham chiếu đó, không được thay bằng
@@ -62,7 +67,19 @@ hình thức xử phạt đối với hành vi đó. Quy định xử phạt ch�
 quả pháp lý của vi phạm, không phải căn cứ xác lập điều kiện được phép thực
 hiện hành vi.
 
-14. Với câu hỏi xử phạt mà người dùng chưa nêu rõ loại phương tiện:
+14. Với câu hỏi về độ tuổi/GPLX có thông số dung tích xi-lanh hoặc công suất:
+
+- Phải phân loại phương tiện bằng SOURCE quy định hạng giấy phép lái xe, dung tích
+  xi-lanh, công suất hoặc định nghĩa phương tiện trước khi kết luận.
+- Sau đó mới kết hợp với SOURCE quy định độ tuổi tối thiểu/cấp GPLX.
+- Không được mặc định "xe máy" hoặc "mô tô" là "xe gắn máy". Chỉ áp dụng quy định
+  16 tuổi cho xe gắn máy nếu LEGAL_CONTEXT có SOURCE cho thấy phương tiện trong
+  câu hỏi thuộc xe gắn máy.
+- Nếu LEGAL_CONTEXT cho thấy phương tiện thuộc hạng GPLX cần đủ 18 tuổi trở lên,
+  phải trả lời không được phép đối với người dưới 18 tuổi và dẫn cả SOURCE phân loại
+  phương tiện lẫn SOURCE độ tuổi.
+
+15. Với câu hỏi xử phạt mà người dùng chưa nêu rõ loại phương tiện:
 
 - Nếu LEGAL_CONTEXT chứa quy định áp dụng cho nhiều nhóm phương tiện khác nhau,
   phải chủ động trả lời riêng cho từng trường hợp có SOURCE trực tiếp hỗ trợ,
@@ -84,7 +101,7 @@ hiện hành vi.
   SOURCE khác nhau, mỗi nhánh vẫn phải có citation pháp lý trực tiếp tương ứng
   với SOURCE hỗ trợ nhánh đó.
 
-15. Cấu trúc câu trả lời phải phù hợp với nội dung câu hỏi, không bắt buộc sử
+16. Cấu trúc câu trả lời phải phù hợp với nội dung câu hỏi, không bắt buộc sử
     dụng một mẫu tiêu đề cố định.
 
 - Ưu tiên trả lời trực tiếp, rõ ràng và dễ đọc.
@@ -147,28 +164,91 @@ def _context_from_chunks(
             f"ACTUAL_CHILD_COUNT: {actual_children}",
         ]
     )
-    blocks = []
-    for index, (chunk, _score) in enumerate(results, start=1):
-        blocks.append(
-            "\n".join(
-                [
-                    f"[SOURCE {index}]",
-                    f"document_number: {chunk.document_number or ''}",
-                    f"article: {chunk.article or ''}",
-                    f"clause: {chunk.clause or ''}",
-                    f"point: {chunk.point or ''}",
-                    f"valid_from: {chunk.valid_from or ''}",
-                    f"valid_to: {chunk.valid_to or ''}",
-                    f"temporal_status: {chunk.metadata.get('temporal_status', '')}",
-                    f"rule_function: {effective_rule_function(chunk.rule_function, chunk.text, chunk.article_title)}",
-                    f"coverage_status: {chunk.coverage_status}",
-                    f"source_quality: {chunk.source_quality}",
-                    "content:",
-                    chunk.text,
-                ]
-            )
-        )
+    blocks = _legal_group_blocks(results)
     return header + "\n\n" + "\n\n".join(blocks)
+
+
+def _legal_group_blocks(results: list[tuple[Chunk, float]]) -> list[str]:
+    source_numbers = {chunk.chunk_id: index for index, (chunk, _score) in enumerate(results, start=1)}
+    groups: dict[tuple[str, str, str, str], list[Chunk]] = {}
+    group_order: list[tuple[str, str, str, str]] = []
+    for chunk, _score in results:
+        key = _legal_group_key(chunk)
+        if key not in groups:
+            groups[key] = []
+            group_order.append(key)
+        groups[key].append(chunk)
+
+    blocks: list[str] = []
+    for group_index, key in enumerate(group_order, start=1):
+        chunks = sorted(groups[key], key=_chunk_group_order)
+        representative = _group_representative(chunks)
+        source_ids = ", ".join(f"SOURCE {source_numbers[chunk.chunk_id]}" for chunk in chunks)
+        parent_sources = ", ".join(
+            f"SOURCE {source_numbers[chunk.chunk_id]}"
+            for chunk in chunks
+            if chunk.chunk_type in {"ARTICLE", "CLAUSE"} or chunk.children_ids
+        )
+        child_sources = ", ".join(
+            f"SOURCE {source_numbers[chunk.chunk_id]}"
+            for chunk in chunks
+            if chunk.chunk_type not in {"ARTICLE", "CLAUSE"}
+        )
+        lines = [
+            f"[LEGAL_GROUP {group_index}]",
+            f"group_key: {'::'.join(part for part in key if part)}",
+            f"group_sources: {source_ids}",
+            f"parent_sources: {parent_sources or '(none)'}",
+            f"child_or_point_sources: {child_sources or '(none)'}",
+            f"document_number: {representative.document_number or ''}",
+            f"article: {representative.article or ''}",
+            f"clause: {representative.clause or ''}",
+            f"article_title: {representative.article_title or ''}",
+            "group_contract: Only combine sanctions, money amounts, license points, suspensions, conditions, and citations within this LEGAL_GROUP unless another group is answered as a separate branch.",
+        ]
+        for chunk in chunks:
+            lines.extend(["", _source_block(source_numbers[chunk.chunk_id], chunk)])
+        blocks.append("\n".join(lines))
+    return blocks
+
+
+def _legal_group_key(chunk: Chunk) -> tuple[str, str, str, str]:
+    if chunk.article and chunk.clause:
+        return (chunk.document_id, chunk.article or "", chunk.clause or "", "")
+    if chunk.article:
+        return (chunk.document_id, chunk.article or "", "", "")
+    if chunk.parent_id:
+        return (chunk.document_id, chunk.parent_id, "", "")
+    return (chunk.document_id, chunk.chunk_id, "", "")
+
+
+def _chunk_group_order(chunk: Chunk) -> tuple[int, int, str]:
+    type_rank = {"ARTICLE": 0, "CLAUSE": 1, "POINT": 2}.get(chunk.chunk_type, 3)
+    return (type_rank, chunk.order, chunk.chunk_id)
+
+
+def _group_representative(chunks: list[Chunk]) -> Chunk:
+    return next((chunk for chunk in chunks if chunk.chunk_type in {"CLAUSE", "ARTICLE"}), chunks[0])
+
+
+def _source_block(index: int, chunk: Chunk) -> str:
+    return "\n".join(
+        [
+            f"[SOURCE {index}]",
+            f"document_number: {chunk.document_number or ''}",
+            f"article: {chunk.article or ''}",
+            f"clause: {chunk.clause or ''}",
+            f"point: {chunk.point or ''}",
+            f"valid_from: {chunk.valid_from or ''}",
+            f"valid_to: {chunk.valid_to or ''}",
+            f"temporal_status: {chunk.metadata.get('temporal_status', '')}",
+            f"rule_function: {effective_rule_function(chunk.rule_function, chunk.text, chunk.article_title)}",
+            f"coverage_status: {chunk.coverage_status}",
+            f"source_quality: {chunk.source_quality}",
+            "content:",
+            chunk.text,
+        ]
+    )
 
 
 def generate_with_openai(

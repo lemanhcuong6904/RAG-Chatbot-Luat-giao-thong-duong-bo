@@ -96,6 +96,8 @@ def _step_back_query(parsed: ParsedQuery) -> str:
 def _should_multi_query(parsed: ParsedQuery) -> bool:
     if parsed.intent in {"PENALTY_LOOKUP", "ARTICLE_LOOKUP"}:
         return False
+    if parsed.intent == "DRIVER_AGE_REQUIREMENT" and _has_vehicle_capacity(parsed.query):
+        return True
     if parsed.answer_mode == "ENUMERATION":
         return True
     q = strip_accents(normalize_text(parsed.query))
@@ -115,6 +117,15 @@ def _multi_queries(parsed: ParsedQuery) -> list[str]:
                 "dieu kien tuoi suc khoe nguoi lai xe duoc cap giay phep lai xe",
             ]
         )
+        if _has_vehicle_capacity(query):
+            variants.extend(
+                [
+                    f"{query} hang A1 hang A xe mo to hai banh dung tich xi lanh cong suat dong co dien",
+                    "giay phep lai xe hang A1 hang A xe mo to hai banh dung tich xi lanh 125 cm3 11 kW",
+                    "xe gan may van toc thiet ke khong lon hon 50 km/h dong co dien cong suat khong lon hon 04 kW",
+                    "nguoi du 18 tuoi tro len duoc cap giay phep lai xe hang A1 A",
+                ]
+            )
     elif parsed.intent == "LICENSE_POINT_BALANCE":
         variants.extend(
             [
@@ -137,7 +148,13 @@ def _multi_queries(parsed: ParsedQuery) -> list[str]:
             ]
         )
 
-    return _dedupe(expand_query(variant) for variant in variants)[:4]
+    limit = 6 if parsed.intent == "DRIVER_AGE_REQUIREMENT" and _has_vehicle_capacity(query) else 4
+    return _dedupe(expand_query(variant) for variant in variants)[:limit]
+
+
+def _has_vehicle_capacity(query: str) -> bool:
+    q = strip_accents(normalize_text(query))
+    return any(term in q for term in ["cm3", "cm³", "xi lanh", "dung tich", "kw", "cong suat"])
 
 
 def _should_hyde(parsed: ParsedQuery) -> bool:

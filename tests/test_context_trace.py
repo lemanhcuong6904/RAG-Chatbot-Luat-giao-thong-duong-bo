@@ -63,3 +63,41 @@ def test_generic_tunnel_u_turn_penalty_keeps_vehicle_scope_ambiguous() -> None:
     assert "Điểm d" in response.answer
     assert response.debug
     assert any("chưa nêu rõ loại phương tiện" in note for note in response.debug["legal_notes"])
+
+
+def test_bicycle_helmet_answer_does_not_apply_electric_bicycle_scope() -> None:
+    response = RAGService().answer(
+        ChatRequest(query="Đi xe đạp cần đội mũ bảo hiểm hay không?", debug=True, top_k=8)
+    )
+
+    assert response.answerable
+    assert "xe đạp thông thường" in response.answer
+    assert "chưa tìm thấy căn cứ trực tiếp" in response.answer
+    assert "không được dùng để kết luận" in response.answer
+    assert "việc đội mũ bảo hiểm là bắt buộc" not in response.answer
+    assert response.debug
+    assert response.debug.get("vehicle_scope_mismatch") is True
+    assert any("xe đạp thông thường" in note for note in response.debug["legal_notes"])
+
+
+def test_accident_responsibility_context_expands_article_80_subtree() -> None:
+    parsed = parse_query(
+        ChatRequest(query="Khi xảy ra tai nạn giao thông, người điều khiển phương tiện có những nghĩa vụ gì?")
+    )
+    retriever = HybridRetriever()
+
+    results = retriever.search(parsed, top_k=12)
+    article_80 = [
+        (chunk.article, chunk.clause, chunk.point, chunk.chunk_type)
+        for chunk, _score in results
+        if chunk.document_number == "36/2024/QH15" and chunk.article == "80"
+    ]
+
+    assert ("80", None, None, "ARTICLE") in article_80
+    assert ("80", "1", None, "CLAUSE") in article_80
+    assert ("80", "1", "a", "POINT") in article_80
+    assert ("80", "1", "b", "POINT") in article_80
+    assert ("80", "1", "c", "POINT") in article_80
+    assert ("80", "2", "đ", "POINT") in article_80
+    assert ("80", "3", None, "CLAUSE") in article_80
+    assert ("80", "4", None, "CLAUSE") in article_80

@@ -37,7 +37,8 @@ export type ChatMessage = {
   latencyMs?: number;
 };
 
-type LoadingStage = "retrieving" | "generating";
+type LoadingStage = "routing" | "retrieving" | "generating";
+type LoadingMode = "direct" | "rag";
 type Feedback = "like" | "dislike" | null;
 
 export function ChatView({
@@ -54,7 +55,8 @@ export function ChatView({
   const [input, setInput] = useState("");
   const [eventDate, setEventDate] = useState(todayISO());
   const [isSending, setIsSending] = useState(false);
-  const [loadingStage, setLoadingStage] = useState<LoadingStage>("retrieving");
+  const [loadingStage, setLoadingStage] = useState<LoadingStage>("routing");
+  const [loadingMode, setLoadingMode] = useState<LoadingMode>("rag");
   const [error, setError] = useState<string | null>(null);
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -64,9 +66,13 @@ export function ChatView({
     setInput("");
     setError(null);
     setIsSending(true);
-    setLoadingStage("retrieving");
+    setLoadingStage("routing");
+    const nextLoadingMode: LoadingMode = isDirectUiPrompt(question) ? "direct" : "rag";
+    setLoadingMode(nextLoadingMode);
     const startedAt = performance.now();
-    const generationTimer = window.setTimeout(() => setLoadingStage("generating"), 900);
+    const retrievalTimer =
+      nextLoadingMode === "rag" ? window.setTimeout(() => setLoadingStage("retrieving"), 450) : undefined;
+    const generationTimer = window.setTimeout(() => setLoadingStage("generating"), nextLoadingMode === "rag" ? 1200 : 700);
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -100,6 +106,7 @@ export function ChatView({
       setError(exc instanceof Error ? exc.message : "Không thể xử lý câu hỏi.");
       onMessagesChange(nextMessages);
     } finally {
+      if (retrievalTimer !== undefined) window.clearTimeout(retrievalTimer);
       window.clearTimeout(generationTimer);
       setIsSending(false);
       inputRef.current?.focus();
@@ -127,7 +134,7 @@ export function ChatView({
                   />
                 ),
               )}
-              {isSending && <LoadingMessage stage={loadingStage} />}
+              {isSending && <LoadingMessage stage={loadingStage} mode={loadingMode} />}
               {error && (
                 <div className="rounded-[24px] border-2 border-red-700 bg-red-50 p-4 text-sm font-semibold text-red-700 shadow-[4px_4px_0_#7f1d1d]">
                   Không gọi được API. Kiểm tra FastAPI đang chạy ở `http://127.0.0.1:8010`.
@@ -372,7 +379,7 @@ function AssistantMessage({
   );
 }
 
-function LoadingMessage({ stage }: { stage: LoadingStage }) {
+function LoadingMessage({ stage, mode }: { stage: LoadingStage; mode: LoadingMode }) {
   return (
     <div className="flex gap-4">
       <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl neo-border bg-[#00f5a0] shadow-[3px_3px_0_#1a1c1c]">
@@ -380,8 +387,18 @@ function LoadingMessage({ stage }: { stage: LoadingStage }) {
       </div>
       <div className="w-full rounded-[30px] rounded-tl-md neo-border bg-white p-5 shadow-[5px_5px_0_#1a1c1c]">
         <div className="mb-4 grid gap-2 text-sm font-semibold">
-          <StageRow active={stage === "retrieving"} done={stage === "generating"} label="Truy xuất nguồn pháp lý" />
-          <StageRow active={stage === "generating"} done={false} label="Sinh câu trả lời" />
+          {mode === "rag" ? (
+            <>
+              <StageRow active={stage === "routing"} done={stage !== "routing"} label="Đang hiểu yêu cầu" />
+              <StageRow active={stage === "retrieving"} done={stage === "generating"} label="Truy xuất nguồn pháp lý" />
+              <StageRow active={stage === "generating"} done={false} label="Sinh câu trả lời" />
+            </>
+          ) : (
+            <>
+              <StageRow active={stage === "routing"} done={stage === "generating"} label="Đang hiểu yêu cầu" />
+              <StageRow active={stage === "generating"} done={false} label="Đang soạn phản hồi" />
+            </>
+          )}
         </div>
         <div className="space-y-2">
           <div className="h-3 w-3/4 rounded-full bg-[#ffd600]" />
@@ -390,6 +407,20 @@ function LoadingMessage({ stage }: { stage: LoadingStage }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function isDirectUiPrompt(value: string) {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[?.!,;:]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return new Set(["hi", "hello", "chao", "xin chao", "xin chao ban", "chao ban", "ban co the lam gi", "ban co the lam nhung gi"]).has(
+    normalized,
   );
 }
 

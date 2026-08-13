@@ -8,6 +8,7 @@ from rag_luat_gt.generation.structured_sanction_llm import maybe_render_structur
 from rag_luat_gt.retrieval.hybrid import HybridRetriever
 from rag_luat_gt.retrieval.llm_query_transformer import transform_query_with_llm
 from rag_luat_gt.retrieval.query_parser import parse_query
+from rag_luat_gt.retrieval.query_router import apply_route_decision, direct_route_response, route_query
 from rag_luat_gt.sanction.behavior_catalog import behavior_contains_from_query
 from rag_luat_gt.sanction.composition_engine import compose_sanctions
 from rag_luat_gt.sanction.condition_resolver import resolve_violations
@@ -46,10 +47,28 @@ class RAGService:
 
     def answer(self, request: ChatRequest) -> ChatResponse:
         parsed = parse_query(request)
+        parsed, route_decision, router_debug = route_query(parsed)
+        direct_response = direct_route_response(route_decision)
+        if direct_response:
+            if request.debug:
+                direct_response.debug = {
+                    **(direct_response.debug or {}),
+                    "routing": {
+                        "query_router": router_debug,
+                        "sanction_attempted": False,
+                        "fallback_to_rag": False,
+                    },
+                }
+            else:
+                direct_response.debug = None
+            return direct_response
+
         parsed, prerag_debug = transform_query_with_llm(parsed)
+        parsed = apply_route_decision(parsed, route_decision)
         routing_debug: dict[str, object] = {
             "sanction_attempted": False,
             "fallback_to_rag": False,
+            "query_router": router_debug,
             "pre_rag": prerag_debug,
         }
         if SANCTION_ENABLED and parsed.intent == "PENALTY_LOOKUP":

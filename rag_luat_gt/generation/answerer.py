@@ -116,6 +116,8 @@ def _build_extractive_answer(
 ) -> str:
     if parsed.intent == "PENALTY_LOOKUP" and not parsed.vehicle_code and _has_vehicle_scope_note(legal_notes):
         return _build_vehicle_scope_answer(parsed, citations, legal_notes)
+    if _has_bicycle_helmet_scope_note(legal_notes):
+        return _build_bicycle_helmet_scope_answer(parsed, citations, legal_notes)
 
     evidence_limit = 30 if parsed.retrieval_mode == "EXHAUSTIVE" else 3
     refs_limit = 30 if parsed.retrieval_mode == "EXHAUSTIVE" else 5
@@ -195,6 +197,34 @@ def _build_exact_reference_answer(parsed: ParsedQuery, citations: list[Citation]
 
 def _has_vehicle_scope_note(notes: list[str]) -> bool:
     return any("chưa nêu rõ loại phương tiện" in note for note in notes)
+
+
+def _has_bicycle_helmet_scope_note(notes: list[str]) -> bool:
+    return any("xe đạp thông thường" in note and "mũ bảo hiểm" in note for note in notes)
+
+
+def _build_bicycle_helmet_scope_answer(
+    parsed: ParsedQuery,
+    citations: list[Citation],
+    notes: list[str],
+) -> str:
+    selected = _bicycle_helmet_scope_citations(citations)
+    refs = "\n".join(
+        f"{index + 1}. {citation.document_number or citation.document_title}: {_legal_ref(citation)}"
+        for index, citation in enumerate(selected[:5])
+    )
+    note_text = "\n".join(f"- {note}" for note in notes)
+    return (
+        "### Trả lời\n"
+        "Đúng: với câu hỏi về **xe đạp thông thường**, tôi chưa tìm thấy căn cứ trực tiếp trong corpus cho thấy "
+        "người đi xe đạp bắt buộc phải đội mũ bảo hiểm.\n\n"
+        "Các căn cứ truy xuất được về mũ bảo hiểm đang nói đến **xe đạp máy**, **mô tô** hoặc **xe gắn máy**, "
+        "nên không được dùng để kết luận nghĩa vụ bắt buộc đội mũ đối với xe đạp thông thường.\n\n"
+        "### Căn cứ pháp lý đã truy xuất\n"
+        f"{refs or 'Không có nguồn trực tiếp cho xe đạp thông thường.'}\n\n"
+        "### Lưu ý\n"
+        f"{note_text}"
+    )
 
 
 def _build_vehicle_scope_answer(
@@ -313,6 +343,22 @@ def _vehicle_scope_citations(parsed: ParsedQuery, citations: list[Citation]) -> 
                     selected.append(item)
                     seen.add(item.chunk_id)
 
+    return selected or citations
+
+
+def _bicycle_helmet_scope_citations(citations: list[Citation]) -> list[Citation]:
+    selected: list[Citation] = []
+    seen: set[str] = set()
+    for citation in citations:
+        text = strip_accents(normalize_text(f"{citation.article_title or ''}\n{citation.text[:1200]}"))
+        if "mu bao hiem" not in text:
+            continue
+        if not any(term in text for term in ["xe dap may", "mo to", "xe gan may", "xe may"]):
+            continue
+        if citation.chunk_id in seen:
+            continue
+        selected.append(citation)
+        seen.add(citation.chunk_id)
     return selected or citations
 
 
@@ -453,6 +499,16 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
             debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "vehicle_scope_split": True},
         )
 
+    if _has_bicycle_helmet_scope_note(notes):
+        scoped_citations = _bicycle_helmet_scope_citations(citations)
+        return ChatResponse(
+            answer=_build_bicycle_helmet_scope_answer(parsed, scoped_citations, notes),
+            citations=scoped_citations,
+            warnings=notes,
+            answerable=True,
+            debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "vehicle_scope_mismatch": True},
+        )
+
     gate_passed, gate_notes = _evidence_gate(parsed, results)
     if not gate_passed:
         all_notes = [*notes, *gate_notes]
@@ -482,6 +538,16 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
             warnings=warnings,
             answerable=True,
             debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "fee_lookup": {"resolved": True}},
+        )
+
+    capacity_age_answer = _build_capacity_age_answer(parsed, citations)
+    if capacity_age_answer:
+        return ChatResponse(
+            answer=capacity_age_answer[0],
+            citations=capacity_age_answer[1],
+            warnings=notes,
+            answerable=True,
+            debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "capacity_age_reasoning": True},
         )
 
     if RAG_LLM_PROVIDER == "openai" and OPENAI_API_KEY:
@@ -525,6 +591,101 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
         answerable=True,
         debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "exact_reference_lookup": bool(exact_answer)},
     )
+
+
+def _build_capacity_age_answer(parsed: ParsedQuery, citations: list[Citation]) -> tuple[str, list[Citation]] | None:
+    if parsed.intent != "DRIVER_AGE_REQUIREMENT":
+        return None
+
+    age = _age_from_query(parsed.query)
+    capacity = _engine_capacity_from_query(parsed.query)
+    if age is None or capacity is None:
+        return None
+
+    license_evidence = _motorcycle_license_class_for_capacity(capacity, citations)
+    age_evidence = _license_age_evidence(citations)
+    if not license_evidence or not age_evidence:
+        return None
+
+    license_class, license_citation = license_evidence
+    minimum_age, age_citation = age_evidence
+    selected = _dedupe_citations([license_citation, age_citation])
+    refs = "\n".join(
+        f"{index + 1}. {citation.document_number or citation.document_title}: {_legal_ref(citation)}"
+        for index, citation in enumerate(selected)
+    )
+
+    allowed = age >= minimum_age
+    conclusion = "được phép" if allowed else "chưa được phép"
+    reason = (
+        f"Xe mô tô hai bánh {capacity:g} cm3 thuộc phạm vi GPLX hạng {license_class}; "
+        f"nguồn về độ tuổi yêu cầu người đủ {minimum_age} tuổi trở lên mới được cấp GPLX hạng {license_class}."
+    )
+    return (
+        "### Trả lời\n"
+        f"Người {age:g} tuổi **{conclusion}** lái xe máy {capacity:g} cm3.\n\n"
+        f"{reason} [{_short_ref(license_citation)}; {_short_ref(age_citation)}]\n\n"
+        "### Căn cứ pháp lý\n"
+        f"{refs}",
+        selected,
+    )
+
+
+def _age_from_query(query: str) -> float | None:
+    q = strip_accents(normalize_text(query))
+    match = re.search(r"\b(\d+(?:[,.]\d+)?)\s*tuoi\b", q)
+    return float(match.group(1).replace(",", ".")) if match else None
+
+
+def _engine_capacity_from_query(query: str) -> float | None:
+    q = strip_accents(normalize_text(query)).replace("cm³", "cm3")
+    match = re.search(r"\b(\d+(?:[,.]\d+)?)\s*(?:cm3|cc)\b", q)
+    return float(match.group(1).replace(",", ".")) if match else None
+
+
+def _motorcycle_license_class_for_capacity(capacity: float, citations: list[Citation]) -> tuple[str, Citation] | None:
+    candidates: list[tuple[str, Citation]] = []
+    for citation in citations:
+        if citation.document_number != "36/2024/QH15" or citation.article != "57":
+            continue
+        text = strip_accents(normalize_text(citation.text))
+        if "hang a1" in text and _covers_upper_bound_capacity(text, capacity):
+            candidates.append(("A1", citation))
+        if re.search(r"\bhang a\b", text) and _covers_lower_bound_capacity(text, capacity):
+            candidates.append(("A", citation))
+    return candidates[0] if candidates else None
+
+
+def _covers_upper_bound_capacity(text: str, capacity: float) -> bool:
+    match = re.search(r"(?:den|khong qua)\s+(\d+(?:[,.]\d+)?)\s*cm3", text)
+    return bool(match and capacity <= float(match.group(1).replace(",", ".")))
+
+
+def _covers_lower_bound_capacity(text: str, capacity: float) -> bool:
+    match = re.search(r"tren\s+(\d+(?:[,.]\d+)?)\s*cm3", text)
+    return bool(match and capacity > float(match.group(1).replace(",", ".")))
+
+
+def _license_age_evidence(citations: list[Citation]) -> tuple[int, Citation] | None:
+    for citation in citations:
+        if citation.document_number != "36/2024/QH15" or citation.article != "59":
+            continue
+        text = strip_accents(normalize_text(citation.text))
+        match = re.search(r"nguoi du\s+(\d+)\s+tuoi tro len duoc cap giay phep lai xe hang a1,\s*a", text)
+        if match:
+            return int(match.group(1)), citation
+    return None
+
+
+def _dedupe_citations(citations: list[Citation]) -> list[Citation]:
+    selected: list[Citation] = []
+    seen: set[str] = set()
+    for citation in citations:
+        if citation.chunk_id in seen:
+            continue
+        selected.append(citation)
+        seen.add(citation.chunk_id)
+    return selected
 
 
 def _build_missing_amount_answer(

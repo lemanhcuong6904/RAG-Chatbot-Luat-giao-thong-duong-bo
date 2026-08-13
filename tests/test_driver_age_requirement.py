@@ -30,6 +30,28 @@ def test_driver_age_requirement_uses_eligibility_source() -> None:
     )
 
 
+def test_16_year_old_cannot_drive_125cc_motorcycle() -> None:
+    response = RAGService().answer(
+        ChatRequest(query="Người 16 tuổi có được lái xe máy 125 cm³ không?", top_k=12, debug=True)
+    )
+
+    assert response.answerable
+    assert "chưa được phép" in response.answer
+    assert "125 cm3" in response.answer
+    assert "hạng A1" in response.answer
+    assert "18 tuổi" in response.answer
+    assert any(
+        citation.document_number == "36/2024/QH15" and citation.article == "57" and citation.point == "a"
+        for citation in response.citations
+    )
+    assert any(
+        citation.document_number == "36/2024/QH15" and citation.article == "59" and citation.point == "b"
+        for citation in response.citations
+    )
+    assert response.debug
+    assert response.debug.get("capacity_age_reasoning") is True
+
+
 def test_eligibility_question_rejects_sanction_only_evidence() -> None:
     parsed = ParsedQuery(
         query="Người từ bao nhiêu tuổi được phép điều khiển ô tô?",

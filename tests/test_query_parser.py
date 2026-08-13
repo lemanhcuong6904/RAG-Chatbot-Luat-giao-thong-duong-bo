@@ -73,3 +73,23 @@ def test_parse_query_detects_fee_lookup_before_driver_license() -> None:
     parsed = parse_query(ChatRequest(query="Tổng lệ phí thi sát hạch lái xe A1 là bao nhiêu?"))
 
     assert parsed.intent == "FEE_LOOKUP"
+
+
+def test_parse_query_distinguishes_bicycle_from_electric_bicycle() -> None:
+    bicycle = parse_query(ChatRequest(query="Đi xe đạp cần đội mũ bảo hiểm hay không?"))
+    electric_bicycle = parse_query(ChatRequest(query="Đi xe đạp máy cần đội mũ bảo hiểm hay không?"))
+
+    assert bicycle.vehicle_type == "xe đạp"
+    assert bicycle.vehicle_code == "BICYCLE"
+    assert electric_bicycle.vehicle_type == "xe đạp máy"
+    assert electric_bicycle.vehicle_code == "BICYCLE"
+
+
+def test_responsibility_question_with_nhung_gi_is_enumeration() -> None:
+    parsed = parse_query(
+        ChatRequest(query="Khi xảy ra tai nạn giao thông, người điều khiển phương tiện có những nghĩa vụ gì?")
+    )
+
+    assert parsed.intent == "ENUMERATION"
+    assert parsed.answer_mode == "ENUMERATION"
+    assert parsed.retrieval_mode == "EXHAUSTIVE"

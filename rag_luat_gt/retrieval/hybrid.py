@@ -188,6 +188,7 @@ class HybridRetriever:
             return []
 
         reranked = self._apply_rule_function_preferences(parsed, results)
+        reranked = self._apply_accident_responsibility_preferences(parsed, reranked)
         reranked = self._apply_license_point_preferences(parsed, reranked)
         reranked = self._apply_vehicle_preferences(parsed, reranked)
         reranked = self._apply_penalty_focus(parsed, reranked)
@@ -222,6 +223,8 @@ class HybridRetriever:
         if not parsed.desired_rule_function:
             return results
 
+        query = strip_accents(normalize_text(parsed.query))
+        asks_capacity = any(term in query for term in ["cm3", "cm³", "xi lanh", "dung tich", "kw", "cong suat"])
         reranked: list[tuple[Chunk, float]] = []
         for chunk, score in results:
             rule_function = effective_rule_function(chunk.rule_function, chunk.text, chunk.article_title)
@@ -239,11 +242,44 @@ class HybridRetriever:
                     adjusted += base * 1.5
                 if chunk.article == "59" and any(term in text for term in ["tuoi", "suc khoe", "duoc cap giay phep"]):
                     adjusted += base * 3.0
+                if asks_capacity and chunk.document_number == "36/2024/QH15" and chunk.article == "57":
+                    if any(term in text for term in ["hang a1", "hang a", "dung tich xi-lanh", "dung tich xi lanh"]):
+                        adjusted += base * 5.0
+                if asks_capacity and chunk.document_number == "36/2024/QH15" and chunk.article == "34":
+                    if "xe gan may" in text and any(term in text for term in ["50 km/h", "04 kw", "cong suat"]):
+                        adjusted += base * 3.0
                 if any(term in text for term in ["phat tien", "xu phat", "vi pham"]):
                     adjusted -= base * 1.5
 
             reranked.append((chunk, adjusted))
 
+        return reranked
+
+    @staticmethod
+    def _apply_accident_responsibility_preferences(
+        parsed: ParsedQuery,
+        results: list[tuple[Chunk, float]],
+    ) -> list[tuple[Chunk, float]]:
+        query = strip_accents(normalize_text(parsed.query))
+        if "tai nan giao thong" not in query:
+            return results
+        if not any(term in query for term in ["trach nhiem", "nghia vu", "phai lam gi", "co nhung"]):
+            return results
+
+        reranked: list[tuple[Chunk, float]] = []
+        for chunk, score in results:
+            text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:900]}"))
+            adjusted = score
+            base = max(abs(score), 1.0)
+            if chunk.document_number == "36/2024/QH15" and chunk.article == "80":
+                adjusted += base * 3.5
+                if chunk.chunk_type == "ARTICLE":
+                    adjusted += base * 4.0
+                if any(term in text for term in ["nguoi dieu khien phuong tien", "nguoi lien quan", "nguoi co mat"]):
+                    adjusted += base * 1.5
+            elif chunk.document_number == "36/2024/QH15" and chunk.article in {"82", "83"}:
+                adjusted -= base * 0.75
+            reranked.append((chunk, adjusted))
         return reranked
 
     @staticmethod
@@ -287,10 +323,15 @@ class HybridRetriever:
         if not parsed.vehicle_type:
             return results
 
+        query = strip_accents(normalize_text(parsed.query))
+        asks_helmet_for_bicycle = parsed.vehicle_type == "xe đạp" and any(
+            term in query for term in ["mu bao hiem", "doi mu"]
+        )
         reranked: list[tuple[Chunk, float]] = []
         for chunk, score in results:
             title = normalize_text(chunk.article_title or "")
             text = normalize_text(f"{title}\n{chunk.text[:700]}")
+            text_ascii = strip_accents(text)
             adjusted = score
 
             if parsed.vehicle_type == "xe máy":
@@ -310,6 +351,14 @@ class HybridRetriever:
             elif parsed.vehicle_type == "xe máy chuyên dùng":
                 if "xe máy chuyên dùng" in title:
                     adjusted += abs(score) * 0.25
+
+            elif parsed.vehicle_type == "xe đạp":
+                if chunk.document_number == "168/2024/NĐ-CP" and chunk.article == "9":
+                    adjusted += abs(score) * 0.2
+                if asks_helmet_for_bicycle and any(
+                    term in text_ascii for term in ["xe dap may", "mo to", "xe gan may", "xe may"]
+                ):
+                    adjusted -= abs(score) * 0.55
 
             reranked.append((chunk, adjusted))
 
@@ -657,8 +706,22 @@ class HybridRetriever:
         by_sibling_group: dict[str, list[Chunk]],
     ) -> list[Chunk]:
         if anchor.children_ids:
-            children = [by_id[chunk_id] for chunk_id in anchor.children_ids if chunk_id in by_id]
-            return [anchor, *children]
+            expanded = [anchor]
+            seen = {anchor.chunk_id}
+
+            def add_descendants(parent: Chunk) -> None:
+                children = [
+                    by_id[chunk_id]
+                    for chunk_id in parent.children_ids
+                    if chunk_id in by_id and chunk_id not in seen
+                ]
+                for child in sorted(children, key=lambda chunk: (chunk.order, chunk.chunk_id)):
+                    expanded.append(child)
+                    seen.add(child.chunk_id)
+                    add_descendants(child)
+
+            add_descendants(anchor)
+            return expanded
         if anchor.sibling_group_id:
             siblings = sorted(
                 by_sibling_group.get(anchor.sibling_group_id, []),

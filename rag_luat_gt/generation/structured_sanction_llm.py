@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from rag_luat_gt.config import (
     OPENAI_API_KEY,
@@ -21,8 +22,8 @@ Nếu payload có trạng thái CONDITIONAL hoặc thiếu điều kiện, phả
 Giữ cấu trúc Markdown với các mục:
 ### Trả lời
 ### Căn cứ pháp lý
-### Thời điểm áp dụng
-### Lưu ý
+
+Không thêm mục "Thời điểm áp dụng" hoặc "Lưu ý" vào câu trả lời cuối, trừ khi người dùng hỏi trực tiếp về thời điểm hiệu lực hoặc cảnh báo kỹ thuật.
 
 Văn phong: tự nhiên, ngắn gọn, dễ đọc; bỏ các nhãn kỹ thuật như UNSPECIFIED, MOTORCYCLE nếu không cần thiết.
 """
@@ -83,12 +84,18 @@ def maybe_render_structured_sanction_with_llm(
 
 
 def _sanction_render_prompt(deterministic_answer: str) -> str:
+    deterministic_answer = _strip_non_user_sections(deterministic_answer)
     return (
         deterministic_answer
         + "\n\nYêu cầu diễn đạt: viết tự nhiên như tư vấn trực tiếp cho người hỏi; "
         "không bê nguyên mô tả bucket rule nếu câu trả lời đã có nhãn hành vi ngắn hơn; "
-        "không hiện mã nội bộ như CAR, UNSPECIFIED, rule_id; không thêm chế tài ngoài payload."
+        "không hiện mã nội bộ như CAR, UNSPECIFIED, rule_id; không thêm chế tài ngoài payload; "
+        "không đưa các ghi chú kỹ thuật, validation_status hoặc ngày hiệu lực vào câu trả lời cuối."
     )
+
+
+def _strip_non_user_sections(answer: str) -> str:
+    return re.split(r"\n###\s*(?:Thời điểm áp dụng|Lưu ý)\b", answer, maxsplit=1)[0].rstrip()
 
 
 def _mark_skip(response: ChatResponse, reason: str) -> None:

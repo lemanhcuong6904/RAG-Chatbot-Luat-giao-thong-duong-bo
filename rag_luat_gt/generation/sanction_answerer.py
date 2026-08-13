@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from rag_luat_gt.sanction.schemas import SanctionLookup, SanctionRule
 from rag_luat_gt.schemas import ChatResponse, Citation, ParsedQuery
+from rag_luat_gt.text import normalize_text, strip_accents
 
 
 def _money(value: int | None) -> str:
@@ -83,23 +84,12 @@ def build_sanction_response(parsed: ParsedQuery, lookup: SanctionLookup) -> Chat
         f"{index}. {rule.document_number}: {_rule_ref(rule)}"
         for index, rule in enumerate(rules, start=1)
     )
-    note_lines = [
-        "Kết quả được tra từ Structured Sanction Layer và chỉ dùng rule có validation_status=PASS.",
-        f"Ngày hiệu lực pháp lý: {parsed.legal_effective_date or parsed.event_date or 'hiện tại'}.",
-    ]
-    if warnings:
-        note_lines.extend(warnings)
-
     return ChatResponse(
         answer=(
             "### Trả lời\n"
             f"{answer}\n\n"
             "### Căn cứ pháp lý\n"
-            f"{refs}\n\n"
-            "### Thời điểm áp dụng\n"
-            f"{note_lines[1]}\n\n"
-            "### Lưu ý\n"
-            + "\n".join(f"- {line}" for line in note_lines)
+            f"{refs}"
         ),
         citations=citations,
         warnings=warnings,
@@ -130,13 +120,36 @@ def _rule_answer_base(rule: SanctionRule, parsed: ParsedQuery) -> str:
 
 
 def _behavior_label(rule: SanctionRule, parsed: ParsedQuery) -> str:
-    if parsed.behavior_text_query:
+    if rule.behavior_code == "KHONG_CHAP_HANH_HIEU_LENH_CUA_DEN_TIN_HIEU_GIAO_THONG":
+        return "không chấp hành hiệu lệnh của đèn tín hiệu giao thông (vượt đèn đỏ)"
+    if parsed.behavior_text_query and _is_specific_behavior_label(parsed.behavior_text_query):
         return parsed.behavior_text_query
+    if rule.behavior_text:
+        return rule.behavior_text
     for violation in parsed.violations:
         codes = [str(code) for code in violation.conditions.get("behavior_codes", []) if code]
         if rule.behavior_code in codes:
             return violation.raw_span or violation.behavior_text
-    return rule.behavior_text or "hành vi vi phạm"
+    return parsed.behavior_text_query or "hành vi vi phạm"
+
+
+def _is_specific_behavior_label(value: str) -> bool:
+    normalized = strip_accents(normalize_text(value))
+    if len(normalized.split()) >= 5:
+        return True
+    return any(
+        term in normalized
+        for term in [
+            "quay",
+            "vuot",
+            "khong chap hanh",
+            "khong doi",
+            "di sai",
+            "nong do",
+            "qua toc do",
+            "gay tai nan",
+        ]
+    )
 
 
 def _vehicle_label(parsed: ParsedQuery, rule: SanctionRule) -> str:

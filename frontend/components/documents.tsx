@@ -176,33 +176,35 @@ export function DocumentsView() {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto bg-muted/20">
+    <main className="flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-[1040px] px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8 space-y-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="mb-8 rounded-[32px] neo-border bg-white p-6 shadow-[6px_6px_0_#1a1c1c]">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="mb-2 text-3xl font-semibold tracking-tight">Văn bản pháp luật</h1>
-              <p className="text-[15px] text-muted-foreground">
+              <h1 className="font-display mb-2 text-4xl font-extrabold tracking-tight text-[#1a1c1c]">
+                Văn bản pháp luật
+              </h1>
+              <p className="max-w-2xl text-[15px] font-medium leading-7 text-muted-foreground">
                 Tra cứu và kiểm tra nguồn văn bản dùng trong hệ thống hỏi đáp luật giao thông.
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {adminMode && (
                 <Button variant="outline" onClick={() => setAdding((value) => !value)}>
                   <FilePlus2 className="h-4 w-4" />
                   Thêm văn bản
                 </Button>
               )}
-              <Button variant={adminMode ? "default" : "outline"} onClick={() => setAdminMode((value) => !value)}>
+              <Button variant={adminMode ? "secondary" : "outline"} onClick={() => setAdminMode((value) => !value)}>
                 {adminMode ? <ShieldCheck className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}
                 {adminMode ? "ADMIN" : "Người dùng"}
               </Button>
             </div>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative mt-6">
+            <Search className="absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#ff6b00]" />
             <Input
-              className="pl-9"
+              className="h-14 rounded-full border-2 border-[#1a1c1c] bg-[#fff8ef] pl-12 text-sm font-semibold shadow-[4px_4px_0_#1a1c1c] focus-visible:ring-[#ff6b00]/30"
               placeholder="Tìm theo số hiệu, tên văn bản, cơ quan ban hành..."
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -211,9 +213,9 @@ export function DocumentsView() {
         </div>
 
         {adminMode && adding && (
-          <Card className="mb-5 p-5">
+          <Card className="mb-6 bg-[#fcf3e0] p-5">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Thêm văn bản pháp luật</h2>
+              <h2 className="font-display text-xl font-extrabold">Thêm văn bản pháp luật</h2>
               <Button size="icon" variant="ghost" onClick={() => setAdding(false)} aria-label="Đóng form thêm văn bản">
                 <X className="h-4 w-4" />
               </Button>
@@ -227,7 +229,7 @@ export function DocumentsView() {
                 <Input placeholder="Cơ quan ban hành" value={newDraft.issuing_authority || ""} onChange={(event) => setNewDraft({ ...newDraft, issuing_authority: event.target.value })} />
                 <Input placeholder="Ngày ban hành YYYY-MM-DD" value={newDraft.issue_date || ""} onChange={(event) => setNewDraft({ ...newDraft, issue_date: event.target.value })} />
                 <Input placeholder="Ngày hiệu lực YYYY-MM-DD" value={newDraft.effective_from || ""} onChange={(event) => setNewDraft({ ...newDraft, effective_from: event.target.value })} />
-                <label className="flex cursor-pointer items-center gap-2 rounded-md border bg-white px-3 py-2 text-sm">
+                <label className="flex cursor-pointer items-center gap-2 rounded-full border-2 border-[#1a1c1c] bg-white px-4 py-2 text-sm font-bold">
                   <Upload className="h-4 w-4" />
                   <span className="truncate">{pdfFile ? pdfFile.name : "Chọn file PDF"}</span>
                   <input className="hidden" type="file" accept="application/pdf" onChange={(event) => setPdfFile(event.target.files?.[0] ?? null)} />
@@ -247,22 +249,22 @@ export function DocumentsView() {
           </Card>
         )}
 
-        {loading && <div className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">Đang tải văn bản...</div>}
-        {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">{error}</div>}
+        {loading && <div className="rounded-[28px] neo-border bg-white p-6 text-sm font-semibold text-muted-foreground shadow-[4px_4px_0_#1a1c1c]">Đang tải văn bản...</div>}
+        {error && <div className="mb-4 rounded-[28px] border-2 border-red-700 bg-red-50 p-6 text-sm font-semibold text-red-700 shadow-[4px_4px_0_#7f1d1d]">{error}</div>}
         {!loading && !error && filtered.length === 0 && (
-          <div className="rounded-lg border bg-card p-8 text-center">
-            <h2 className="font-semibold">Không tìm thấy văn bản phù hợp</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Thử tìm theo số hiệu như 168/2024/NĐ-CP.</p>
+          <div className="rounded-[28px] neo-border bg-white p-8 text-center shadow-[4px_4px_0_#1a1c1c]">
+            <h2 className="font-display font-extrabold">Không tìm thấy văn bản phù hợp</h2>
+            <p className="mt-2 text-sm font-medium text-muted-foreground">Thử tìm theo số hiệu như 168/2024/NĐ-CP.</p>
           </div>
         )}
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           {filtered.map((document) => {
             const editing = editingKey === document.uiKey;
             return (
               <Card
                 key={document.uiKey}
-                className="p-5 transition-colors hover:border-primary/50"
+                className="bg-white p-5 transition-transform hover:-translate-y-1 md:p-6"
                 draggable={adminMode}
                 onDragOver={(event) => event.preventDefault()}
                 onDragStart={() => setDraggingKey(document.uiKey)}
@@ -271,7 +273,7 @@ export function DocumentsView() {
                   setDraggingKey(null);
                 }}
               >
-                <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="secondary">{document.document_number || "Văn bản"}</Badge>
                     <Badge variant="outline">{document.document_type}</Badge>
@@ -280,14 +282,14 @@ export function DocumentsView() {
                       {document.effective_to ? "Có thời hạn hiệu lực" : "Đang hiệu lực"}
                     </Badge>
                   </div>
-                  <span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
+                  <span className="flex shrink-0 items-center gap-1.5 rounded-full border-2 border-[#1a1c1c] bg-[#ffd600] px-3 py-1 text-sm font-bold text-[#1a1c1c]">
                     <Calendar className="h-4 w-4" />
                     Hiệu lực: {formatDate(document.effective_from)}
                   </span>
                 </div>
 
                 {editing ? (
-                  <div className="mb-4 grid gap-3 rounded-lg border bg-zinc-50 p-4">
+                  <div className="mb-4 grid gap-3 rounded-[24px] border-2 border-[#1a1c1c] bg-[#fff8ef] p-4">
                     <Input value={draft.title || ""} onChange={(event) => setDraft({ ...draft, title: event.target.value })} />
                     <Input value={draft.abstract || ""} onChange={(event) => setDraft({ ...draft, abstract: event.target.value })} />
                     <div className="grid gap-3 md:grid-cols-2">
@@ -309,20 +311,20 @@ export function DocumentsView() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mb-4">
-                    <h2 className="text-xl font-semibold leading-tight">{displayDocumentName(document)}</h2>
-                    {document.abstract && <div className="mt-2 text-sm font-semibold leading-6 text-zinc-700">{document.abstract}</div>}
+                  <div className="mb-5">
+                    <h2 className="font-display text-2xl font-extrabold leading-tight text-[#1a1c1c]">{displayDocumentName(document)}</h2>
+                    {document.abstract && <div className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">{document.abstract}</div>}
                   </div>
                 )}
 
-                <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-4 border-t-2 border-dashed border-[#d0c6ab] pt-4 text-sm font-semibold text-muted-foreground">
                   <span className="flex items-center gap-1.5">
-                    <Landmark className="h-4 w-4" />
+                    <Landmark className="h-4 w-4 text-[#ff6b00]" />
                     {document.issuing_authority || "Chưa rõ cơ quan"}
                   </span>
-                  <span className="h-4 w-px bg-border" />
+                  <span className="hidden h-4 w-0.5 bg-border sm:block" />
                   <span>Ban hành: {formatDate(document.issue_date)}</span>
-                  <span className="ml-auto flex items-center gap-1 font-medium text-primary">
+                  <span className="ml-auto flex items-center gap-1 font-extrabold text-[#ff6b00]">
                     {document.raw_pdf_url ? (
                       <button className="inline-flex items-center gap-1" onClick={() => setPdfDocument(document)}>
                         <Eye className="h-4 w-4" />
@@ -338,8 +340,8 @@ export function DocumentsView() {
                 </div>
 
                 {adminMode && (
-                  <div className="mt-4 flex flex-wrap gap-2 border-t pt-3">
-                    <div className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm text-muted-foreground">
+                  <div className="mt-4 flex flex-wrap gap-2 border-t-2 border-dashed border-[#d0c6ab] pt-3">
+                    <div className="inline-flex items-center gap-2 rounded-full border-2 border-[#1a1c1c] bg-[#fcf3e0] px-3 py-2 text-sm font-bold text-muted-foreground">
                       <GripVertical className="h-4 w-4" />
                       Kéo thả để sắp xếp
                     </div>
@@ -395,12 +397,12 @@ function PdfViewer({ document, onClose }: { document: ManagedDocument; onClose: 
   if (!document.raw_pdf_url) return null;
   const url = `${API_URL}${document.raw_pdf_url}`;
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 p-4">
-      <div className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between gap-4 border-b px-4 py-3">
+    <div className="fixed inset-0 z-50 bg-black/60 p-4">
+      <div className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-[28px] neo-border bg-white shadow-[7px_7px_0_#1a1c1c]">
+        <div className="flex items-center justify-between gap-4 border-b-2 border-[#1a1c1c] bg-[#ffd600] px-4 py-3">
           <div className="min-w-0">
-            <div className="truncate font-semibold">{displayDocumentName(document)}</div>
-            {document.abstract && <div className="truncate text-sm text-muted-foreground">{document.abstract}</div>}
+            <div className="truncate font-display font-extrabold">{displayDocumentName(document)}</div>
+            {document.abstract && <div className="truncate text-sm font-semibold text-muted-foreground">{document.abstract}</div>}
           </div>
           <Button size="icon" variant="ghost" onClick={onClose} aria-label="Đóng PDF">
             <X className="h-4 w-4" />

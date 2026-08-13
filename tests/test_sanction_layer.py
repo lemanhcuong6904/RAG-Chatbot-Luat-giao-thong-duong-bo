@@ -128,13 +128,19 @@ def test_penalty_query_with_license_points_phrase_does_not_filter_by_point_g() -
     assert response.debug["parsed_query"]["point"] is None
 
 
-def test_penalty_query_without_vehicle_falls_back_to_rag() -> None:
-    response = RAGService().answer(ChatRequest(query="Vượt đèn đỏ bị phạt bao nhiêu?", debug=True))
+def test_penalty_query_without_vehicle_uses_structured_scope_split() -> None:
+    response = RAGService().answer(ChatRequest(query="Vượt đèn đỏ bị trừ bao nhiêu điểm giấy phép lái xe?", debug=True))
 
     assert response.answerable
+    assert "ô tô" in response.answer
+    assert "mô tô" in response.answer
+    assert "trừ 4 điểm" in response.answer
+    assert "### Thời điểm áp dụng" not in response.answer
+    assert "### Lưu ý" not in response.answer
     assert response.debug
-    assert response.debug["routing"]["sanction_status"] == "NEEDS_CLARIFICATION"
-    assert response.debug["routing"]["fallback_to_rag"] is True
+    assert response.debug["routing"]["sanction_status"] == "FOUND"
+    assert response.debug["routing"]["sanction_vehicle_scope_split"] is True
+    assert response.debug["routing"]["fallback_to_rag"] is False
 
 
 def test_sanction_lookup_without_behavior_fails_closed() -> None:

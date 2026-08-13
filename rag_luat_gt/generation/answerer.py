@@ -475,7 +475,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
         )
 
     fee_answer = _build_fee_lookup_answer(parsed, citations)
-    if fee_answer and not llm_configured:
+    if fee_answer:
         return ChatResponse(
             answer=fee_answer,
             citations=citations,

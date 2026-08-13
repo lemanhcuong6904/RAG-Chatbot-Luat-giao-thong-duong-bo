@@ -76,9 +76,7 @@ export default function Home() {
   function deleteConversation(id: string) {
     setConversations((current) => {
       const next = current.filter((conversation) => conversation.id !== id);
-      if (activeId === id) {
-        setActiveId(next[0]?.id);
-      }
+      if (activeId === id) setActiveId(next[0]?.id);
       return next;
     });
   }

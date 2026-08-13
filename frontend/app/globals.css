@@ -3,24 +3,24 @@
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 98%;
-  --foreground: 240 10% 8%;
+  --background: 38 100% 97%;
+  --foreground: 180 4% 11%;
   --card: 0 0% 100%;
-  --card-foreground: 240 10% 8%;
-  --primary: 221 83% 53%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 240 5% 96%;
-  --secondary-foreground: 240 6% 10%;
-  --muted: 240 5% 96%;
-  --muted-foreground: 240 4% 46%;
-  --accent: 240 5% 96%;
-  --accent-foreground: 240 6% 10%;
+  --card-foreground: 180 4% 11%;
+  --primary: 50 100% 50%;
+  --primary-foreground: 180 4% 11%;
+  --secondary: 25 100% 50%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 39 63% 93%;
+  --muted-foreground: 43 22% 25%;
+  --accent: 158 100% 48%;
+  --accent-foreground: 153 100% 13%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 210 40% 98%;
-  --border: 240 6% 90%;
-  --input: 240 6% 90%;
-  --ring: 221 83% 53%;
-  --radius: 0.875rem;
+  --border: 180 4% 11%;
+  --input: 180 4% 11%;
+  --ring: 25 100% 50%;
+  --radius: 1.5rem;
 }
 
 * {
@@ -30,7 +30,56 @@
 body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
+  font-family: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+.font-display {
+  font-family: "Plus Jakarta Sans", "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+}
+
+.playful-bg {
+  background-color: #fff8ef;
+  background-image:
+    radial-gradient(rgba(255, 214, 0, 0.35) 2px, transparent 2px),
+    linear-gradient(135deg, rgba(0, 245, 160, 0.12), transparent 36%),
+    linear-gradient(315deg, rgba(255, 107, 0, 0.12), transparent 34%);
+  background-position: 0 0, 0 0, 100% 100%;
+  background-size: 38px 38px, 100% 100%, 100% 100%;
+}
+
+.neo-border {
+  border: 2px solid #1a1c1c;
+}
+
+.neo-shadow {
+  box-shadow: 5px 5px 0 #1a1c1c;
+}
+
+.neo-shadow-lg {
+  box-shadow: 7px 7px 0 #1a1c1c;
+}
+
+.neo-interactive {
+  transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease, border-color 160ms ease;
+}
+
+.neo-interactive:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 7px 7px 0 #1a1c1c;
+}
+
+.neo-interactive:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #1a1c1c;
+}
+
+.traffic-tile {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.72) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.72) 1px, transparent 1px),
+    #f0f4f8;
+  background-size: 18px 18px;
 }
 
 .answer-content {
@@ -77,11 +126,11 @@ body {
 }
 
 .answer-content table {
-  @apply my-4 w-full border-collapse overflow-hidden rounded-lg border text-sm;
+  @apply my-4 w-full border-collapse overflow-hidden rounded-2xl border-2 border-zinc-950 text-sm;
 }
 
 .answer-content th {
-  @apply bg-zinc-50 px-3 py-2 text-left font-semibold;
+  @apply bg-yellow-100 px-3 py-2 text-left font-semibold;
 }
 
 .answer-content td {

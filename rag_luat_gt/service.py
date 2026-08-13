@@ -102,6 +102,25 @@ class RAGService:
                     if not request.debug:
                         response.debug = None
                     return response
+                if lookup.status == "NEEDS_CLARIFICATION" and parsed.behavior_code:
+                    scoped_lookup = self.sanctions.lookup_behavior_codes(
+                        event_date=parsed.legal_effective_date or parsed.event_date or parsed.query_reference_date or "",
+                        behavior_codes=[parsed.behavior_code],
+                    )
+                    routing_debug.update(
+                        {
+                            "sanction_status": scoped_lookup.status,
+                            "sanction_vehicle_scope_split": True,
+                        }
+                    )
+                    if scoped_lookup.status == "FOUND" and _has_multiple_vehicle_groups(scoped_lookup.rules):
+                        response = build_sanction_response(parsed, scoped_lookup)
+                        if request.debug and response.debug is not None:
+                            response.debug["routing"] = routing_debug
+                        response = maybe_render_structured_sanction_with_llm(parsed, response)
+                        if not request.debug:
+                            response.debug = None
+                        return response
                 routing_debug["fallback_to_rag"] = True
 
         results = self.retriever.search(parsed, top_k=request.top_k)
@@ -140,3 +159,19 @@ class RAGService:
             if citation.score is not None:
                 details["final_citation_score"] = citation.score
             citation.score_details = details
+
+
+def _has_multiple_vehicle_groups(rules: list[object]) -> bool:
+    groups: set[str] = set()
+    for rule in rules:
+        for code in getattr(rule, "vehicle_codes", []) or []:
+            groups.add(_vehicle_group(str(code)))
+    return len(groups) >= 2
+
+
+def _vehicle_group(code: str) -> str:
+    if code in {"CAR", "FOUR_WHEEL_PASSENGER", "FOUR_WHEEL_CARGO", "CAR_SIMILAR"}:
+        return "CAR"
+    if code in {"MOTORCYCLE", "MOPED", "MOTORCYCLE_SIMILAR", "MOPED_SIMILAR"}:
+        return "MOTORCYCLE"
+    return code

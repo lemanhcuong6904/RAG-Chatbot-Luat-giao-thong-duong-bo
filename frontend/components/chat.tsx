@@ -46,11 +46,13 @@ export function ChatView({
   onMessagesChange,
   topK,
   debug,
+  preRagEnabled,
 }: {
   messages: ChatMessage[];
   onMessagesChange: (messages: ChatMessage[]) => void;
   topK: number;
   debug: boolean;
+  preRagEnabled: boolean;
 }) {
   const [input, setInput] = useState("");
   const [eventDate, setEventDate] = useState(todayISO());
@@ -89,6 +91,7 @@ export function ChatView({
         as_of_date: eventDate,
         top_k: topK,
         debug,
+        pre_rag_enabled: preRagEnabled,
       });
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),

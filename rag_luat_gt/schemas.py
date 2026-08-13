@@ -58,6 +58,7 @@ class ChatRequest(BaseModel):
     as_of_date: date | None = None
     top_k: int = 8
     debug: bool = False
+    pre_rag_enabled: bool = True
 
 
 class Citation(BaseModel):

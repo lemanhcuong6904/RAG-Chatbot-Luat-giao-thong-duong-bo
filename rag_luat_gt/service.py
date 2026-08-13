@@ -8,12 +8,12 @@ from rag_luat_gt.generation.structured_sanction_llm import maybe_render_structur
 from rag_luat_gt.retrieval.hybrid import HybridRetriever
 from rag_luat_gt.retrieval.llm_query_transformer import transform_query_with_llm
 from rag_luat_gt.retrieval.query_parser import parse_query
-from rag_luat_gt.retrieval.query_router import apply_route_decision, direct_route_response, route_query
+from rag_luat_gt.retrieval.query_router import QueryRouteDecision, apply_route_decision, direct_route_response, route_query
 from rag_luat_gt.sanction.behavior_catalog import behavior_contains_from_query
 from rag_luat_gt.sanction.composition_engine import compose_sanctions
 from rag_luat_gt.sanction.condition_resolver import resolve_violations
 from rag_luat_gt.sanction.repository import SanctionRepository
-from rag_luat_gt.schemas import ChatRequest, ChatResponse
+from rag_luat_gt.schemas import ChatRequest, ChatResponse, ParsedQuery
 
 
 class RAGService:
@@ -63,7 +63,7 @@ class RAGService:
                 direct_response.debug = None
             return direct_response
 
-        parsed, prerag_debug = transform_query_with_llm(parsed)
+        parsed, prerag_debug = self._maybe_transform_query_with_prerag(parsed, route_decision, request.pre_rag_enabled)
         parsed = apply_route_decision(parsed, route_decision)
         routing_debug: dict[str, object] = {
             "sanction_attempted": False,
@@ -163,6 +163,23 @@ class RAGService:
             response.debug = None
         return response
 
+    def _maybe_transform_query_with_prerag(
+        self,
+        parsed: ParsedQuery,
+        route_decision: QueryRouteDecision,
+        enabled: bool,
+    ) -> tuple[ParsedQuery, dict[str, object]]:
+        if not enabled:
+            return parsed, {"enabled": False, "skip_reason": "disabled_by_request"}
+        if _router_has_sufficient_rag_plan(route_decision):
+            return parsed, {
+                "enabled": True,
+                "skipped": True,
+                "skip_reason": "router_plan_sufficient",
+                "router_confidence": route_decision.confidence,
+            }
+        return transform_query_with_llm(parsed)
+
     def _attach_score_details(self, response: ChatResponse) -> None:
         score_trace = getattr(self.retriever, "last_score_trace", {})
         context_by_id = {
@@ -186,6 +203,35 @@ def _has_multiple_vehicle_groups(rules: list[object]) -> bool:
         for code in getattr(rule, "vehicle_codes", []) or []:
             groups.add(_vehicle_group(str(code)))
     return len(groups) >= 2
+
+
+def _router_has_sufficient_rag_plan(decision: QueryRouteDecision) -> bool:
+    if decision.route != "RAG":
+        return True
+    if decision.confidence < 0.75:
+        return False
+    if not decision.question_rewrite:
+        return False
+    if decision.intent not in {
+        "GENERAL_LEGAL_QA",
+        "PENALTY_LOOKUP",
+        "LICENSE_POINT_BALANCE",
+        "DRIVER_AGE_REQUIREMENT",
+        "ENUMERATION",
+        "DRIVER_LICENSE",
+        "REGISTRATION",
+        "SPEED_RULE",
+        "FEE_LOOKUP",
+        "AMENDMENT_COMPARE",
+        "ARTICLE_LOOKUP",
+    }:
+        return False
+    return decision.retrieval_strategy in {
+        "FACTOID",
+        "EXPAND_PARENT",
+        "EXPAND_PARENT_SIBLINGS",
+        "EXHAUSTIVE_ARTICLE",
+    }
 
 
 def _vehicle_group(code: str) -> str:

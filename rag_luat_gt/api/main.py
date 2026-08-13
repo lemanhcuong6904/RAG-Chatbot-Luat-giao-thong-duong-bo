@@ -11,7 +11,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from rag_luat_gt.config import CHUNKS_PATH, DOCUMENTS_PATH, MANIFEST_PATH, ROOT_DIR, SANCTION_DB_PATH, SANCTION_ENABLED
+from rag_luat_gt.config import (
+    CHUNKS_PATH,
+    DOCUMENTS_PATH,
+    MANIFEST_PATH,
+    RAG_PRERAG_MODEL,
+    RAG_PRERAG_PROVIDER,
+    ROOT_DIR,
+    SANCTION_DB_PATH,
+    SANCTION_ENABLED,
+)
 from rag_luat_gt.schemas import ChatRequest
 from rag_luat_gt.service import RAGService
 
@@ -155,6 +164,8 @@ def health() -> dict:
             "dense_error": service.retriever.dense_error,
             "reranker_active": service.retriever.reranker is not None,
             "reranker_error": service.retriever.reranker_error,
+            "pre_rag_provider": RAG_PRERAG_PROVIDER,
+            "pre_rag_model": RAG_PRERAG_MODEL,
             "warmup_status": service.warmup_status,
             "warmup_error": service.warmup_error,
         },

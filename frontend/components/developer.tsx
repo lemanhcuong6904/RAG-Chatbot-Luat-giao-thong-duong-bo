@@ -10,13 +10,17 @@ import { HealthResponse, getHealth } from "@/lib/api";
 export function DeveloperView({
   topK,
   debug,
+  preRagEnabled,
   onTopKChange,
   onDebugChange,
+  onPreRagEnabledChange,
 }: {
   topK: number;
   debug: boolean;
+  preRagEnabled: boolean;
   onTopKChange: (value: number) => void;
   onDebugChange: (value: boolean) => void;
+  onPreRagEnabledChange: (value: boolean) => void;
 }) {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,21 +66,21 @@ export function DeveloperView({
         <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
           <StatusCard
             icon={<Search />}
-            title="Từ khóa BM25"
+            title="Lexial BM25"
             active={Boolean(pipeline.bm25_active)}
             description="Tìm theo từ khóa, số hiệu văn bản và cụm pháp lý."
             tone="yellow"
           />
           <StatusCard
             icon={<Network />}
-            title="Ngữ nghĩa Dense"
+            title="Semantic Dense"
             active={Boolean(pipeline.dense_active)}
             description={(pipeline.dense_error as string) || "Tìm kiếm bằng embedding để hiểu ý hỏi tự nhiên."}
             tone="mint"
           />
           <StatusCard
             icon={<ListOrdered />}
-            title="Chấm điểm Rerank"
+            title="Reranker"
             active={Boolean(pipeline.reranker_active)}
             description={(pipeline.reranker_error as string) || "Xếp hạng lại kết quả truy xuất trước khi trả lời."}
             tone="orange"
@@ -90,7 +94,7 @@ export function DeveloperView({
                 <span className="flex h-10 w-10 items-center justify-center rounded-2xl neo-border bg-[#ff6b00] text-white shadow-[2px_2px_0_#1a1c1c]">
                   <SlidersHorizontal className="h-5 w-5" />
                 </span>
-                Đồ chơi điều khiển
+                Điều khiển nâng cao
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -117,6 +121,20 @@ export function DeveloperView({
                   onChange={(event) => onDebugChange(event.target.checked)}
                 />
               </label>
+              <label className="block cursor-pointer rounded-[24px] border-2 border-[#1a1c1c] bg-[#fff6bf] p-4 text-sm font-extrabold shadow-[3px_3px_0_#1a1c1c]">
+                <div className="flex items-center justify-between gap-3">
+                  <span>Bật Pre-RAG tối ưu</span>
+                  <input
+                    className="h-6 w-6 cursor-pointer accent-[#ff6b00]"
+                    type="checkbox"
+                    checked={preRagEnabled}
+                    onChange={(event) => onPreRagEnabledChange(event.target.checked)}
+                  />
+                </div>
+                <p className="mt-3 text-xs font-semibold leading-5 text-muted-foreground">
+                  Khi bật, hệ thống chỉ gọi Pre-RAG nếu router chưa đủ tự tin hoặc thiếu rewrite rõ ràng.
+                </p>
+              </label>
               <div className="rounded-[22px] border-2 border-dashed border-[#1a1c1c] bg-[#fcf3e0] p-4 text-xs font-semibold leading-6 text-muted-foreground">
                 Debug chỉ phục vụ kiểm tra pipeline. Người dùng thông thường không cần thấy điểm truy xuất hoặc chunk ID.
               </div>
@@ -137,7 +155,7 @@ export function DeveloperView({
             </div>
             <CardContent className="p-0">
               <pre className="traffic-tile max-h-[520px] overflow-auto p-5 font-mono text-xs font-semibold leading-6 text-[#1a1c1c]">
-                {JSON.stringify({ status: health?.status, pipeline, sanctions, index: health?.index }, null, 2)}
+                {JSON.stringify({ status: health?.status, pipeline, controls: { top_k: topK, debug, pre_rag_enabled: preRagEnabled }, sanctions, index: health?.index }, null, 2)}
               </pre>
             </CardContent>
           </Card>
@@ -176,14 +194,14 @@ function StatusCard({
             </span>
             {title}
           </CardTitle>
-          <Badge variant={active ? "success" : "warning"}>{active ? "Đang chạy" : "Tạm nghỉ"}</Badge>
+          <Badge variant={active ? "success" : "warning"}>{active ? "Active" : "Inactive"}</Badge>
         </div>
       </CardHeader>
       <CardContent>
         <p className="text-sm font-semibold leading-6 text-muted-foreground">{description}</p>
         <div className="mt-4 flex items-center gap-2 text-xs font-bold text-[#1a1c1c]">
           <Activity className="h-4 w-4 text-[#ff6b00]" />
-          {active ? "Pipeline sẵn sàng" : "Cần kiểm tra cấu hình"}
+          {active ? "Active" : "Inactive"}
         </div>
       </CardContent>
     </Card>

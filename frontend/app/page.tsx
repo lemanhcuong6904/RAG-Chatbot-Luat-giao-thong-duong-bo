@@ -21,6 +21,7 @@ export default function Home() {
   const [activeId, setActiveId] = useState<string>();
   const [topK, setTopK] = useState(8);
   const [debug, setDebug] = useState(false);
+  const [preRagEnabled, setPreRagEnabled] = useState(true);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -96,10 +97,25 @@ export default function Home() {
       }}
       onDeleteConversation={deleteConversation}
     >
-      {view === "chat" && <ChatView messages={messages} onMessagesChange={setMessages} topK={topK} debug={debug} />}
+      {view === "chat" && (
+        <ChatView
+          messages={messages}
+          onMessagesChange={setMessages}
+          topK={topK}
+          debug={debug}
+          preRagEnabled={preRagEnabled}
+        />
+      )}
       {view === "documents" && <DocumentsView />}
       {view === "developer" && (
-        <DeveloperView topK={topK} debug={debug} onTopKChange={setTopK} onDebugChange={setDebug} />
+        <DeveloperView
+          topK={topK}
+          debug={debug}
+          preRagEnabled={preRagEnabled}
+          onTopKChange={setTopK}
+          onDebugChange={setDebug}
+          onPreRagEnabledChange={setPreRagEnabled}
+        />
       )}
     </AppShell>
   );

@@ -5,6 +5,7 @@ import pytest
 from rag_luat_gt.retrieval.query_parser import parse_query
 from rag_luat_gt.retrieval.query_router import QueryRouteDecision, apply_route_decision, direct_route_response, route_query
 from rag_luat_gt.schemas import ChatRequest
+from rag_luat_gt.service import _router_has_sufficient_rag_plan
 from rag_luat_gt.service import RAGService
 
 
@@ -56,6 +57,31 @@ def test_llm_router_direct_decisions_do_not_need_retrieval(route: str, answerabl
     assert response.answer == answer
     assert response.answerable is answerable
     assert not response.citations
+
+
+def test_router_plan_can_skip_prerag_when_confident_and_rewritten() -> None:
+    decision = QueryRouteDecision(
+        route="RAG",
+        legal_domain="traffic_law",
+        intent="LICENSE_POINT_BALANCE",
+        retrieval_strategy="FACTOID",
+        question_rewrite="giấy phép lái xe có bao gồm 12 điểm không",
+        confidence=0.9,
+    )
+
+    assert _router_has_sufficient_rag_plan(decision)
+
+
+def test_router_plan_needs_prerag_without_rewrite() -> None:
+    decision = QueryRouteDecision(
+        route="RAG",
+        legal_domain="traffic_law",
+        intent="LICENSE_POINT_BALANCE",
+        retrieval_strategy="FACTOID",
+        confidence=0.9,
+    )
+
+    assert not _router_has_sufficient_rag_plan(decision)
 
 
 def test_minimal_rule_fallback_does_not_classify_many_meta_questions() -> None:

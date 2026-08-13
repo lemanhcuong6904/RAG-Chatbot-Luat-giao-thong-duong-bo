@@ -87,6 +87,7 @@ export function sendChat(payload: {
   as_of_date?: string;
   top_k: number;
   debug: boolean;
+  pre_rag_enabled: boolean;
 }) {
   return request<ChatResponse>("/api/v1/chat", {
     method: "POST",

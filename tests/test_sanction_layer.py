@@ -135,6 +135,10 @@ def test_penalty_query_without_vehicle_uses_structured_scope_split() -> None:
     assert "ô tô" in response.answer
     assert "mô tô" in response.answer
     assert "trừ 4 điểm" in response.answer
+    assert "[168/2024/NĐ-CP: Điều 6 - Khoản 9 - Điểm b]" in response.answer
+    assert "[168/2024/NĐ-CP: Điều 7 - Khoản 7 - Điểm c]" in response.answer
+    assert "ô tô" in response.answer.split("[168/2024/NĐ-CP: Điều 6 - Khoản 9 - Điểm b]")[0]
+    assert "mô tô" in response.answer.split("[168/2024/NĐ-CP: Điều 7 - Khoản 7 - Điểm c]")[0]
     assert "### Thời điểm áp dụng" not in response.answer
     assert "### Lưu ý" not in response.answer
     assert response.debug

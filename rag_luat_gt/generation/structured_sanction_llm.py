@@ -18,6 +18,8 @@ SYSTEM_PROMPT = """Bạn là trợ lý diễn đạt kết quả xử phạt gia
 
 Bạn chỉ được dùng STRUCTURED_SANCTION_PAYLOAD và DETERMINISTIC_ANSWER.
 Không tự tính lại, không thêm mức phạt, không thêm điều khoản, không bỏ citation/rule id đã có.
+Mỗi kết luận về mức phạt, điểm GPLX, tước GPLX hoặc biện pháp khác phải giữ citation inline ngay sau câu kết luận.
+Không dồn toàn bộ citation xuống cuối nếu DETERMINISTIC_ANSWER đã có citation inline.
 Nếu payload có trạng thái CONDITIONAL hoặc thiếu điều kiện, phải nói rõ chưa thể chốt một tổng duy nhất.
 Giữ cấu trúc Markdown với các mục:
 ### Trả lời
@@ -90,6 +92,7 @@ def _sanction_render_prompt(deterministic_answer: str) -> str:
         + "\n\nYêu cầu diễn đạt: viết tự nhiên như tư vấn trực tiếp cho người hỏi; "
         "không bê nguyên mô tả bucket rule nếu câu trả lời đã có nhãn hành vi ngắn hơn; "
         "không hiện mã nội bộ như CAR, UNSPECIFIED, rule_id; không thêm chế tài ngoài payload; "
+        "giữ nguyên citation inline sau từng kết luận mức phạt/điểm, không gom citation xuống cuối; "
         "không đưa các ghi chú kỹ thuật, validation_status hoặc ngày hiệu lực vào câu trả lời cuối."
     )
 

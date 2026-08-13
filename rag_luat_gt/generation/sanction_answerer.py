@@ -34,6 +34,10 @@ def _rule_ref(rule: SanctionRule) -> str:
     return " - ".join(parts) if parts else rule.source_location or "Không rõ điều khoản"
 
 
+def _inline_ref(rule: SanctionRule) -> str:
+    return f"[{rule.document_number}: {_rule_ref(rule)}]"
+
+
 def _citation(rule: SanctionRule) -> Citation:
     text_parts = [part for part in [rule.parent_clause_text, rule.source_text] if part]
     text_parts.extend(_secondary_statement_texts(rule))
@@ -185,7 +189,12 @@ def _liable_text(rule: SanctionRule) -> str:
 
 
 def _rule_answer(rule: SanctionRule, parsed: ParsedQuery) -> str:
-    return f"{_rule_answer_base(rule, parsed)}{_additional_sanctions_text(rule)}{_remedial_measures_text(rule)}"
+    return (
+        f"{_rule_answer_base(rule, parsed)}"
+        f"{_additional_sanctions_text(rule)}"
+        f"{_remedial_measures_text(rule)} "
+        f"{_inline_ref(rule)}"
+    )
 
 
 def _additional_sanctions_text(rule: SanctionRule) -> str:

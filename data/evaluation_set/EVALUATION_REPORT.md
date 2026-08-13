@@ -1,45 +1,45 @@
 # Báo cáo đánh giá RAG Luật giao thông
 
-- Thời điểm chạy: `2026-08-12T23:57:38`
+- Thời điểm chạy: `2026-08-13T18:55:44`
 - Dataset: `golden_200.jsonl`
 - Chế độ: `full`
 - Số câu: `200`
 - Số lỗi runtime: `0`
-- Latency trung bình: `6.64s`; p50: `6.02s`
+- Latency trung bình: `7.36s`; p50: `7.07s`
 
 ## Retrieval
 
 | Metric | Score |
 |---|---:|
-| recall@1 | 0.356 |
-| recall@3 | 0.683 |
-| recall@5 | 0.733 |
-| recall@10 | 0.772 |
-| completeness@10 | 0.600 |
-| mrr | 0.530 |
-| ndcg@10 | 0.924 |
+| recall@1 | 0.350 |
+| recall@3 | 0.678 |
+| recall@5 | 0.728 |
+| recall@10 | 0.767 |
+| completeness@10 | 0.594 |
+| mrr | 0.525 |
+| ndcg@10 | 0.918 |
 
 ## Generation / Answer
 
 | Metric | Score |
 |---|---:|
-| answerable_correct | 0.915 |
-| citation_correct | 0.800 |
-| citation_complete | 0.640 |
-| numeric_exact | 0.920 |
-| points_exact | 0.895 |
+| answerable_correct | 0.910 |
+| citation_correct | 0.795 |
+| citation_complete | 0.635 |
+| numeric_exact | 0.925 |
+| points_exact | 0.900 |
 | enumeration_completeness | 0.000 |
-| must_include | 0.870 |
-| context_recall_proxy | 0.841 |
-| answer_relevance_proxy | 0.701 |
+| must_include | 0.875 |
+| context_recall_proxy | 0.840 |
+| answer_relevance_proxy | 0.733 |
 
 ## Abstention
 
 | Metric | Score |
 |---|---:|
-| accuracy | 0.915 |
-| f1_answerable | 0.951 |
-| TP/TN/FP/FN | 166/17/3/14 |
+| accuracy | 0.910 |
+| f1_answerable | 0.949 |
+| TP/TN/FP/FN | 166/16/4/14 |
 
 ## Structured Sanction
 
@@ -54,9 +54,9 @@
 |---|---:|---:|---:|---:|---:|---:|
 | enumeration | 35 | 0.600 | 0.600 | 0.600 | 1.000 | 1.000 |
 | exact_lookup | 35 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
-| hard_negative | 20 | N/A | 1.000 | 0.850 | 1.000 | 1.000 |
-| penalty | 40 | 0.775 | 0.150 | 1.000 | 0.700 | 0.575 |
-| semantic_fact | 40 | 0.800 | 0.875 | 1.000 | 1.000 | 1.000 |
+| hard_negative | 20 | N/A | 1.000 | 0.800 | 1.000 | 1.000 |
+| penalty | 40 | 0.775 | 0.150 | 1.000 | 0.725 | 0.600 |
+| semantic_fact | 40 | 0.775 | 0.850 | 1.000 | 1.000 | 1.000 |
 | temporal | 30 | 0.433 | 0.367 | 1.000 | 0.867 | 0.867 |
 
 ## RAGAS

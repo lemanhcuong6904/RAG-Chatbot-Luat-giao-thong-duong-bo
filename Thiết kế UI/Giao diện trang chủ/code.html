@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+
+<html class="light" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Luật Giao Thông AI - Vui là chính!</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&amp;family=Plus+Jakarta+Sans:wght@700;800&amp;family=Work+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "midnight-ink": "#1A1C1C",
+                        "tertiary-fixed-dim": "#00e293",
+                        "on-tertiary-container": "#006c44",
+                        "secondary-fixed-dim": "#ffb693",
+                        "on-tertiary-fixed-variant": "#005232",
+                        "on-error": "#ffffff",
+                        "outline": "#7f775f",
+                        "electric-orange": "#FF6B00",
+                        "secondary-container": "#fe6b00",
+                        "on-secondary-fixed-variant": "#7a3000",
+                        "surface": "#fff8ef",
+                        "primary": "#705d00",
+                        "on-tertiary": "#ffffff",
+                        "background": "#fff8ef",
+                        "surface-container-low": "#fcf3e0",
+                        "inverse-on-surface": "#f9f0dd",
+                        "surface-dim": "#e1d9c7",
+                        "tertiary": "#006c44",
+                        "surface-container-lowest": "#ffffff",
+                        "error": "#ba1a1a",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#eae2cf",
+                        "on-surface": "#1f1b10",
+                        "surface-container-high": "#f0e7d5",
+                        "soft-cloud": "#F0F4F8",
+                        "primary-container": "#ffd600",
+                        "inverse-primary": "#e9c400",
+                        "on-primary-fixed-variant": "#544600",
+                        "mint-fresh": "#00F5A0",
+                        "outline-variant": "#d0c6ab",
+                        "on-secondary-container": "#572000",
+                        "on-primary-fixed": "#221b00",
+                        "on-surface-variant": "#4d4632",
+                        "tertiary-fixed": "#50ffaf",
+                        "primary-fixed": "#ffe170",
+                        "on-background": "#1f1b10",
+                        "primary-fixed-dim": "#e9c400",
+                        "tertiary-container": "#0df7a2",
+                        "on-primary": "#ffffff",
+                        "secondary": "#a04100",
+                        "sun-yellow": "#FFD600",
+                        "on-primary-container": "#705d00",
+                        "on-tertiary-fixed": "#002111",
+                        "on-secondary-fixed": "#351000",
+                        "surface-tint": "#705d00",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed": "#ffdbcc",
+                        "on-secondary": "#ffffff",
+                        "surface-bright": "#fff8ef",
+                        "inverse-surface": "#343024",
+                        "surface-container": "#f6edda",
+                        "surface-variant": "#eae2cf"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "card-gap": "20px",
+                        "margin-page": "32px",
+                        "unit": "4px",
+                        "gutter-md": "24px",
+                        "stack-section": "48px"
+                    },
+                    "fontFamily": {
+                        "body-large": ["Be Vietnam Pro"],
+                        "label-sm": ["Work Sans"],
+                        "headline-lg-mobile": ["Plus Jakarta Sans"],
+                        "section-title": ["Plus Jakarta Sans"],
+                        "label-md": ["Work Sans"],
+                        "headline-lg": ["Plus Jakarta Sans"],
+                        "display-hero": ["Plus Jakarta Sans"],
+                        "body-base": ["Be Vietnam Pro"]
+                    },
+                    "fontSize": {
+                        "body-large": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "label-sm": ["12px", { "lineHeight": "1", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["26px", { "lineHeight": "1.2", "fontWeight": "700" }],
+                        "section-title": ["20px", { "lineHeight": "1.4", "fontWeight": "700" }],
+                        "label-md": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "fontWeight": "700" }],
+                        "display-hero": ["42px", { "lineHeight": "1.1", "letterSpacing": "-0.03em", "fontWeight": "800" }],
+                        "body-base": ["15px", { "lineHeight": "1.6", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .pattern-bg {
+            background-color: #fff8ef;
+            background-image: radial-gradient(#FFD600 2px, transparent 2px), radial-gradient(#FFD600 2px, transparent 2px);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+            opacity: 0.3;
+        }
+        .bouncy-shadow {
+            box-shadow: 6px 6px 0px 0px rgba(26,28,28,1);
+            transition: all 0.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        .bouncy-shadow:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 8px 8px 0px 0px rgba(26,28,28,1);
+        }
+        .bouncy-shadow:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px 0px rgba(26,28,28,1);
+        }
+        
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .floating {
+            animation: float 4s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="bg-background font-body-base text-on-background min-h-screen flex flex-col relative overflow-x-hidden">
+<!-- Background Patterns -->
+<div class="fixed inset-0 pattern-bg z-0 pointer-events-none"></div>
+<div class="fixed top-20 -left-20 w-64 h-64 bg-tertiary-fixed rounded-full mix-blend-multiply filter blur-3xl opacity-30 z-0 animate-[float_6s_ease-in-out_infinite]"></div>
+<div class="fixed bottom-20 -right-20 w-80 h-80 bg-secondary-fixed rounded-full mix-blend-multiply filter blur-3xl opacity-30 z-0 animate-[float_8s_ease-in-out_infinite_reverse]"></div>
+<!-- Top Navigation (Shared Component) -->
+<header class="bg-surface border-b-2 border-midnight-ink shadow-[4px_4px_0px_0px_rgba(26,28,28,1)] flex justify-between items-center px-margin-page h-20 w-full max-w-[1440px] mx-auto z-50 sticky top-0">
+<div class="font-display-hero text-display-hero text-electric-orange italic flex items-center gap-2">
+            LuậtVui
+        </div>
+<nav class="hidden md:flex gap-8">
+<a class="text-on-surface-variant font-label-md text-label-md hover:scale-105 transition-transform hover:text-electric-orange py-2" href="#">Tra cứu</a>
+<a class="text-on-surface-variant font-label-md text-label-md hover:scale-105 transition-transform hover:text-electric-orange py-2" href="#">Mức phạt</a>
+<a class="text-on-surface-variant font-label-md text-label-md hover:scale-105 transition-transform hover:text-electric-orange py-2" href="#">Tin tức</a>
+</nav>
+<div class="flex items-center gap-4 text-primary">
+<button class="hover:scale-105 transition-transform hover:text-electric-orange w-10 h-10 flex items-center justify-center rounded-full border-2 border-transparent hover:border-midnight-ink hover:bg-sun-yellow">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">notifications</span>
+</button>
+<button class="hover:scale-105 transition-transform hover:text-electric-orange w-10 h-10 flex items-center justify-center rounded-full border-2 border-transparent hover:border-midnight-ink hover:bg-sun-yellow">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">settings</span>
+</button>
+<div class="w-10 h-10 rounded-full border-2 border-midnight-ink overflow-hidden bg-sun-yellow flex items-center justify-center ml-2 bouncy-shadow">
+<img alt="Avatar người dùng" class="w-full h-full object-cover" data-alt="A stylized, playful 2D vector avatar of a modern user with bright colorful clothing and a big smile, set against a solid vibrant yellow background, rendered in a clean neo-brutalist illustration style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCxMIWjIEem6W0UwFAYMTfW7iM4PP1xKtPMkG8CzPUeHOo0-khh0fx8dAftzpJk0ulEuLgOBWwnxKIeSbod5M1dj8GygpyLaGnvpCcOKJC0y0VuWcvXSetmYoFF2YHzEByLg7BHRZv1z-Wv548sr3AEiuLayyeur579d7w6YZ-N5-TWvNcl5NSoeQDnVuzNJhQa8DD4gk3PELFA_aOtiTUTnXZu6TofKzB6QrSBecccpP5DMvi9wVra"/>
+</div>
+</div>
+</header>
+<div class="flex-1 flex flex-col items-center justify-center w-full max-w-4xl mx-auto px-margin-page py-stack-section relative z-10 gap-stack-section">
+<!-- Hero Section -->
+<div class="text-center flex flex-col items-center gap-6 relative w-full pt-10">
+<div class="inline-flex items-center justify-center w-24 h-24 bg-sun-yellow rounded-full border-4 border-midnight-ink bouncy-shadow floating mb-4 z-20 relative">
+<span class="material-symbols-outlined text-[64px] text-midnight-ink" style="font-variation-settings: 'FILL' 1;">traffic</span>
+<div class="absolute -bottom-2 -right-2 bg-electric-orange w-10 h-10 rounded-full border-2 border-midnight-ink flex items-center justify-center transform rotate-12">
+<span class="material-symbols-outlined text-surface text-xl">sentiment_very_satisfied</span>
+</div>
+</div>
+<h1 class="font-display-hero text-display-hero md:text-[56px] leading-[1.1] text-midnight-ink max-w-2xl mx-auto drop-shadow-[2px_2px_0px_#FFD600]">
+                Hỏi luật giao thông,<br/>
+<span class="text-electric-orange relative inline-block">
+                    vui là chính!
+                    <svg class="absolute w-full h-4 -bottom-1 left-0 text-sun-yellow -z-10" preserveaspectratio="none" viewbox="0 0 100 20">
+<path d="M0,10 Q50,20 100,10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="8"></path>
+</svg>
+</span>
+</h1>
+<p class="font-body-large text-body-large text-on-surface-variant max-w-lg mt-2">
+                Không còn những văn bản khô khan. Đặt câu hỏi và nhận câu trả lời dễ hiểu, hài hước từ trợ lý AI của LuậtVui!
+            </p>
+</div>
+<!-- Suggestion Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter-md w-full mt-4">
+<!-- Card 1 -->
+<button class="bg-surface-container-lowest border-2 border-midnight-ink rounded-lg p-6 flex flex-col items-start gap-4 text-left bouncy-shadow group relative overflow-hidden transition-all duration-300">
+<div class="absolute top-0 right-0 w-24 h-24 bg-error-container rounded-bl-full -z-0 opacity-50 group-hover:scale-110 transition-transform"></div>
+<div class="w-12 h-12 bg-error rounded-full flex items-center justify-center border-2 border-midnight-ink text-surface z-10 transform group-hover:rotate-12 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">do_not_disturb_on</span>
+</div>
+<h3 class="font-section-title text-section-title text-midnight-ink z-10">Vượt đèn đỏ phạt gì?</h3>
+<p class="font-body-base text-body-base text-on-surface-variant z-10">Xem mức phạt mới nhất 2024</p>
+</button>
+<!-- Card 2 -->
+<button class="bg-surface-container-lowest border-2 border-midnight-ink rounded-lg p-6 flex flex-col items-start gap-4 text-left bouncy-shadow group relative overflow-hidden transition-all duration-300">
+<div class="absolute top-0 right-0 w-24 h-24 bg-tertiary-fixed-dim rounded-bl-full -z-0 opacity-50 group-hover:scale-110 transition-transform"></div>
+<div class="w-12 h-12 bg-tertiary-container rounded-full flex items-center justify-center border-2 border-midnight-ink text-on-tertiary-container z-10 transform group-hover:-rotate-12 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">local_bar</span>
+</div>
+<h3 class="font-section-title text-section-title text-midnight-ink z-10">Nồng độ cồn xử sao?</h3>
+<p class="font-body-base text-body-base text-on-surface-variant z-10">Chi tiết theo từng miligam</p>
+</button>
+<!-- Card 3 -->
+<button class="bg-surface-container-lowest border-2 border-midnight-ink rounded-lg p-6 flex flex-col items-start gap-4 text-left bouncy-shadow group relative overflow-hidden transition-all duration-300">
+<div class="absolute top-0 right-0 w-24 h-24 bg-primary-fixed-dim rounded-bl-full -z-0 opacity-50 group-hover:scale-110 transition-transform"></div>
+<div class="w-12 h-12 bg-sun-yellow rounded-full flex items-center justify-center border-2 border-midnight-ink text-midnight-ink z-10 transform group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">id_card</span>
+</div>
+<h3 class="font-section-title text-section-title text-midnight-ink z-10">GPLX của mình bao nhiêu điểm?</h3>
+<p class="font-body-base text-body-base text-on-surface-variant z-10">Quy định trừ điểm mới</p>
+</button>
+</div>
+</div>
+<!-- Sticky Composer at Bottom -->
+<div class="w-full bg-surface-container-lowest border-t-2 border-midnight-ink p-4 md:p-6 sticky bottom-0 z-40 pb-safe shadow-[0px_-4px_0px_0px_rgba(26,28,28,0.05)]">
+<div class="max-w-4xl mx-auto flex items-end gap-3 relative">
+<div class="flex-1 relative">
+<textarea class="w-full min-h-[64px] max-h-[200px] resize-none rounded-[32px] border-2 border-midnight-ink bg-surface py-4 px-6 font-body-large text-body-large text-midnight-ink placeholder:text-on-surface-variant/60 focus:outline-none focus:border-electric-orange focus:ring-0 bouncy-shadow pr-12 transition-colors overflow-hidden block" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'" placeholder="Hỏi bất cứ luật gì (VD: Đi sai làn ô tô trên QL1A)..." rows="1"></textarea>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 flex gap-2">
+<button class="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-electric-orange hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-[20px]">mic</span>
+</button>
+</div>
+</div>
+<button class="w-16 h-16 shrink-0 rounded-full bg-electric-orange border-2 border-midnight-ink text-surface flex items-center justify-center bouncy-shadow group hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined text-[32px] transform group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" style="font-variation-settings: 'FILL' 1;">send</span>
+</button>
+</div>
+</div>
+</body></html>

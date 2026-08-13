@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Hệ thống RAG - Luật Giao Thông AI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;family=Work+Sans:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "mint-fresh": "#00F5A0",
+                        "outline": "#7f775f",
+                        "sun-yellow": "#FFD600",
+                        "on-secondary-container": "#572000",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#0df7a2",
+                        "inverse-on-surface": "#f9f0dd",
+                        "tertiary-fixed": "#50ffaf",
+                        "secondary-container": "#fe6b00",
+                        "on-primary-fixed": "#221b00",
+                        "midnight-ink": "#1A1C1C",
+                        "on-surface-variant": "#4d4632",
+                        "surface-container-highest": "#eae2cf",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#7a3000",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#a04100",
+                        "secondary-fixed": "#ffdbcc",
+                        "tertiary-fixed-dim": "#00e293",
+                        "on-tertiary-fixed-variant": "#005232",
+                        "on-error-container": "#93000a",
+                        "outline-variant": "#d0c6ab",
+                        "primary": "#705d00",
+                        "on-tertiary-fixed": "#002111",
+                        "surface-container-low": "#fcf3e0",
+                        "primary-container": "#ffd600",
+                        "surface-dim": "#e1d9c7",
+                        "error": "#ba1a1a",
+                        "surface-bright": "#fff8ef",
+                        "secondary-fixed-dim": "#ffb693",
+                        "electric-orange": "#FF6B00",
+                        "on-secondary-fixed": "#351000",
+                        "surface-container": "#f6edda",
+                        "on-primary-fixed-variant": "#544600",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-container": "#006c44",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-high": "#f0e7d5",
+                        "tertiary": "#006c44",
+                        "surface-tint": "#705d00",
+                        "primary-fixed-dim": "#e9c400",
+                        "on-primary": "#ffffff",
+                        "on-background": "#1f1b10",
+                        "surface-variant": "#eae2cf",
+                        "on-primary-container": "#705d00",
+                        "on-surface": "#1f1b10",
+                        "primary-fixed": "#ffe170",
+                        "inverse-surface": "#343024",
+                        "surface": "#fff8ef",
+                        "background": "#fff8ef",
+                        "soft-cloud": "#F0F4F8",
+                        "inverse-primary": "#e9c400"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "card-gap": "20px",
+                        "stack-section": "48px",
+                        "unit": "4px",
+                        "margin-page": "32px",
+                        "gutter-md": "24px"
+                    },
+                    "fontFamily": {
+                        "display-hero": ["Plus Jakarta Sans"],
+                        "label-md": ["Work Sans"],
+                        "section-title": ["Plus Jakarta Sans"],
+                        "body-large": ["Be Vietnam Pro"],
+                        "label-sm": ["Work Sans"],
+                        "headline-lg-mobile": ["Plus Jakarta Sans"],
+                        "body-base": ["Be Vietnam Pro"],
+                        "headline-lg": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "display-hero": ["42px", { "lineHeight": "1.1", "letterSpacing": "-0.03em", "fontWeight": "800" }],
+                        "label-md": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                        "section-title": ["20px", { "lineHeight": "1.4", "fontWeight": "700" }],
+                        "body-large": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "label-sm": ["12px", { "lineHeight": "1", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["26px", { "lineHeight": "1.2", "fontWeight": "700" }],
+                        "body-base": ["15px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.midnight-ink');
+        }
+        
+        .playful-card {
+            background-color: theme('colors.surface-container-lowest');
+            border: 3px solid theme('colors.midnight-ink');
+            border-radius: 20px;
+            box-shadow: 6px 6px 0px 0px theme('colors.midnight-ink');
+            transition: all 0.2s ease;
+        }
+        
+        .playful-card:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 8px 8px 0px 0px theme('colors.midnight-ink');
+        }
+
+        .playful-button {
+            border: 2px solid theme('colors.midnight-ink');
+            box-shadow: 3px 3px 0px 0px theme('colors.midnight-ink');
+            transition: all 0.1s ease;
+        }
+
+        .playful-button:active {
+            transform: translate(3px, 3px);
+            box-shadow: 0px 0px 0px 0px theme('colors.midnight-ink');
+        }
+
+        /* Custom Scrollbar for code blocks */
+        .code-scroll::-webkit-scrollbar {
+            width: 12px;
+            height: 12px;
+        }
+        .code-scroll::-webkit-scrollbar-track {
+            background: theme('colors.surface-container-highest');
+            border-left: 2px solid theme('colors.midnight-ink');
+        }
+        .code-scroll::-webkit-scrollbar-thumb {
+            background: theme('colors.sun-yellow');
+            border: 2px solid theme('colors.midnight-ink');
+            border-radius: 10px;
+        }
+        .code-scroll::-webkit-scrollbar-thumb:hover {
+            background: theme('colors.electric-orange');
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden font-body-base text-body-base">
+<!-- TopAppBar (Mobile Only) -->
+<header class="docked full-width top-0 sticky z-50 md:hidden bg-background border-b-4 border-midnight-ink flex justify-between items-center px-6 h-20 w-full tap-highlight-transparent">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-electric-orange text-3xl" data-icon="traffic" data-weight="fill" style="font-variation-settings: 'FILL' 1;">traffic</span>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile font-bold text-midnight-ink">Luật Giao Thông AI</h1>
+</div>
+<button class="text-midnight-ink hover:text-electric-orange transition-colors">
+<span class="material-symbols-outlined text-3xl" data-icon="menu">menu</span>
+</button>
+</header>
+<!-- SideNavBar (Desktop Only) -->
+<nav class="hidden md:flex w-[280px] h-full fixed left-0 top-0 bg-background border-r-4 border-midnight-ink flex-col overflow-y-auto p-6 z-40">
+<!-- Header -->
+<div class="flex items-center justify-between mb-10">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-2xl bg-sun-yellow border-2 border-midnight-ink shadow-[3px_3px_0px_0px_#1A1C1C] flex items-center justify-center transform -rotate-3">
+<span class="material-symbols-outlined text-midnight-ink text-2xl" data-icon="traffic" data-weight="fill" style="font-variation-settings: 'FILL' 1;">traffic</span>
+</div>
+<div>
+<h2 class="font-headline-lg text-[20px] font-bold text-midnight-ink leading-tight">Luật Vui AI</h2>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Trợ lý luật cực chất</p>
+</div>
+</div>
+<button class="text-on-surface-variant hover:text-electric-orange transition-colors">
+<span class="material-symbols-outlined" data-icon="left_panel_close">left_panel_close</span>
+</button>
+</div>
+<!-- CTA -->
+<button class="w-full bg-electric-orange text-white font-label-md text-[16px] py-4 px-4 rounded-2xl flex items-center justify-center gap-2 mb-10 playful-button hover:bg-[#ff8533]">
+<span class="material-symbols-outlined text-xl" data-icon="add">add</span>
+            Mở chat mới!
+        </button>
+<!-- Main Nav -->
+<div class="flex-1 flex flex-col gap-2">
+<div class="px-3 mb-2 font-label-sm text-[14px] text-outline font-bold uppercase tracking-widest">Hỏi đáp vui vẻ</div>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-midnight-ink hover:bg-sun-yellow/20 border-2 border-transparent hover:border-midnight-ink transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-2xl text-mint-fresh" data-icon="chat">chat</span>
+<span class="font-label-md text-[15px] truncate font-bold">Hỏi đáp</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-midnight-ink hover:bg-sun-yellow/20 border-2 border-transparent hover:border-midnight-ink transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-2xl text-electric-orange" data-icon="history">history</span>
+<span class="font-label-md text-[15px] truncate font-bold">Cuộc trò chuyện mới</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-midnight-ink hover:bg-sun-yellow/20 border-2 border-transparent hover:border-midnight-ink transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-2xl text-surface-tint" data-icon="article">article</span>
+<span class="font-label-md text-[15px] truncate font-bold">Điểm a khoản 1 Điều...</span>
+</a>
+<div class="px-3 mt-8 mb-2 font-label-sm text-[14px] text-outline font-bold uppercase tracking-widest">Tra cứu siêu tốc</div>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-midnight-ink hover:bg-sun-yellow/20 border-2 border-transparent hover:border-midnight-ink transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-2xl text-mint-fresh" data-icon="menu_book">menu_book</span>
+<span class="font-label-md text-[15px] truncate font-bold">Luật &amp; Văn bản</span>
+</a>
+</div>
+<!-- Footer Nav -->
+<div class="mt-auto pt-6 border-t-4 border-midnight-ink flex flex-col gap-2">
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl bg-sun-yellow border-2 border-midnight-ink text-midnight-ink shadow-[2px_2px_0px_0px_#1A1C1C] font-bold transition-all duration-200 transform -rotate-1" href="#">
+<span class="material-symbols-outlined text-2xl" data-icon="analytics">analytics</span>
+<span class="font-label-md text-[15px]">Hệ thống</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-midnight-ink hover:bg-surface-container-high border-2 border-transparent hover:border-midnight-ink transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-2xl" data-icon="settings">settings</span>
+<span class="font-label-md text-[15px] font-bold">Cài đặt</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 h-full overflow-y-auto md:ml-[280px] p-6 md:p-10">
+<div class="max-w-[1000px] mx-auto h-full flex flex-col gap-10">
+<!-- Page Header -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+<div>
+<h1 class="font-display-hero text-display-hero text-midnight-ink mb-3 tracking-tight">Trung Tâm RAG 🚀</h1>
+<p class="text-on-surface-variant font-body-large font-medium">Bảng điều khiển siêu năng lực truy xuất dữ liệu luật!</p>
+</div>
+<button class="self-start sm:self-auto bg-mint-fresh text-midnight-ink font-bold px-6 py-3 rounded-2xl flex items-center gap-2 playful-button text-[16px]">
+<span class="material-symbols-outlined text-xl" data-icon="refresh">refresh</span>
+                    Tải lại ngay!
+                </button>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Pipeline Status Cards (Top Row) -->
+<div class="playful-card p-6 flex flex-col gap-4 bg-sun-yellow/10">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3 text-midnight-ink">
+<div class="p-2 bg-white rounded-xl border-2 border-midnight-ink shadow-[2px_2px_0px_0px_#1A1C1C]">
+<span class="material-symbols-outlined font-bold text-electric-orange" data-icon="search">search</span>
+</div>
+<h3 class="font-section-title text-section-title text-midnight-ink">Từ khóa (BM25)</h3>
+</div>
+<span class="px-3 py-1.5 bg-mint-fresh text-midnight-ink border-2 border-midnight-ink rounded-xl font-label-md text-[12px] uppercase font-bold shadow-[2px_2px_0px_0px_#1A1C1C] transform rotate-2">Cực sung!</span>
+</div>
+<p class="text-midnight-ink font-medium text-[15px] mt-auto">Tìm bới từng chữ, không trượt phát nào.</p>
+</div>
+<div class="playful-card p-6 flex flex-col gap-4 bg-mint-fresh/10">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3 text-midnight-ink">
+<div class="p-2 bg-white rounded-xl border-2 border-midnight-ink shadow-[2px_2px_0px_0px_#1A1C1C]">
+<span class="material-symbols-outlined font-bold text-mint-fresh" data-icon="hub">hub</span>
+</div>
+<h3 class="font-section-title text-section-title text-midnight-ink">Ngữ nghĩa (Dense)</h3>
+</div>
+<span class="px-3 py-1.5 bg-mint-fresh text-midnight-ink border-2 border-midnight-ink rounded-xl font-label-md text-[12px] uppercase font-bold shadow-[2px_2px_0px_0px_#1A1C1C] transform -rotate-1">Cực sung!</span>
+</div>
+<p class="text-midnight-ink font-medium text-[15px] mt-auto">Thấu hiểu ý người dùng như đọc tâm trí.</p>
+</div>
+<div class="playful-card p-6 flex flex-col gap-4 bg-surface-container">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3 text-midnight-ink opacity-60">
+<div class="p-2 bg-white rounded-xl border-2 border-midnight-ink shadow-[2px_2px_0px_0px_#1A1C1C]">
+<span class="material-symbols-outlined font-bold text-outline" data-icon="sort">sort</span>
+</div>
+<h3 class="font-section-title text-section-title">Chấm điểm (Rerank)</h3>
+</div>
+<span class="px-3 py-1.5 bg-surface-container-highest text-outline border-2 border-outline rounded-xl font-label-md text-[12px] uppercase font-bold">Đang ngủ 💤</span>
+</div>
+<p class="text-on-surface-variant font-medium text-[15px] mt-auto">Xếp hạng lại? Hôm nay tạm nghỉ nhé.</p>
+</div>
+<!-- Controls Column (Left) -->
+<div class="lg:col-span-1 flex flex-col gap-8">
+<div class="playful-card p-6 flex flex-col gap-6 h-full bg-white">
+<div class="flex items-center gap-3 text-midnight-ink border-b-4 border-midnight-ink pb-4">
+<div class="p-2 bg-electric-orange rounded-xl border-2 border-midnight-ink shadow-[2px_2px_0px_0px_#1A1C1C]">
+<span class="material-symbols-outlined text-white" data-icon="tune">tune</span>
+</div>
+<h3 class="font-section-title text-[22px] font-bold">Đồ chơi điều khiển</h3>
+</div>
+<!-- Slider -->
+<div class="flex flex-col gap-4 mt-2">
+<div class="flex justify-between items-center bg-sun-yellow/20 p-3 rounded-xl border-2 border-midnight-ink">
+<label class="font-label-md text-[16px] text-midnight-ink font-bold">Độ tham lam (Top K)</label>
+<span class="font-display-hero text-[24px] text-electric-orange drop-shadow-[1px_1px_0_#1A1C1C]">8</span>
+</div>
+<input class="w-full h-4 bg-surface-container border-2 border-midnight-ink rounded-full appearance-none cursor-pointer accent-electric-orange shadow-[2px_2px_0px_0px_#1A1C1C]" max="20" min="1" type="range" value="8"/>
+</div>
+<!-- Checkbox -->
+<div class="flex items-center justify-between mt-2 p-4 border-3 border-midnight-ink rounded-2xl bg-mint-fresh/20 shadow-[3px_3px_0px_0px_#1A1C1C] hover:-translate-y-1 transition-transform cursor-pointer">
+<label class="font-label-md text-[16px] text-midnight-ink font-bold cursor-pointer select-none flex-1" for="debug-toggle">Bật soi lỗi (Debug)</label>
+<input class="w-6 h-6 text-electric-orange bg-white border-2 border-midnight-ink rounded-lg focus:ring-electric-orange focus:ring-4 cursor-pointer" id="debug-toggle" type="checkbox"/>
+</div>
+<!-- Info Note -->
+<div class="mt-auto bg-surface border-2 border-dashed border-midnight-ink p-4 rounded-2xl font-medium text-[14px] text-midnight-ink">
+                            💡 Ghi chú: Chế độ soi lỗi chỉ dành cho thợ máy. Người bình thường nhìn vào dễ bị tẩu hỏa nhập ma!
+                        </div>
+</div>
+</div>
+<!-- Runtime / Terminal Column (Right) -->
+<div class="lg:col-span-2 playful-card flex flex-col overflow-hidden h-[550px] bg-white">
+<div class="bg-sun-yellow border-b-4 border-midnight-ink px-5 py-4 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-midnight-ink text-2xl font-bold" data-icon="terminal">terminal</span>
+<h3 class="font-display-hero text-[20px] text-midnight-ink tracking-wide">Màn hình máy tính thập niên 90</h3>
+</div>
+<div class="flex gap-2">
+<div class="w-4 h-4 rounded-full bg-error border-2 border-midnight-ink shadow-[1px_1px_0px_0px_#1A1C1C]"></div>
+<div class="w-4 h-4 rounded-full bg-sun-yellow border-2 border-midnight-ink shadow-[1px_1px_0px_0px_#1A1C1C]"></div>
+<div class="w-4 h-4 rounded-full bg-mint-fresh border-2 border-midnight-ink shadow-[1px_1px_0px_0px_#1A1C1C]"></div>
+</div>
+</div>
+<!-- Code Editor Area -->
+<div class="flex-1 bg-surface-container-lowest p-5 overflow-auto code-scroll font-mono text-[14px] leading-loose text-midnight-ink">
+<pre><code>{
+  <span class="text-electric-orange font-bold">"status"</span>: <span class="text-mint-fresh font-bold bg-midnight-ink px-1 rounded">"ok"</span>,
+  <span class="text-electric-orange font-bold">"pipeline"</span>: {
+    <span class="text-electric-orange font-bold">"bm25_active"</span>: <span class="text-primary font-bold">true</span>,
+    <span class="text-electric-orange font-bold">"dense_active"</span>: <span class="text-primary font-bold">true</span>,
+    <span class="text-electric-orange font-bold">"dense_error"</span>: <span class="text-outline">null</span>,
+    <span class="text-electric-orange font-bold">"reranker_active"</span>: <span class="text-error font-bold">false</span>,
+    <span class="text-electric-orange font-bold">"reranker_error"</span>: <span class="text-outline">null</span>,
+    <span class="text-electric-orange font-bold">"warmup_status"</span>: <span class="text-mint-fresh font-bold bg-midnight-ink px-1 rounded">"READY TO ROCK"</span>,
+    <span class="text-electric-orange font-bold">"warmup_error"</span>: <span class="text-outline">null</span>
+  },
+  <span class="text-electric-orange font-bold">"sanctions"</span>: {
+    <span class="text-electric-orange font-bold">"enabled"</span>: <span class="text-primary font-bold">true</span>,
+    <span class="text-electric-orange font-bold">"db_path"</span>: <span class="text-surface-tint font-bold">"D:\\RAG_luat_vui\\kho_vu_khi\\luat.sqlite"</span>,
+    <span class="text-electric-orange font-bold">"available"</span>: <span class="text-primary font-bold">true</span>
+  },
+  <span class="text-electric-orange font-bold">"index"</span>: {
+    <span class="text-electric-orange font-bold">"built_at"</span>: <span class="text-surface-tint font-bold">"Vừa xong luôn!"</span>,
+    <span class="text-electric-orange font-bold">"documents_count"</span>: <span class="text-electric-orange text-xl drop-shadow-[1px_1px_0_#1A1C1C]">14205</span>,
+    <span class="text-electric-orange font-bold">"dimension"</span>: <span class="text-electric-orange text-xl drop-shadow-[1px_1px_0_#1A1C1C]">768</span>
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="h-10"></div> <!-- Bottom padding -->
+</div>
+</main>
+</body></html>

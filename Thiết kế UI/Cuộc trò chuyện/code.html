@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LuậtVui - Trò chuyện: Vượt đèn đỏ</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@700;800&amp;family=Work+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "midnight-ink": "#1A1C1C",
+                      "tertiary-fixed-dim": "#00e293",
+                      "on-tertiary-container": "#006c44",
+                      "secondary-fixed-dim": "#ffb693",
+                      "on-tertiary-fixed-variant": "#005232",
+                      "on-error": "#ffffff",
+                      "outline": "#7f775f",
+                      "electric-orange": "#FF6B00",
+                      "secondary-container": "#fe6b00",
+                      "on-secondary-fixed-variant": "#7a3000",
+                      "surface": "#fff8ef",
+                      "primary": "#705d00",
+                      "on-tertiary": "#ffffff",
+                      "background": "#fff8ef",
+                      "surface-container-low": "#fcf3e0",
+                      "inverse-on-surface": "#f9f0dd",
+                      "surface-dim": "#e1d9c7",
+                      "tertiary": "#006c44",
+                      "surface-container-lowest": "#ffffff",
+                      "error": "#ba1a1a",
+                      "on-error-container": "#93000a",
+                      "surface-container-highest": "#eae2cf",
+                      "on-surface": "#1f1b10",
+                      "surface-container-high": "#f0e7d5",
+                      "soft-cloud": "#F0F4F8",
+                      "primary-container": "#ffd600",
+                      "inverse-primary": "#e9c400",
+                      "on-primary-fixed-variant": "#544600",
+                      "mint-fresh": "#00F5A0",
+                      "outline-variant": "#d0c6ab",
+                      "on-secondary-container": "#572000",
+                      "on-primary-fixed": "#221b00",
+                      "on-surface-variant": "#4d4632",
+                      "tertiary-fixed": "#50ffaf",
+                      "primary-fixed": "#ffe170",
+                      "on-background": "#1f1b10",
+                      "primary-fixed-dim": "#e9c400",
+                      "tertiary-container": "#0df7a2",
+                      "on-primary": "#ffffff",
+                      "secondary": "#a04100",
+                      "sun-yellow": "#FFD600",
+                      "on-primary-container": "#705d00",
+                      "on-tertiary-fixed": "#002111",
+                      "on-secondary-fixed": "#351000",
+                      "surface-tint": "#705d00",
+                      "error-container": "#ffdad6",
+                      "secondary-fixed": "#ffdbcc",
+                      "on-secondary": "#ffffff",
+                      "surface-bright": "#fff8ef",
+                      "inverse-surface": "#343024",
+                      "surface-container": "#f6edda",
+                      "surface-variant": "#eae2cf"
+              },
+              "borderRadius": {
+                      "DEFAULT": "1rem",
+                      "lg": "2rem",
+                      "xl": "3rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "card-gap": "20px",
+                      "margin-page": "32px",
+                      "unit": "4px",
+                      "gutter-md": "24px",
+                      "stack-section": "48px"
+              },
+              "fontFamily": {
+                      "body-large": [
+                              "Be Vietnam Pro"
+                      ],
+                      "label-sm": [
+                              "Work Sans"
+                      ],
+                      "headline-lg-mobile": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "section-title": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "label-md": [
+                              "Work Sans"
+                      ],
+                      "headline-lg": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "display-hero": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "body-base": [
+                              "Be Vietnam Pro"
+                      ]
+              },
+              "fontSize": {
+                      "body-large": [
+                              "16px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "1",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "26px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "section-title": [
+                              "20px",
+                              {
+                                      "lineHeight": "1.4",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "label-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "display-hero": [
+                              "42px",
+                              {
+                                      "lineHeight": "1.1",
+                                      "letterSpacing": "-0.03em",
+                                      "fontWeight": "800"
+                              }
+                      ],
+                      "body-base": [
+                              "15px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<style>
+        body { background-color: theme('colors.surface'); }
+        /* Neo-Brutalism Bouncy Inputs/Buttons */
+        .neo-btn {
+            border: 2px solid theme('colors.midnight-ink');
+            box-shadow: 4px 4px 0px 0px theme('colors.midnight-ink');
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .neo-btn:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0px 0px theme('colors.midnight-ink');
+        }
+        .neo-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0px 0px 0px 0px theme('colors.midnight-ink');
+        }
+        
+        .neo-card {
+            border: 2px solid theme('colors.midnight-ink');
+            box-shadow: 6px 6px 0px 0px theme('colors.midnight-ink');
+            border-radius: theme('borderRadius.xl');
+        }
+
+        .slide-in-panel {
+            transform: translateX(100%);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .slide-in-panel.open {
+            transform: translateX(0);
+        }
+        
+        /* Message Bubbles */
+        .msg-ai {
+            border-radius: 32px 32px 32px 8px;
+            border: 2px solid theme('colors.midnight-ink');
+            box-shadow: 4px 4px 0px 0px theme('colors.midnight-ink');
+        }
+        .msg-user {
+            border-radius: 32px 32px 8px 32px;
+            border: 2px solid theme('colors.midnight-ink');
+            box-shadow: 4px 4px 0px 0px theme('colors.midnight-ink');
+        }
+        
+        /* Hide scrollbar for chat area */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="font-body-base text-body-base text-on-surface antialiased h-screen flex flex-col md:flex-row overflow-hidden">
+<!-- SideNavBar (Hidden on Mobile, Visible on Desktop) -->
+<nav class="hidden md:flex bg-soft-cloud dark:bg-midnight-ink text-primary dark:text-sun-yellow fixed left-0 top-0 h-full flex-col p-6 gap-card-gap h-screen w-72 rounded-r-lg border-r-2 border-midnight-ink dark:border-outline shadow-[6px_0px_0px_0px_rgba(26,28,28,1)] z-50">
+<!-- Header -->
+<div class="flex items-center gap-4 mb-8">
+<div class="w-12 h-12 rounded-full border-2 border-midnight-ink overflow-hidden neo-btn shadow-[2px_2px_0_0_#1A1C1C]">
+<img alt="Logo Giao Thông Vui Nhộn" class="w-full h-full object-cover" data-alt="A bright and colorful logo featuring a smiling sun wearing a police hat, rendered in a playful, vector-art style against a solid electric orange background. The design is bold, friendly, and highly simplified to serve as a brand mascot for a fun legal app." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBc5GljpsQ1E1KFdVkrPOjof0_8oBDBW56D34q-62NQyD_9MOytqSHapgQh4cub8P8HMbqHCWRvfrJ5crBviXqHJxf0AtdZzfODVMU8zPAh91kUxt8nPOoTyOKn_vsTkK2lzJ6B6FDtK3BA7EhKD6DB0TCCQ4BltKKA57n49gdZnmNeHIok6xA3hDnDdmyKUuVHdVEPbssEgUjU811Dk2ENtR2Us6fKUjuiAaVkbLu9te5-n-6Sc1TD"/>
+</div>
+<div>
+<h1 class="font-headline-lg text-headline-lg text-midnight-ink dark:text-surface">LuậtVui Ký</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Hiểu luật, lái an toàn!</p>
+</div>
+</div>
+<!-- Links -->
+<div class="flex-1 flex flex-col gap-2">
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-full hover:translate-x-1 transition-all hover:text-midnight-ink font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">home</span>
+                Trang chủ
+            </a>
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-full hover:translate-x-1 transition-all hover:text-midnight-ink font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">traffic</span>
+                Biển báo
+            </a>
+<!-- Active State: Tra cứu phạt -->
+<a class="flex items-center gap-4 px-4 py-3 bg-sun-yellow text-midnight-ink rounded-full font-bold border-2 border-midnight-ink shadow-[4px_4px_0px_0px_rgba(26,28,28,1)] scale-95 transition-transform font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">gavel</span>
+                Tra cứu phạt
+            </a>
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-full hover:translate-x-1 transition-all hover:text-midnight-ink font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">menu_book</span>
+                Cẩm nang
+            </a>
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-full hover:translate-x-1 transition-all hover:text-midnight-ink font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">headset_mic</span>
+                Hỗ trợ
+            </a>
+</div>
+<!-- CTA & Footer -->
+<div class="mt-auto flex flex-col gap-4">
+<button class="bg-electric-orange text-surface font-label-md text-label-md py-3 px-6 rounded-full neo-btn font-bold">
+                Gói Cao Cấp
+            </button>
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-full hover:translate-x-1 transition-all hover:text-midnight-ink font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">logout</span>
+                Đăng xuất
+            </a>
+</div>
+</nav>
+<!-- TopAppBar (Mobile Only) -->
+<header class="md:hidden flex justify-between items-center px-margin-page h-20 w-full docked full-width top-0 bg-surface dark:bg-midnight-ink text-primary dark:text-primary-fixed border-b-2 border-midnight-ink dark:border-outline-variant shadow-[4px_4px_0px_0px_rgba(26,28,28,1)] z-40 fixed">
+<div class="font-display-hero text-display-hero text-electric-orange dark:text-sun-yellow italic text-2xl font-black">
+            LuậtVui
+        </div>
+<div class="flex items-center gap-4">
+<button class="hover:scale-105 transition-transform hover:text-electric-orange text-on-surface-variant dark:text-outline-variant">
+<span class="material-symbols-outlined text-2xl">notifications</span>
+</button>
+<button class="hover:scale-105 transition-transform hover:text-electric-orange text-on-surface-variant dark:text-outline-variant">
+<span class="material-symbols-outlined text-2xl">settings</span>
+</button>
+<div class="w-10 h-10 rounded-full border-2 border-midnight-ink overflow-hidden">
+<img alt="Avatar người dùng" class="w-full h-full object-cover" data-alt="A generic cute smiling avatar illustration of a user, stylized with thick black outlines and vibrant flat colors, set against a pale blue background in a playful modern UI style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAO5zz6PMCN9sXSdRsiZ--NzSVgNK5of-UQ9TQ8tgrtx_q1KiMN5fMX3nikXq1m8-wfzdCXQOYFrXg4P3Z9kX8w84AaPR66Jb_IZTd6z7apl5VrLgYbjhqK1NceBHYlYi0AD_2npYK3QPekBkQCH8C1IbhPQulF3kLYz6w8b1z0w9VQKxhaExARbXQG8NkjCO8cUuXwA_-METMXJRcj8q9WUjenag3gUMsykDtc5cp8VZF7TiGBo0aB"/>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 flex md:ml-72 flex-col md:flex-row w-full h-full pt-20 md:pt-0 bg-surface relative">
+<!-- Chat Area -->
+<div class="flex-1 flex flex-col h-full relative z-10 w-full max-w-4xl mx-auto border-r-2 border-midnight-ink/10">
+<!-- Chat Header -->
+<div class="p-6 border-b-2 border-midnight-ink/10 flex items-center justify-between bg-surface/90 backdrop-blur-sm z-20">
+<div>
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg font-bold text-midnight-ink flex items-center gap-2">
+<span class="text-electric-orange">🚦</span> Vượt đèn đỏ
+                    </h2>
+<p class="font-body-base text-body-base text-on-surface-variant mt-1">Ô tô &amp; Xe máy</p>
+</div>
+<button class="md:hidden bg-sun-yellow text-midnight-ink font-label-md text-label-md py-2 px-4 rounded-full neo-btn flex items-center gap-2" id="toggle-law-panel">
+<span class="material-symbols-outlined">menu_book</span> Căn cứ
+                </button>
+</div>
+<!-- Chat History -->
+<div class="flex-1 overflow-y-auto no-scrollbar p-6 space-y-8 pb-32">
+<!-- User Message -->
+<div class="flex justify-end">
+<div class="max-w-[80%] bg-sun-yellow text-midnight-ink p-5 msg-user">
+<p class="font-body-large text-body-large font-medium">Bạn ơi, lỡ vượt đèn đỏ bằng xe máy thì phạt bao nhiêu vậy? Trừ điểm bằng lái không?</p>
+</div>
+</div>
+<!-- AI Message 1 (Intro) -->
+<div class="flex justify-start">
+<div class="max-w-[90%] bg-white p-6 msg-ai relative">
+<div class="absolute -left-3 -top-3 w-10 h-10 bg-mint-fresh rounded-full neo-btn flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-midnight-ink">smart_toy</span>
+</div>
+<p class="font-body-large text-body-large text-midnight-ink mb-4">
+                            Chào bạn! Hành vi vượt đèn đỏ (không chấp hành hiệu lệnh của đèn tín hiệu giao thông) là lỗi rất phổ biến và mức phạt khá rát đó nha! 🛵💨
+                        </p>
+<!-- Sanction Summary Bento Box -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+<!-- Phạt tiền -->
+<div class="bg-electric-orange p-6 rounded-3xl neo-btn border-midnight-ink flex flex-col items-center text-center">
+<span class="text-4xl mb-2">💸</span>
+<h3 class="font-section-title text-section-title font-bold text-surface mb-2">Phạt Tiền</h3>
+<p class="font-display-hero text-3xl font-black text-midnight-ink bg-sun-yellow px-4 py-2 rounded-xl border-2 border-midnight-ink -rotate-2">
+                                    800K - 1 Củ
+                                </p>
+<p class="font-label-sm text-label-sm text-surface mt-3 opacity-90">(Xe máy)</p>
+</div>
+<!-- Trừ điểm/Tước bằng -->
+<div class="bg-sun-yellow p-6 rounded-3xl neo-btn border-midnight-ink flex flex-col items-center text-center">
+<span class="text-4xl mb-2">🪪</span>
+<h3 class="font-section-title text-section-title font-bold text-midnight-ink mb-2">Tước Bằng</h3>
+<p class="font-display-hero text-3xl font-black text-surface bg-midnight-ink px-4 py-2 rounded-xl border-2 border-midnight-ink rotate-2">
+                                    1 - 3 Tháng
+                                </p>
+<p class="font-label-sm text-label-sm text-midnight-ink mt-3 opacity-90">Kể cả không gây tai nạn!</p>
+</div>
+</div>
+</div>
+</div>
+<!-- User Message -->
+<div class="flex justify-end">
+<div class="max-w-[80%] bg-sun-yellow text-midnight-ink p-5 msg-user">
+<p class="font-body-large text-body-large font-medium">Thế nếu đi ô tô thì sao? 🚗</p>
+</div>
+</div>
+<!-- AI Message 2 -->
+<div class="flex justify-start">
+<div class="max-w-[90%] bg-white p-6 msg-ai relative">
+<div class="absolute -left-3 -top-3 w-10 h-10 bg-mint-fresh rounded-full neo-btn flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-midnight-ink">smart_toy</span>
+</div>
+<p class="font-body-large text-body-large text-midnight-ink mb-4">
+                            Với ô tô thì mức phạt "đau ví" hơn rất nhiều nhé! 🚨
+                        </p>
+<div class="bg-surface-container-low border-2 border-midnight-ink rounded-2xl p-4 mt-4 relative overflow-hidden">
+<!-- Decorative background -->
+<div class="absolute -right-10 -bottom-10 opacity-20 transform rotate-12">
+<span class="text-9xl">🚔</span>
+</div>
+<ul class="space-y-4 relative z-10">
+<li class="flex items-start gap-3">
+<div class="w-8 h-8 rounded-full bg-error border-2 border-midnight-ink flex items-center justify-center shrink-0 mt-1">
+<span class="text-white text-sm font-bold">1</span>
+</div>
+<div>
+<span class="font-label-md text-label-md font-bold text-midnight-ink block">Phạt tiền mặt:</span>
+<span class="font-body-base text-body-base text-error font-bold text-lg">4.000.000đ - 6.000.000đ</span>
+</div>
+</li>
+<li class="flex items-start gap-3">
+<div class="w-8 h-8 rounded-full bg-sun-yellow border-2 border-midnight-ink flex items-center justify-center shrink-0 mt-1">
+<span class="text-midnight-ink text-sm font-bold">2</span>
+</div>
+<div>
+<span class="font-label-md text-label-md font-bold text-midnight-ink block">Tước Giấy phép lái xe:</span>
+<span class="font-body-base text-body-base text-midnight-ink">Từ 1 tháng đến 3 tháng.</span>
+</div>
+</li>
+</ul>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant mt-4 italic">
+                            * Lưu ý: Nếu gây tai nạn giao thông, thời gian tước bằng sẽ tăng lên 2-4 tháng.
+                        </p>
+</div>
+</div>
+</div>
+<!-- Chat Input Area -->
+<div class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-surface via-surface to-transparent pt-10 pb-6 px-6 md:px-12 z-30">
+<div class="relative max-w-3xl mx-auto flex items-end gap-2 bg-white rounded-[32px] border-2 border-midnight-ink p-2 shadow-[4px_4px_0px_0px_rgba(26,28,28,1)] transition-all focus-within:border-electric-orange focus-within:shadow-[6px_6px_0px_0px_#FF6B00]">
+<button class="p-3 text-on-surface-variant hover:text-electric-orange transition-colors">
+<span class="material-symbols-outlined">add_circle</span>
+</button>
+<textarea class="flex-1 bg-transparent border-none focus:ring-0 resize-none py-4 px-2 font-body-base text-body-base text-midnight-ink placeholder-on-surface-variant max-h-32 min-h-[56px]" placeholder="Hỏi thêm chi tiết..." rows="1"></textarea>
+<button class="bg-electric-orange text-surface p-3 rounded-full neo-btn flex items-center justify-center shrink-0 h-[48px] w-[48px] mb-1 mr-1">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">send</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Law Reference Panel (Slide-in on Mobile, Fixed on Desktop) -->
+<aside class="slide-in-panel fixed md:static top-0 right-0 h-full w-full md:w-80 lg:w-96 bg-soft-cloud border-l-2 border-midnight-ink z-50 md:z-auto flex flex-col shadow-[-6px_0px_0px_0px_rgba(26,28,28,1)] md:shadow-none transition-transform md:transform-none" id="law-panel">
+<div class="p-6 border-b-2 border-midnight-ink flex items-center justify-between bg-sun-yellow">
+<h3 class="font-section-title text-section-title font-bold text-midnight-ink flex items-center gap-2">
+<span class="material-symbols-outlined">gavel</span> Căn cứ pháp lý
+                </h3>
+<button class="md:hidden w-8 h-8 flex items-center justify-center rounded-full border-2 border-midnight-ink bg-white neo-btn" id="close-law-panel">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="flex-1 overflow-y-auto p-6 space-y-6">
+<!-- Source Card 1 -->
+<div class="neo-card bg-white p-5 hover:-translate-y-1 transition-transform">
+<div class="flex items-center gap-2 mb-3">
+<span class="px-3 py-1 bg-mint-fresh text-midnight-ink font-label-sm text-[10px] font-bold rounded-full border border-midnight-ink uppercase">Nghị định 100/2019/NĐ-CP</span>
+</div>
+<h4 class="font-label-md text-label-md font-bold text-midnight-ink mb-2">Điểm e Khoản 4 Điều 6</h4>
+<p class="font-body-base text-[13px] text-on-surface-variant leading-relaxed">
+                        Phạt tiền từ 800.000 đồng đến 1.000.000 đồng đối với người điều khiển xe mô tô, xe gắn máy thực hiện hành vi: Không chấp hành hiệu lệnh của đèn tín hiệu giao thông.
+                    </p>
+<div class="mt-4 pt-3 border-t-2 border-dashed border-outline-variant flex justify-between items-center">
+<span class="font-label-sm text-label-sm text-electric-orange">Sửa đổi bởi NĐ 123/2021</span>
+<a class="text-midnight-ink hover:text-electric-orange" href="#"><span class="material-symbols-outlined text-sm">open_in_new</span></a>
+</div>
+</div>
+<!-- Source Card 2 -->
+<div class="neo-card bg-surface-container-low p-5 hover:-translate-y-1 transition-transform">
+<div class="flex items-center gap-2 mb-3">
+<span class="px-3 py-1 bg-tertiary-fixed-dim text-midnight-ink font-label-sm text-[10px] font-bold rounded-full border border-midnight-ink uppercase">Nghị định 100/2019/NĐ-CP</span>
+</div>
+<h4 class="font-label-md text-label-md font-bold text-midnight-ink mb-2">Điểm b Khoản 10 Điều 6</h4>
+<p class="font-body-base text-[13px] text-on-surface-variant leading-relaxed">
+                        Tước quyền sử dụng Giấy phép lái xe từ 01 tháng đến 03 tháng đối với hành vi vượt đèn đỏ bằng xe máy.
+                    </p>
+</div>
+<!-- Graphic filler -->
+<div class="mt-8 opacity-50 flex flex-col items-center justify-center">
+<span class="text-6xl grayscale mb-4">👮‍♂️</span>
+<p class="font-label-sm text-center text-on-surface-variant">Luôn tuân thủ luật lệ<br/>để bảo vệ bản thân nhé!</p>
+</div>
+</div>
+</aside>
+</main>
+<script>
+        // Simple slide-in panel logic for mobile
+        const lawPanel = document.getElementById('law-panel');
+        const toggleBtn = document.getElementById('toggle-law-panel');
+        const closeBtn = document.getElementById('close-law-panel');
+
+        toggleBtn.addEventListener('click', () => {
+            lawPanel.classList.add('open');
+        });
+
+        closeBtn.addEventListener('click', () => {
+            lawPanel.classList.remove('open');
+        });
+    </script>
+</body></html>

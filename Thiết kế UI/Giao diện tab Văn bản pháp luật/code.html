@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Văn bản pháp luật - Luật Giao Thông AI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Work+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "mint-fresh": "#00F5A0",
+                        "outline": "#7f775f",
+                        "sun-yellow": "#FFD600",
+                        "on-secondary-container": "#572000",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#0df7a2",
+                        "inverse-on-surface": "#f9f0dd",
+                        "tertiary-fixed": "#50ffaf",
+                        "secondary-container": "#fe6b00",
+                        "on-primary-fixed": "#221b00",
+                        "midnight-ink": "#1A1C1C",
+                        "on-surface-variant": "#4d4632",
+                        "surface-container-highest": "#eae2cf",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#7a3000",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#a04100",
+                        "secondary-fixed": "#ffdbcc",
+                        "tertiary-fixed-dim": "#00e293",
+                        "on-tertiary-fixed-variant": "#005232",
+                        "on-error-container": "#93000a",
+                        "outline-variant": "#d0c6ab",
+                        "primary": "#705d00",
+                        "on-tertiary-fixed": "#002111",
+                        "surface-container-low": "#fcf3e0",
+                        "primary-container": "#ffd600",
+                        "surface-dim": "#e1d9c7",
+                        "error": "#ba1a1a",
+                        "surface-bright": "#fff8ef",
+                        "secondary-fixed-dim": "#ffb693",
+                        "electric-orange": "#FF6B00",
+                        "on-secondary-fixed": "#351000",
+                        "surface-container": "#f6edda",
+                        "on-primary-fixed-variant": "#544600",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-container": "#006c44",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-high": "#f0e7d5",
+                        "tertiary": "#006c44",
+                        "surface-tint": "#705d00",
+                        "primary-fixed-dim": "#e9c400",
+                        "on-primary": "#ffffff",
+                        "on-background": "#1f1b10",
+                        "surface-variant": "#eae2cf",
+                        "on-primary-container": "#705d00",
+                        "on-surface": "#1f1b10",
+                        "primary-fixed": "#ffe170",
+                        "inverse-surface": "#343024",
+                        "surface": "#fff8ef",
+                        "background": "#fff8ef",
+                        "soft-cloud": "#F0F4F8",
+                        "inverse-primary": "#e9c400"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "card-gap": "20px",
+                        "stack-section": "48px",
+                        "unit": "4px",
+                        "margin-page": "32px",
+                        "gutter-md": "24px"
+                    },
+                    "fontFamily": {
+                        "display-hero": ["Plus Jakarta Sans"],
+                        "label-md": ["Work Sans"],
+                        "section-title": ["Plus Jakarta Sans"],
+                        "body-large": ["Be Vietnam Pro"],
+                        "label-sm": ["Work Sans"],
+                        "headline-lg-mobile": ["Plus Jakarta Sans"],
+                        "body-base": ["Be Vietnam Pro"],
+                        "headline-lg": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "display-hero": ["42px", { "lineHeight": "1.1", "letterSpacing": "-0.03em", "fontWeight": "800" }],
+                        "label-md": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                        "section-title": ["20px", { "lineHeight": "1.4", "fontWeight": "700" }],
+                        "body-large": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "label-sm": ["12px", { "lineHeight": "1", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["26px", { "lineHeight": "1.2", "fontWeight": "700" }],
+                        "body-base": ["15px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .neobrutal-shadow {
+            box-shadow: 4px 4px 0px 0px rgba(26, 28, 28, 1);
+        }
+        .neobrutal-border {
+            border: 2px solid #1A1C1C;
+        }
+    </style>
+</head>
+<body class="bg-background text-midnight-ink font-body-base min-h-screen flex flex-col md:flex-row antialiased">
+<!-- Top App Bar (Mobile Only) -->
+<header class="flex justify-between items-center px-4 h-16 w-full bg-sun-yellow neobrutal-border neobrutal-shadow mb-4 sticky z-50 md:hidden">
+<div class="flex items-center gap-3">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile font-bold text-midnight-ink">Luật Giao Thông AI</h1>
+</div>
+<button class="text-midnight-ink hover:opacity-80 tap-highlight-transparent p-2">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+</header>
+<!-- Side Navigation Bar (Desktop) -->
+<aside class="hidden md:flex flex-col h-screen p-6 overflow-y-auto w-[280px] fixed left-0 top-0 bg-surface border-r-2 border-midnight-ink z-40 shrink-0">
+<!-- Header -->
+<div class="flex items-center gap-3 mb-8">
+<div class="w-12 h-12 rounded-full bg-sun-yellow neobrutal-border neobrutal-shadow flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-midnight-ink text-2xl font-bold" data-icon="traffic">traffic</span>
+</div>
+<div>
+<h1 class="font-headline-lg text-headline-lg font-bold text-midnight-ink text-xl leading-tight">Luật GT AI</h1>
+</div>
+</div>
+<!-- CTA -->
+<button class="w-full bg-electric-orange text-white hover:bg-orange-600 rounded-full py-3 px-4 flex items-center justify-center gap-2 font-label-md text-label-md transition-all mb-10 neobrutal-border neobrutal-shadow active:translate-y-1 active:shadow-[0px_0px_0px_0px_rgba(26,28,28,1)]">
+<span class="material-symbols-outlined text-lg font-bold" data-icon="add">add</span>
+            Chat mới ngay!
+        </button>
+<!-- Navigation Categories -->
+<div class="flex-1 space-y-8">
+<!-- HỎI ĐÁP -->
+<div>
+<nav class="space-y-2">
+<a class="flex items-center gap-3 px-4 py-3 rounded-full text-midnight-ink hover:bg-sun-yellow/20 transition-colors duration-200 group font-bold" href="#">
+<span class="material-symbols-outlined text-xl group-hover:text-electric-orange transition-colors" data-icon="chat">chat</span>
+<span class="font-label-md text-label-md">Hỏi đáp luật</span>
+</a>
+</nav>
+</div>
+<!-- GẦN ĐÂY -->
+<div>
+<h2 class="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-3 px-4">Lịch sử chat</h2>
+<nav class="space-y-2">
+<a class="flex items-center gap-3 px-4 py-2.5 rounded-full text-on-surface-variant hover:bg-sun-yellow/20 transition-colors duration-200 group" href="#">
+<span class="material-symbols-outlined text-lg text-outline" data-icon="history">history</span>
+<span class="font-label-sm text-label-md truncate">Cuộc trò chuyện mới</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 rounded-full text-on-surface-variant hover:bg-sun-yellow/20 transition-colors duration-200 group" href="#">
+<span class="material-symbols-outlined text-lg text-outline" data-icon="article">article</span>
+<span class="font-label-sm text-label-md truncate">Điểm a khoản 1 Điều 7 Lu...</span>
+</a>
+</nav>
+</div>
+<!-- TRA CỨU -->
+<div>
+<h2 class="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-3 px-4">Tra cứu</h2>
+<nav class="space-y-2">
+<!-- ACTIVE ITEM -->
+<a class="flex items-center gap-3 px-4 py-3 bg-sun-yellow text-midnight-ink rounded-full font-bold neobrutal-border neobrutal-shadow transition-transform" href="#">
+<span class="material-symbols-outlined text-xl font-bold" data-icon="menu_book" style="font-variation-settings: 'FILL' 1;">menu_book</span>
+<span class="font-label-md text-label-md">Văn bản pháp luật</span>
+</a>
+</nav>
+</div>
+</div>
+<!-- Footer Navigation -->
+<div class="mt-auto pt-6 space-y-2">
+<a class="flex items-center gap-3 px-4 py-2.5 rounded-full text-midnight-ink hover:bg-sun-yellow/20 transition-colors duration-200 group font-bold" href="#">
+<span class="material-symbols-outlined text-xl group-hover:text-electric-orange transition-colors" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Cài đặt</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 rounded-full text-midnight-ink hover:bg-sun-yellow/20 transition-colors duration-200 group font-bold" href="#">
+<span class="material-symbols-outlined text-xl group-hover:text-electric-orange transition-colors" data-icon="help">help</span>
+<span class="font-label-md text-label-md">Trợ giúp</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 md:ml-[280px] p-4 md:p-margin-page flex justify-center bg-background min-h-screen">
+<div class="w-full max-w-[920px] flex flex-col">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-stack-section">
+<div>
+<h1 class="font-display-hero text-display-hero text-midnight-ink mb-2">Văn bản pháp luật</h1>
+<p class="text-on-surface-variant font-body-large">Tra cứu và kiểm tra nguồn văn bản dùng trong hệ thống hỏi đáp luật giao thông.</p>
+</div>
+<button class="hidden md:flex items-center gap-2 px-6 py-3 bg-white neobrutal-border rounded-full text-midnight-ink font-bold hover:bg-sun-yellow transition-colors neobrutal-shadow active:translate-y-1 active:shadow-[0px_0px_0px_0px_rgba(26,28,28,1)]">
+<span class="material-symbols-outlined text-lg" data-icon="person">person</span>
+<span class="font-label-md text-label-md">Tài khoản</span>
+</button>
+</div>
+<!-- Search Bar -->
+<div class="relative w-full mb-stack-section">
+<div class="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-midnight-ink font-bold" data-icon="search">search</span>
+</div>
+<input class="w-full bg-white neobrutal-border text-midnight-ink rounded-full pl-14 pr-6 py-4 focus:outline-none focus:ring-4 focus:ring-sun-yellow/50 transition-all neobrutal-shadow font-body-large placeholder:text-outline font-bold" placeholder="Tìm theo số hiệu, tên văn bản..." type="text"/>
+</div>
+<!-- Document List -->
+<div class="flex flex-col space-y-card-gap">
+<!-- Document Card 1 -->
+<article class="bg-white rounded-3xl p-6 md:p-8 neobrutal-border neobrutal-shadow transition-transform hover:-translate-y-1">
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+<div class="flex flex-wrap items-center gap-2">
+<span class="px-4 py-1.5 bg-surface-container-high neobrutal-border text-midnight-ink rounded-full font-label-sm text-label-sm font-bold">105/2026/TT-BCA</span>
+<span class="px-4 py-1.5 bg-surface-container-high neobrutal-border text-midnight-ink rounded-full font-label-sm text-label-sm font-bold">Thông tư</span>
+<span class="px-4 py-1.5 bg-mint-fresh neobrutal-border text-midnight-ink rounded-full font-label-sm text-label-sm flex items-center gap-1.5 font-bold">
+<span class="material-symbols-outlined text-[16px] font-bold" data-icon="check_circle">check_circle</span>
+                                Đang hiệu lực
+                            </span>
+</div>
+<div class="flex items-center gap-1.5 text-midnight-ink font-label-sm text-label-sm font-bold bg-sun-yellow px-4 py-1.5 rounded-full neobrutal-border">
+<span class="material-symbols-outlined text-[16px]" data-icon="calendar_today">calendar_today</span>
+                            Hiệu lực: 01/07/2026
+                        </div>
+</div>
+<h3 class="font-section-title text-section-title text-midnight-ink mb-3 font-bold">Thông tư số 105/2026/TT-BCA</h3>
+<p class="text-on-surface-variant font-body-base mb-8 line-clamp-2">Sửa đổi, bổ sung một số điều của Thông tư số 65/2024/TT-BCA ngày 12 tháng 11 năm 2024 của Bộ trưởng Bộ Công an quy định kiểm tra kiến thức pháp luật về trật tự, an toàn giao thông đường bộ để được phục hồi điểm giấy phép lái xe.</p>
+<div class="flex flex-col sm:flex-row sm:items-center justify-between pt-6 border-t-2 border-midnight-ink gap-4">
+<div class="flex flex-wrap items-center gap-4 text-midnight-ink font-bold text-sm">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[20px]" data-icon="account_balance">account_balance</span>
+                                Bộ Công an
+                            </div>
+<div class="hidden sm:block w-1.5 h-1.5 rounded-full bg-midnight-ink"></div>
+<div>Ban hành: 26/06/2026</div>
+</div>
+<button class="flex items-center justify-center gap-2 px-6 py-2.5 bg-electric-orange text-white rounded-full neobrutal-border neobrutal-shadow hover:bg-orange-600 font-label-md text-label-md transition-all active:translate-y-1 active:shadow-[0px_0px_0px_0px_rgba(26,28,28,1)]">
+<span class="material-symbols-outlined text-[20px]" data-icon="visibility">visibility</span>
+                            Xem PDF
+                        </button>
+</div>
+</article>
+<!-- Document Card 2 -->
+<article class="bg-white rounded-3xl p-6 md:p-8 neobrutal-border neobrutal-shadow transition-transform hover:-translate-y-1">
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+<div class="flex flex-wrap items-center gap-2">
+<span class="px-4 py-1.5 bg-surface-container-high neobrutal-border text-midnight-ink rounded-full font-label-sm text-label-sm font-bold">108/2026/TT-BCA</span>
+<span class="px-4 py-1.5 bg-surface-container-high neobrutal-border text-midnight-ink rounded-full font-label-sm text-label-sm font-bold">Thông tư</span>
+<span class="px-4 py-1.5 bg-mint-fresh neobrutal-border text-midnight-ink rounded-full font-label-sm text-label-sm flex items-center gap-1.5 font-bold">
+<span class="material-symbols-outlined text-[16px] font-bold" data-icon="check_circle">check_circle</span>
+                                Đang hiệu lực
+                            </span>
+</div>
+<div class="flex items-center gap-1.5 text-midnight-ink font-label-sm text-label-sm font-bold bg-sun-yellow px-4 py-1.5 rounded-full neobrutal-border">
+<span class="material-symbols-outlined text-[16px]" data-icon="calendar_today">calendar_today</span>
+                            Hiệu lực: 01/07/2026
+                        </div>
+</div>
+<h3 class="font-section-title text-section-title text-midnight-ink mb-3 font-bold">Thông tư số 108/2026/TT-BCA</h3>
+<p class="text-on-surface-variant font-body-base mb-8 line-clamp-2">Quy định về sát hạch, cấp giấy phép lái xe; cấp, sử dụng giấy phép lái xe quốc tế</p>
+<div class="flex flex-col sm:flex-row sm:items-center justify-between pt-6 border-t-2 border-midnight-ink gap-4">
+<div class="flex flex-wrap items-center gap-4 text-midnight-ink font-bold text-sm">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[20px]" data-icon="account_balance">account_balance</span>
+                                Bộ Công an
+                            </div>
+<div class="hidden sm:block w-1.5 h-1.5 rounded-full bg-midnight-ink"></div>
+<div>Ban hành: 29/06/2026</div>
+</div>
+<button class="flex items-center justify-center gap-2 px-6 py-2.5 bg-electric-orange text-white rounded-full neobrutal-border neobrutal-shadow hover:bg-orange-600 font-label-md text-label-md transition-all active:translate-y-1 active:shadow-[0px_0px_0px_0px_rgba(26,28,28,1)]">
+<span class="material-symbols-outlined text-[20px]" data-icon="visibility">visibility</span>
+                            Xem PDF
+                        </button>
+</div>
+</article>
+<!-- Document Card 3 -->
+<article class="bg-white rounded-3xl p-6 md:p-8 neobrutal-border neobrutal-shadow transition-transform hover:-translate-y-1">
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+<div class="flex flex-wrap items-center gap-2">
+<span class="px-4 py-1.5 bg-surface-container-high neobrutal-border text-midnight-ink rounded-full font-label-sm text-label-sm font-bold">12/2025/TT-BCA</span>
+<span class="px-4 py-1.5 bg-surface-container-high neobrutal-border text-midnight-ink rounded-full font-label-sm text-label-sm font-bold">Thông tư</span>
+<span class="px-4 py-1.5 bg-mint-fresh neobrutal-border text-midnight-ink rounded-full font-label-sm text-label-sm flex items-center gap-1.5 font-bold">
+<span class="material-symbols-outlined text-[16px] font-bold" data-icon="check_circle">check_circle</span>
+                                Đang hiệu lực
+                            </span>
+</div>
+<div class="flex items-center gap-1.5 text-midnight-ink font-label-sm text-label-sm font-bold bg-sun-yellow px-4 py-1.5 rounded-full neobrutal-border">
+<span class="material-symbols-outlined text-[16px]" data-icon="calendar_today">calendar_today</span>
+                            Hiệu lực: 01/03/2025
+                        </div>
+</div>
+<h3 class="font-section-title text-section-title text-midnight-ink mb-3 font-bold">Thông tư số 12/2025/TT-BCA</h3>
+<p class="text-on-surface-variant font-body-base mb-8 line-clamp-2">Quy định về sát hạch, cấp giấy phép lái xe; cấp, sử dụng giấy phép lái xe quốc tế</p>
+<div class="flex flex-col sm:flex-row sm:items-center justify-between pt-6 border-t-2 border-midnight-ink gap-4">
+<div class="flex flex-wrap items-center gap-4 text-midnight-ink font-bold text-sm">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[20px]" data-icon="account_balance">account_balance</span>
+                                Bộ Công an
+                            </div>
+<div class="hidden sm:block w-1.5 h-1.5 rounded-full bg-midnight-ink"></div>
+<div>Ban hành: 28/02/2025</div>
+</div>
+<button class="flex items-center justify-center gap-2 px-6 py-2.5 bg-electric-orange text-white rounded-full neobrutal-border neobrutal-shadow hover:bg-orange-600 font-label-md text-label-md transition-all active:translate-y-1 active:shadow-[0px_0px_0px_0px_rgba(26,28,28,1)]">
+<span class="material-symbols-outlined text-[20px]" data-icon="visibility">visibility</span>
+                            Xem PDF
+                        </button>
+</div>
+</article>
+</div>
+<!-- Bottom spacing -->
+<div class="h-20"></div>
+</div>
+</main>
+<!-- Floating Action Button (Mobile) -->
+<button class="fixed bottom-6 right-6 w-16 h-16 bg-electric-orange text-white rounded-full neobrutal-border neobrutal-shadow flex items-center justify-center hover:bg-orange-600 transition-all md:hidden z-50 active:translate-y-1 active:shadow-[0px_0px_0px_0px_rgba(26,28,28,1)]">
+<span class="material-symbols-outlined font-bold text-2xl" data-icon="add_comment">add_comment</span>
+</button>
+</body></html>

@@ -1,0 +1,38 @@
+{
+  "n": 200,
+  "errors": 0,
+  "latency_mean_s": 9.730426751499472,
+  "latency_p50_s": 9.247172749994206,
+  "retrieval": {
+    "recall@1": 0.3368421052631579,
+    "recall@3": 0.6789473684210526,
+    "recall@5": 0.7736842105263158,
+    "recall@10": 0.8157894736842105,
+    "completeness@10": 0.6578947368421053,
+    "mrr": 0.5234104784104785,
+    "ndcg@10": 0.6731546565629251
+  },
+  "generation": {
+    "answerable_correct": 0.875,
+    "citation_correct": 0.835,
+    "citation_complete": 0.675,
+    "numeric_exact": 1.0,
+    "points_exact": 1.0,
+    "enumeration_completeness": null,
+    "must_include": 0.975,
+    "context_recall_proxy": 0.7738068970847525,
+    "answer_relevance_proxy": 0.6853173500175427
+  },
+  "abstention": {
+    "accuracy": 0.875,
+    "f1_answerable": 0.9291784702549574,
+    "tp": 164,
+    "tn": 11,
+    "fp": 10,
+    "fn": 15
+  },
+  "structured": {
+    "vehicle_mapping_accuracy": null,
+    "behavior_mapping_accuracy": null
+  }
+}

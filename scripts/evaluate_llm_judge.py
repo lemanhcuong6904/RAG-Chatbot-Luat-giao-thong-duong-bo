@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import sys
@@ -13,6 +12,22 @@ from typing import Any
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR))
+
+
+# =========================
+# CONFIG - edit here only
+# =========================
+INPUT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2.jsonl"
+CACHE_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "llm_judge_scores_v2.jsonl"
+REPORT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "EVALUATION_REPORT_LLM_JUDGE_V2.md"
+
+JUDGE_MODEL = "gpt-4o-mini"
+
+# Set to None to judge all rows.
+LIMIT: int | None = None
+
+RESUME_FROM_CACHE = True
+SLEEP_SECONDS = 0.0
 
 
 def _load_env(path: Path) -> None:
@@ -178,7 +193,7 @@ def _mean(values: list[float]) -> float:
     return sum(values) / max(len(values), 1)
 
 
-def _write_report(scores: list[dict[str, Any]], out: Path, model: str) -> None:
+def _write_report(scores: list[dict[str, Any]], out: Path, model: str, input_path: Path) -> None:
     metric_keys = [
         "faithfulness",
         "answer_relevancy",
@@ -197,7 +212,7 @@ def _write_report(scores: list[dict[str, Any]], out: Path, model: str) -> None:
         f"- Thời điểm chạy: `{datetime.now().isoformat(timespec='seconds')}`",
         f"- Judge model: `{model}`",
         f"- Số case đã chấm: `{len(scores)}`",
-        "- Nguồn input: `data/evaluation_set/eval_outputs.jsonl`",
+        f"- Nguồn input: `{input_path}`",
         "- Đây là LLM-as-judge theo rubric RAGAS-style, không phải package `ragas` chính thức.",
         "",
         "## Tổng quan",
@@ -243,29 +258,18 @@ def _write_report(scores: list[dict[str, Any]], out: Path, model: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input", default="data/evaluation_set/eval_outputs.jsonl")
-    parser.add_argument("--cache", default="data/evaluation_set/llm_judge_scores.jsonl")
-    parser.add_argument("--out", default="data/evaluation_set/EVALUATION_REPORT_LLM_JUDGE.md")
-    parser.add_argument("--model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
-    parser.add_argument("--limit", type=int, default=0)
-    parser.add_argument("--resume", action="store_true")
-    parser.add_argument("--sleep", type=float, default=0.0)
-    args = parser.parse_args()
-
     _load_env(ROOT_DIR / ".env")
     if not os.getenv("OPENAI_API_KEY"):
         raise SystemExit("OPENAI_API_KEY is not configured.")
 
     from openai import OpenAI
 
-    cases = _load_jsonl(Path(args.input))
-    if args.limit:
-        cases = cases[: args.limit]
+    cases = _load_jsonl(INPUT_PATH)
+    if LIMIT is not None:
+        cases = cases[:LIMIT]
     cached: dict[str, dict[str, Any]] = {}
-    cache_path = Path(args.cache)
-    if args.resume and cache_path.exists():
-        cached = {row["id"]: row for row in _load_jsonl(cache_path)}
+    if RESUME_FROM_CACHE and CACHE_PATH.exists():
+        cached = {row["id"]: row for row in _load_jsonl(CACHE_PATH)}
 
     client = OpenAI()
     scores = list(cached.values())
@@ -275,16 +279,16 @@ def main() -> None:
         if case_id in done:
             continue
         try:
-            judged = _score_case(client, args.model, case)
+            judged = _score_case(client, JUDGE_MODEL, case)
             row = {
                 "id": case_id,
-                "category": case["row"].get("category", "unknown"),
+                "category": case["row"].get("category") or case["row"].get("benchmark_suite") or case["row"].get("intent") or "unknown",
                 **judged,
             }
         except Exception as exc:
             row = {
                 "id": case_id,
-                "category": case["row"].get("category", "unknown"),
+                "category": case["row"].get("category") or case["row"].get("benchmark_suite") or case["row"].get("intent") or "unknown",
                 "faithfulness": 0.0,
                 "answer_relevancy": 0.0,
                 "context_precision": 0.0,
@@ -296,14 +300,14 @@ def main() -> None:
         scores.append(row)
         done.add(case_id)
         if index % 5 == 0:
-            _write_jsonl(cache_path, scores)
+            _write_jsonl(CACHE_PATH, scores)
             print(f"[judge] {len(done)}/{len(cases)} last={case_id}", flush=True)
-        if args.sleep:
-            time.sleep(args.sleep)
+        if SLEEP_SECONDS:
+            time.sleep(SLEEP_SECONDS)
 
-    _write_jsonl(cache_path, scores)
-    _write_report(scores, Path(args.out), args.model)
-    print(f"[judge] wrote {args.out}")
+    _write_jsonl(CACHE_PATH, scores)
+    _write_report(scores, REPORT_PATH, JUDGE_MODEL, INPUT_PATH)
+    print(f"[judge] wrote {REPORT_PATH}")
 
 
 if __name__ == "__main__":

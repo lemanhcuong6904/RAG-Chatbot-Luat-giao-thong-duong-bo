@@ -22,16 +22,12 @@ from langchain_core.embeddings import Embeddings
 from rag_luat_gt.config import RAG_EMBEDDING_MODEL
 from rag_luat_gt.embedding.bge_m3 import BGEM3Embedder
 
-DATA_DIR = ROOT / "data" / "evaluation_set"
-DEFAULT_INPUT = DATA_DIR / "eval_outputs.jsonl"
-DEFAULT_REPORT = DATA_DIR / "EVALUATION_REPORT_RAGAS.md"
-DEFAULT_JSON = DATA_DIR / "ragas_official_scores.json"
-DEFAULT_CSV = DATA_DIR / "ragas_official_scores.csv"
+DATA_DIR = ROOT / "data" / "evaluation_set_2"
 
 # =========================
 # CONFIG - edit here only
 # =========================
-INPUT_PATH = DEFAULT_INPUT
+INPUT_PATH = DATA_DIR / "eval_outputs_v2.jsonl"
 LIMIT: int | None = None
 MAX_CONTEXTS = 8
 
@@ -39,9 +35,9 @@ RAGAS_LLM_MODEL = "gpt-4o-mini"
 RAGAS_EMBEDDING_MODEL = RAG_EMBEDDING_MODEL
 BATCH_SIZE = 4
 
-REPORT_PATH = DEFAULT_REPORT
-JSON_OUTPUT_PATH = DEFAULT_JSON
-CSV_OUTPUT_PATH = DEFAULT_CSV
+REPORT_PATH = DATA_DIR / "EVALUATION_REPORT_RAGAS_V2.md"
+JSON_OUTPUT_PATH = DATA_DIR / "ragas_official_scores_v2.json"
+CSV_OUTPUT_PATH = DATA_DIR / "ragas_official_scores_v2.csv"
 
 
 class BGEEmbeddings(Embeddings):
@@ -113,14 +109,17 @@ def citation_contexts(response: dict[str, Any], max_contexts: int) -> list[str]:
 
 def reference_text(row: dict[str, Any]) -> str:
     pieces: list[str] = []
-    if row.get("expected_answer"):
-        pieces.append(str(row["expected_answer"]))
+    if row.get("expected_answer") or row.get("reference_answer"):
+        pieces.append(str(row.get("expected_answer") or row.get("reference_answer")))
     if row.get("gold_evidence_texts"):
         pieces.extend(str(x) for x in row["gold_evidence_texts"] if x)
     provisions = row.get("expected_provisions") or []
     if provisions:
         refs = []
         for prov in provisions:
+            if isinstance(prov, str):
+                refs.append(prov)
+                continue
             ref = [prov.get("document_number")]
             if prov.get("article"):
                 ref.append(f"Điều {prov['article']}")
@@ -130,7 +129,10 @@ def reference_text(row: dict[str, Any]) -> str:
                 ref.append(f"Điểm {prov['point']}")
             refs.append(" - ".join(str(x) for x in ref if x))
         pieces.append("Căn cứ kỳ vọng: " + "; ".join(refs))
-    if not pieces and row.get("expected_answerable") is False:
+    expected_answerable = row.get("expected_answerable")
+    if expected_answerable is None and row.get("expected_response_mode"):
+        expected_answerable = str(row.get("expected_response_mode")).upper() == "ANSWER"
+    if not pieces and expected_answerable is False:
         pieces.append("Câu hỏi không đủ căn cứ trong corpus; hệ thống nên từ chối hoặc nói không có nguồn phù hợp.")
     return "\n".join(pieces).strip()
 
@@ -148,7 +150,7 @@ def build_dataset_rows(records: list[dict[str, Any]], max_contexts: int) -> tupl
         answer = response.get("answer") or ""
         ragas_rows.append(
             {
-                "question": row.get("query") or record.get("query") or "",
+                "question": row.get("query") or row.get("question") or record.get("query") or "",
                 "answer": answer,
                 "contexts": contexts,
                 "ground_truth": reference,
@@ -158,9 +160,11 @@ def build_dataset_rows(records: list[dict[str, Any]], max_contexts: int) -> tupl
         metadata_rows.append(
             {
                 "id": record.get("id") or row.get("id"),
-                "category": row.get("category"),
+                "category": row.get("category") or row.get("benchmark_suite") or row.get("intent"),
                 "difficulty": row.get("difficulty"),
-                "expected_answerable": row.get("expected_answerable"),
+                "expected_answerable": row.get("expected_answerable")
+                if row.get("expected_answerable") is not None
+                else (str(row.get("expected_response_mode")).upper() == "ANSWER" if row.get("expected_response_mode") else None),
                 "answerable": response.get("answerable"),
                 "num_contexts": len(contexts),
                 "latency_s": record.get("latency_s"),
@@ -286,6 +290,9 @@ def main() -> int:
         frame.insert(0, column, meta_frame[column])
 
     metric_names = [getattr(metric, "name", type(metric).__name__) for metric in metrics]
+    JSON_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CSV_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     JSON_OUTPUT_PATH.write_text(frame.to_json(orient="records", force_ascii=False, indent=2), encoding="utf-8")
     frame.to_csv(CSV_OUTPUT_PATH, index=False, encoding="utf-8-sig")
     write_report(

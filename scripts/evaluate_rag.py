@@ -7,6 +7,7 @@ import re
 import statistics
 import time
 import sys
+import unicodedata
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -20,9 +21,14 @@ sys.path.insert(0, str(ROOT_DIR))
 # =========================
 # CONFIG - edit here only
 # =========================
-DATASET_PATH = ROOT_DIR / "data" / "evaluation_set" / "golden_200.jsonl"
-REPORT_PATH = ROOT_DIR / "data" / "evaluation_set" / "EVALUATION_REPORT.md"
-CACHE_PATH = ROOT_DIR / "data" / "evaluation_set" / "eval_outputs.jsonl"
+DATASET_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "golden_v2_200.jsonl"
+REPORT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "EVALUATION_REPORT_V2.md"
+CACHE_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2.jsonl"
+
+# Smoke-test alternative:
+# DATASET_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "smoke_v2_50.jsonl"
+# REPORT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "EVALUATION_REPORT_SMOKE_V2.md"
+# CACHE_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_smoke_v2.jsonl"
 
 # Options: "full", "fast", "deterministic"
 EVALUATION_MODE = "full"
@@ -32,6 +38,82 @@ LIMIT: int | None = None
 
 TOP_K = 8
 RESUME_FROM_CACHE = False
+
+# Pre-RAG controls.
+# Set ENABLE_PRE_RAG_STAGE=False to bypass Pre-RAG completely.
+# Set ENABLE_PRE_RAG_LLM=True to run the LLM query transformer before retrieval.
+# Keep ENABLE_QUERY_ROUTER_LLM=False when you want the Pre-RAG transformer to run
+# consistently; an OpenAI router can make the transformer skip when its plan is sufficient.
+ENABLE_PRE_RAG_STAGE = True
+ENABLE_PRE_RAG_LLM = False
+ENABLE_QUERY_ROUTER_LLM = False
+
+
+def _parse_expected_answerable(row: dict[str, Any]) -> bool:
+    if "expected_answerable" in row:
+        return bool(row.get("expected_answerable"))
+    mode = str(row.get("expected_response_mode") or "ANSWER").strip().upper()
+    return mode == "ANSWER"
+
+
+def _parse_expected_provision(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str):
+        return None
+
+    text = value.strip()
+    if not text:
+        return None
+
+    document_number = None
+    document_match = re.search(r"(\d+/\d{4}/[^,\s]+)", text, flags=re.IGNORECASE)
+    if document_match:
+        document_number = document_match.group(1)
+
+    folded = _fold(text)
+    article = None
+    article_match = re.search(r"dieu\s+(\d+[a-z]?)", folded, flags=re.IGNORECASE)
+    if article_match:
+        article = article_match.group(1)
+
+    clause = None
+    clause_match = re.search(r"khoan\s+(\d+[a-z]?)", folded, flags=re.IGNORECASE)
+    if clause_match:
+        clause = clause_match.group(1)
+
+    point = None
+    point_match = re.search(r"diem\s+([a-z])", folded, flags=re.IGNORECASE)
+    if point_match:
+        point = point_match.group(1).casefold()
+
+    return {
+        "document_number": document_number,
+        "article": article,
+        "clause": clause,
+        "point": point,
+    }
+
+
+def _normalize_row(row: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(row)
+    normalized.setdefault("query", row.get("question") or row.get("query") or "")
+    normalized.setdefault("expected_answer", row.get("reference_answer") or row.get("expected_answer") or "")
+    normalized.setdefault("category", row.get("category") or row.get("benchmark_suite") or row.get("intent") or "unknown")
+    normalized["expected_answerable"] = _parse_expected_answerable(row)
+
+    provisions = []
+    for item in row.get("expected_provisions") or []:
+        parsed = _parse_expected_provision(item)
+        if parsed:
+            provisions.append(parsed)
+    normalized["expected_provisions"] = provisions
+
+    if "must_include" not in normalized:
+        normalized["must_include"] = row.get("required_claims") or []
+    if "gold_evidence_texts" not in normalized and row.get("reference_answer"):
+        normalized["gold_evidence_texts"] = [row["reference_answer"]]
+    return normalized
 
 
 def _set_mode(mode: str) -> None:
@@ -46,6 +128,11 @@ def _set_mode(mode: str) -> None:
         os.environ["RAG_SANCTION_LLM_PROVIDER"] = "extractive"
 
 
+def _set_eval_prerag_config() -> None:
+    os.environ["RAG_PRERAG_PROVIDER"] = "openai" if ENABLE_PRE_RAG_LLM else "rule"
+    os.environ["RAG_QUERY_ROUTER_PROVIDER"] = "openai" if ENABLE_QUERY_ROUTER_LLM else "rule"
+
+
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
@@ -56,7 +143,18 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def _norm(value: Any) -> str:
-    return "" if value is None else str(value).strip().casefold()
+    return _fold(value)
+
+
+def _fold(value: Any) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip().casefold().replace("đ", "d")
+    return "".join(
+        char
+        for char in unicodedata.normalize("NFD", text)
+        if unicodedata.category(char) != "Mn"
+    )
 
 
 def _provision_key(item: dict[str, Any]) -> tuple[str, str, str, str]:
@@ -196,7 +294,7 @@ def _generation_metrics(case: CaseMetrics) -> dict[str, Any]:
         "enumeration_completeness": None if not expected_items else item_hits / len(expected_items),
         "must_include": all(str(item).casefold() in case.answer.casefold() for item in case.row.get("must_include") or []),
         "context_recall_proxy": None if not gold_tokens else len(gold_tokens & context_tokens) / len(gold_tokens),
-        "answer_relevance_proxy": len(_tokens(case.row.get("query") or "") & answer_tokens) / max(len(_tokens(case.row.get("query") or "")), 1),
+        "answer_relevance_proxy": len(_tokens(case.row.get("query") or case.row.get("question") or "") & answer_tokens) / max(len(_tokens(case.row.get("query") or case.row.get("question") or "")), 1),
     }
 
 
@@ -242,8 +340,10 @@ def _run_cases(dataset: list[dict[str, Any]], cache_path: Path, resume: bool, to
             request = ChatRequest(
                 query=row["query"],
                 event_date=row.get("event_date"),
+                as_of_date=row.get("as_of_date"),
                 top_k=top_k,
                 debug=True,
+                pre_rag_enabled=ENABLE_PRE_RAG_STAGE,
             )
             response = service.answer(request).model_dump()
         except Exception as exc:
@@ -267,7 +367,7 @@ def _mean(values: list[float | bool | None]) -> float | None:
     return None if not filtered else sum(filtered) / len(filtered)
 
 
-def _summarize(outputs: list[dict[str, Any]], mode: str) -> tuple[str, dict[str, Any]]:
+def _summarize(outputs: list[dict[str, Any]], mode: str, dataset_path: Path) -> tuple[str, dict[str, Any]]:
     cases = [CaseMetrics(row=o["row"], response=o["response"], latency_s=o["latency_s"], error=o.get("error")) for o in outputs]
     retrieval = [_retrieval_metrics(case) for case in cases]
     generation = [_generation_metrics(case) for case in cases]
@@ -322,8 +422,11 @@ def _summarize(outputs: list[dict[str, Any]], mode: str) -> tuple[str, dict[str,
         "# Báo cáo đánh giá RAG Luật giao thông",
         "",
         f"- Thời điểm chạy: `{datetime.now().isoformat(timespec='seconds')}`",
-        f"- Dataset: `golden_200.jsonl`",
+        f"- Dataset: `{dataset_path}`",
         f"- Chế độ: `{mode}`",
+        f"- Pre-RAG stage: `{ENABLE_PRE_RAG_STAGE}`",
+        f"- Pre-RAG LLM transformer: `{ENABLE_PRE_RAG_LLM}`",
+        f"- Query router LLM: `{ENABLE_QUERY_ROUTER_LLM}`",
         f"- Số câu: `{summary['n']}`",
         f"- Số lỗi runtime: `{summary['errors']}`",
         f"- Latency trung bình: `{summary['latency_mean_s']:.2f}s`; p50: `{summary['latency_p50_s']:.2f}s`",
@@ -407,11 +510,13 @@ def _fmt(value: float | None) -> str:
 
 def main() -> None:
     _set_mode(EVALUATION_MODE)
-    dataset = _load_jsonl(DATASET_PATH)
+    _set_eval_prerag_config()
+    dataset = [_normalize_row(row) for row in _load_jsonl(DATASET_PATH)]
     if LIMIT is not None:
         dataset = dataset[:LIMIT]
     outputs = _run_cases(dataset, CACHE_PATH, resume=RESUME_FROM_CACHE, top_k=TOP_K)
-    report, summary = _summarize(outputs, EVALUATION_MODE)
+    report, summary = _summarize(outputs, EVALUATION_MODE, DATASET_PATH)
+    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text(report, encoding="utf-8")
     REPORT_PATH.with_suffix(".summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[eval] wrote {REPORT_PATH}")

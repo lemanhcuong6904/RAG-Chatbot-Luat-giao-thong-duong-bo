@@ -29,6 +29,7 @@ export type ChatResponse = {
 
 export type PreRagMode = "rule" | "llm" | "optimized";
 export type EmbeddingPreset = "bge_m3" | "qwen3_0_6b";
+export type LlmModelPreset = "gpt_4o_mini" | "qwen3_5_4b_q4_k_m";
 
 export type DocumentItem = {
   document_id: string;
@@ -94,6 +95,9 @@ export function sendChat(payload: {
   pre_rag_enabled: boolean;
   pre_rag_mode?: PreRagMode;
   embedding_preset?: EmbeddingPreset;
+  llm_model_preset?: LlmModelPreset;
+  llm_provider?: string;
+  llm_model?: string;
   structured_lookup_enabled?: boolean;
   structured_sanction_enabled?: boolean;
 }) {

@@ -5,28 +5,32 @@ import { Activity, Gavel, ListOrdered, Network, RefreshCw, Search, SlidersHorizo
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmbeddingPreset, HealthResponse, PreRagMode, getHealth } from "@/lib/api";
+import { EmbeddingPreset, HealthResponse, LlmModelPreset, PreRagMode, getHealth } from "@/lib/api";
 
 export function DeveloperView({
   topK,
   debug,
   preRagMode,
+  llmModelPreset,
   embeddingPreset,
   structuredLookupEnabled,
   onTopKChange,
   onDebugChange,
   onPreRagModeChange,
+  onLlmModelPresetChange,
   onEmbeddingPresetChange,
   onStructuredLookupEnabledChange,
 }: {
   topK: number;
   debug: boolean;
   preRagMode: PreRagMode;
+  llmModelPreset: LlmModelPreset;
   embeddingPreset: EmbeddingPreset;
   structuredLookupEnabled: boolean;
   onTopKChange: (value: number) => void;
   onDebugChange: (value: boolean) => void;
   onPreRagModeChange: (value: PreRagMode) => void;
+  onLlmModelPresetChange: (value: LlmModelPreset) => void;
   onEmbeddingPresetChange: (value: EmbeddingPreset) => void;
   onStructuredLookupEnabledChange: (value: boolean) => void;
 }) {
@@ -163,6 +167,25 @@ export function DeveloperView({
                   />
                 </div>
               </div>
+              <div className="rounded-[24px] border-2 border-[#1a1c1c] bg-[#fff8ef] p-4 text-sm font-extrabold shadow-[3px_3px_0_#1a1c1c]">
+                <div className="mb-3">LLM model</div>
+                <div className="space-y-3">
+                  <LlmModelOption
+                    value="gpt_4o_mini"
+                    checked={llmModelPreset === "gpt_4o_mini"}
+                    title="GPT-4o-mini (OpenAI)"
+                    description="Dùng OpenAI API cho các bước LLM trong phiên hiện tại."
+                    onChange={onLlmModelPresetChange}
+                  />
+                  <LlmModelOption
+                    value="qwen3_5_4b_q4_k_m"
+                    checked={llmModelPreset === "qwen3_5_4b_q4_k_m"}
+                    title="qwen3.5-4b-q4_k_m"
+                    description="Dùng model local qua LM Studio hoặc llama-server cho phiên hiện tại."
+                    onChange={onLlmModelPresetChange}
+                  />
+                </div>
+              </div>
               <div className="rounded-[24px] border-2 border-[#1a1c1c] bg-[#eafff6] p-4 text-sm font-extrabold shadow-[3px_3px_0_#1a1c1c]">
                 <div className="mb-3">Embedding model</div>
                 <div className="space-y-3">
@@ -216,7 +239,7 @@ export function DeveloperView({
             </div>
             <CardContent className="p-0">
               <pre className="traffic-tile max-h-[520px] overflow-auto p-5 font-mono text-xs font-semibold leading-6 text-[#1a1c1c]">
-                {JSON.stringify({ status: health?.status, system: { pipeline, structured_lookup: structuredLookup, sanctions }, controls: { top_k: topK, debug, pre_rag_mode: preRagMode, embedding_preset: embeddingPreset, structured_lookup_enabled: structuredLookupEnabled }, index: health?.index }, null, 2)}
+                {JSON.stringify({ status: health?.status, system: { pipeline, structured_lookup: structuredLookup, sanctions }, controls: { top_k: topK, debug, pre_rag_mode: preRagMode, llm_model_preset: llmModelPreset, embedding_preset: embeddingPreset, structured_lookup_enabled: structuredLookupEnabled }, index: health?.index }, null, 2)}
               </pre>
             </CardContent>
           </Card>
@@ -256,6 +279,36 @@ function PreRagOption({
   );
 }
 
+function LlmModelOption({
+  value,
+  checked,
+  title,
+  description,
+  onChange,
+}: {
+  value: LlmModelPreset;
+  checked: boolean;
+  title: string;
+  description: string;
+  onChange: (value: LlmModelPreset) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-[18px] border-2 border-[#1a1c1c] bg-white/70 p-3">
+      <input
+        className="mt-1 h-5 w-5 cursor-pointer accent-[#ff6b00]"
+        type="radio"
+        name="llm-model-preset"
+        checked={checked}
+        onChange={() => onChange(value)}
+      />
+      <span>
+        <span className="block font-extrabold text-[#1a1c1c]">{title}</span>
+        <span className="mt-1 block text-xs font-semibold leading-5 text-muted-foreground">{description}</span>
+      </span>
+    </label>
+  );
+}
+
 function EmbeddingOption({
   value,
   checked,
@@ -269,6 +322,11 @@ function EmbeddingOption({
   description: string;
   onChange: (value: EmbeddingPreset) => void;
 }) {
+  const displayDescription =
+    value === "bge_m3"
+      ? "Dùng collection dense đã build từ BAAI/bge-m3."
+      : "Dùng collection dense đã build từ Qwen/Qwen3-Embedding-0.6B.";
+
   return (
     <label className="flex cursor-pointer items-start gap-3 rounded-[18px] border-2 border-[#1a1c1c] bg-white/70 p-3">
       <input
@@ -280,7 +338,7 @@ function EmbeddingOption({
       />
       <span>
         <span className="block font-extrabold text-[#1a1c1c]">{title}</span>
-        <span className="mt-1 block text-xs font-semibold leading-5 text-muted-foreground">{description}</span>
+        <span className="mt-1 block text-xs font-semibold leading-5 text-muted-foreground">{displayDescription || description}</span>
       </span>
     </label>
   );

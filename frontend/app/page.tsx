@@ -5,7 +5,7 @@ import { AppShell, ConversationSummary } from "@/components/app-shell";
 import { ChatMessage, ChatView } from "@/components/chat";
 import { DeveloperView } from "@/components/developer";
 import { DocumentsView } from "@/components/documents";
-import { EmbeddingPreset, PreRagMode } from "@/lib/api";
+import { EmbeddingPreset, LlmModelPreset, PreRagMode } from "@/lib/api";
 import { shortText } from "@/lib/utils";
 
 type View = "chat" | "documents" | "developer";
@@ -23,6 +23,7 @@ export default function Home() {
   const [topK, setTopK] = useState(8);
   const [debug, setDebug] = useState(false);
   const [preRagMode, setPreRagMode] = useState<PreRagMode>("optimized");
+  const [llmModelPreset, setLlmModelPreset] = useState<LlmModelPreset>("gpt_4o_mini");
   const [embeddingPreset, setEmbeddingPreset] = useState<EmbeddingPreset>("bge_m3");
   const [structuredLookupEnabled, setStructuredLookupEnabled] = useState(true);
 
@@ -107,6 +108,7 @@ export default function Home() {
           topK={topK}
           debug={debug}
           preRagMode={preRagMode}
+          llmModelPreset={llmModelPreset}
           embeddingPreset={embeddingPreset}
           structuredLookupEnabled={structuredLookupEnabled}
         />
@@ -117,11 +119,13 @@ export default function Home() {
           topK={topK}
           debug={debug}
           preRagMode={preRagMode}
+          llmModelPreset={llmModelPreset}
           embeddingPreset={embeddingPreset}
           structuredLookupEnabled={structuredLookupEnabled}
           onTopKChange={setTopK}
           onDebugChange={setDebug}
           onPreRagModeChange={setPreRagMode}
+          onLlmModelPresetChange={setLlmModelPreset}
           onEmbeddingPresetChange={setEmbeddingPreset}
           onStructuredLookupEnabledChange={setStructuredLookupEnabled}
         />

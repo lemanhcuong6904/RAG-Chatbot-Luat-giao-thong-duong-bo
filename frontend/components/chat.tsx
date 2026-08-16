@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { TrafficLightIcon } from "@/components/traffic-light-icon";
-import { Citation, EmbeddingPreset, PreRagMode, sendChat } from "@/lib/api";
+import { Citation, EmbeddingPreset, LlmModelPreset, PreRagMode, sendChat } from "@/lib/api";
 import { cn, todayISO } from "@/lib/utils";
 
 export type ChatMessage = {
@@ -47,6 +47,7 @@ export function ChatView({
   topK,
   debug,
   preRagMode,
+  llmModelPreset,
   embeddingPreset,
   structuredLookupEnabled,
 }: {
@@ -55,6 +56,7 @@ export function ChatView({
   topK: number;
   debug: boolean;
   preRagMode: PreRagMode;
+  llmModelPreset: LlmModelPreset;
   embeddingPreset: EmbeddingPreset;
   structuredLookupEnabled: boolean;
 }) {
@@ -89,6 +91,7 @@ export function ChatView({
     onMessagesChange(nextMessages);
 
     try {
+      const llmConfig = llmConfigForPreset(llmModelPreset);
       const response = await sendChat({
         query: question,
         event_date: eventDate,
@@ -98,8 +101,12 @@ export function ChatView({
         pre_rag_enabled: preRagMode !== "rule",
         pre_rag_mode: preRagMode,
         embedding_preset: embeddingPreset,
+        llm_model_preset: llmModelPreset,
+        llm_provider: llmConfig.provider,
+        llm_model: llmConfig.model,
         structured_lookup_enabled: structuredLookupEnabled,
       });
+      const displayedCitations = citationsReferencedByAnswer(response.answer, response.citations);
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -111,7 +118,7 @@ export function ChatView({
         latencyMs: Math.round(performance.now() - startedAt),
       };
       onMessagesChange([...nextMessages, assistantMessage]);
-      if (response.citations?.[0]) setSelectedCitation(response.citations[0]);
+      setSelectedCitation(displayedCitations[0] || null);
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : "Không thể xử lý câu hỏi.");
       onMessagesChange(nextMessages);
@@ -297,6 +304,7 @@ function AssistantMessage({
 }) {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [copied, setCopied] = useState(false);
+  const displayedCitations = citationsReferencedByAnswer(message.content, message.citations || []);
 
   async function copyAnswer() {
     await navigator.clipboard?.writeText(message.content);
@@ -326,14 +334,14 @@ function AssistantMessage({
             {message.content}
           </ReactMarkdown>
         </div>
-        {!!message.citations?.length && (
+        {!!displayedCitations.length && (
           <div className="mt-6">
             <div className="mb-3 flex items-center gap-2 text-xs font-extrabold uppercase text-muted-foreground">
               <Gavel className="h-4 w-4 text-[#ff6b00]" />
               Căn cứ pháp lý
             </div>
             <div className="grid gap-2">
-              {message.citations.slice(0, 8).map((citation, index) => (
+              {displayedCitations.slice(0, 8).map((citation, index) => (
                 <button
                   key={`${citation.chunk_id}-${index}`}
                   className={cn(
@@ -433,6 +441,44 @@ function isDirectUiPrompt(value: string) {
   return new Set(["hi", "hello", "chao", "xin chao", "xin chao ban", "chao ban", "ban co the lam gi", "ban co the lam nhung gi"]).has(
     normalized,
   );
+}
+
+function llmConfigForPreset(preset: LlmModelPreset) {
+  if (preset === "qwen3_5_4b_q4_k_m") {
+    return { provider: "qwen_local", model: "qwen3.5-4b-q4_k_m" };
+  }
+  return { provider: "openai", model: "gpt-4o-mini" };
+}
+
+function citationsReferencedByAnswer(answer: string, citations: Citation[]) {
+  return citations.filter((citation) => isCitationReferencedByAnswer(answer, citation));
+}
+
+function isCitationReferencedByAnswer(answer: string, citation: Citation) {
+  const normalizedAnswer = normalizeVietnamese(answer);
+  const documentNumber = normalizeVietnamese(citation.document_number || "");
+  if (!documentNumber || !normalizedAnswer.includes(documentNumber)) {
+    return false;
+  }
+  if (citation.article && !normalizedAnswer.includes(`dieu ${normalizeVietnamese(citation.article)}`)) {
+    return false;
+  }
+  if (citation.clause && !normalizedAnswer.includes(`khoan ${normalizeVietnamese(citation.clause)}`)) {
+    return false;
+  }
+  if (citation.point && !normalizedAnswer.includes(`diem ${normalizeVietnamese(citation.point)}`)) {
+    return false;
+  }
+  return true;
+}
+
+function normalizeVietnamese(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
 }
 
 function StageRow({ active, done, label }: { active: boolean; done: boolean; label: string }) {

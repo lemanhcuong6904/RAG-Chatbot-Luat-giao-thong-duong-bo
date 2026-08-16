@@ -12,6 +12,11 @@ from rag_luat_gt.config import (
     embedding_settings_for_preset,
     normalize_embedding_preset,
 )
+from rag_luat_gt.license_classes import (
+    citation_defined_license_class_hits,
+    citation_license_class_hits,
+    citation_mentions_any_license_class,
+)
 from rag_luat_gt.retrieval.bm25 import BM25Retriever
 from rag_luat_gt.rule_function import effective_rule_function
 from rag_luat_gt.schemas import Chunk, ParsedQuery
@@ -243,6 +248,8 @@ class HybridRetriever:
         reranked = self._apply_rule_function_preferences(parsed, results)
         reranked = self._apply_accident_responsibility_preferences(parsed, reranked)
         reranked = self._apply_license_point_preferences(parsed, reranked)
+        reranked = self._apply_license_class_preferences(parsed, reranked)
+        reranked = self._apply_driver_rights_preferences(parsed, reranked)
         reranked = self._apply_vehicle_preferences(parsed, reranked)
         reranked = self._apply_penalty_focus(parsed, reranked)
         reranked = self._apply_behavior_text_focus(parsed, reranked)
@@ -366,6 +373,77 @@ class HybridRetriever:
                 adjusted -= base * 1.5
             reranked.append((chunk, adjusted))
 
+        return reranked
+
+    @staticmethod
+    def _apply_license_class_preferences(
+        parsed: ParsedQuery,
+        results: list[tuple[Chunk, float]],
+    ) -> list[tuple[Chunk, float]]:
+        if parsed.intent not in {"DRIVER_LICENSE", "DRIVER_AGE_REQUIREMENT"} or not parsed.license_classes:
+            return results
+
+        expected_article = "57" if parsed.intent == "DRIVER_LICENSE" else "59"
+        reranked: list[tuple[Chunk, float]] = []
+        for chunk, score in results:
+            text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:1200]}"))
+            adjusted = score
+            base = max(abs(score), 1.0)
+            hits = (
+                citation_defined_license_class_hits(chunk.text, parsed.license_classes)
+                if parsed.intent == "DRIVER_LICENSE"
+                else citation_license_class_hits(text, parsed.license_classes)
+            )
+
+            if chunk.document_number == "36/2024/QH15" and chunk.article == expected_article:
+                adjusted += base * 2.0
+                if chunk.chunk_type == "POINT" and hits:
+                    adjusted += base * (7.0 if len(hits) == len(parsed.license_classes) else 4.0)
+                elif chunk.chunk_type == "CLAUSE":
+                    adjusted += base * 0.75
+            elif chunk.document_number == "36/2024/QH15" and chunk.article in {"57", "59"}:
+                adjusted -= base * 1.5
+
+            if chunk.chunk_type == "POINT" and citation_mentions_any_license_class(text) and not hits:
+                adjusted -= base * 4.0
+
+            if parsed.intent == "DRIVER_LICENSE" and any(term in text for term in ["tuoi", "suc khoe"]):
+                adjusted -= base * 2.5
+
+            reranked.append((chunk, adjusted))
+
+        return reranked
+
+    @staticmethod
+    def _apply_driver_rights_preferences(
+        parsed: ParsedQuery,
+        results: list[tuple[Chunk, float]],
+    ) -> list[tuple[Chunk, float]]:
+        query = strip_accents(normalize_text(parsed.query))
+        has_authority = any(term in query for term in ["csgt", "canh sat giao thong", "luc luong tuan tra"])
+        has_stop_context = any(term in query for term in ["dung xe", "dung phuong tien", "kiem tra", "kiem soat"])
+        asks_reason = any(term in query for term in ["ly do", "can cu", "duoc biet", "duoc thong bao", "quyen"])
+        if not (has_authority and has_stop_context and asks_reason):
+            return results
+
+        reranked: list[tuple[Chunk, float]] = []
+        for chunk, score in results:
+            text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:1200]}"))
+            adjusted = score
+            base = max(abs(score), 1.0)
+            if chunk.document_number == "36/2024/QH15" and chunk.article == "72":
+                adjusted += base * 4.0
+                if chunk.clause == "1":
+                    adjusted += base * 2.0
+                if chunk.point == "b" and all(
+                    term in text for term in ["duoc thong bao", "can cu dung phuong tien", "kiem tra", "kiem soat"]
+                ):
+                    adjusted += base * 8.0
+            if chunk.article == "18" and any(term in text for term in ["dung xe, do xe", "dung xe", "do xe"]):
+                adjusted -= base * 3.5
+            if chunk.document_number == "168/2024/NĐ-CP" and chunk.rule_function == "SANCTION":
+                adjusted -= base * 2.0
+            reranked.append((chunk, adjusted))
         return reranked
 
     @staticmethod

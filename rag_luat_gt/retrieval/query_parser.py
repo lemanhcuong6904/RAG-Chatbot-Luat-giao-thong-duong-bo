@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from datetime import date
 
+from rag_luat_gt.license_classes import extract_license_classes
 from rag_luat_gt.schemas import ChatRequest, ParsedQuery, ViolationFact
 from rag_luat_gt.sanction.behavior_catalog import behavior_code_from_query, behavior_contains_from_query, match_behaviors
 from rag_luat_gt.text import expand_query, normalize_text, strip_accents
@@ -36,6 +37,10 @@ ENUMERATION_PATTERNS = [
 def _detect_intent(query: str) -> str:
     q = normalize_text(query)
     q_ascii = strip_accents(q)
+    license_classes = extract_license_classes(query)
+    explicit_age_question = _is_explicit_age_question(q_ascii)
+    if not explicit_age_question and _is_license_scope_query(q_ascii, license_classes):
+        return "DRIVER_LICENSE"
     if any(term in q_ascii for term in ["phi", "le phi"]):
         return "FEE_LOOKUP"
     if any(term in q for term in ["phạt", "xử phạt", "mức phạt", "trừ điểm"]) or any(
@@ -63,22 +68,7 @@ def _detect_intent(query: str) -> str:
         term in q_ascii for term in ["bao nhieu diem", "co bao nhieu diem", "may diem", "so diem"]
     ):
         return "LICENSE_POINT_BALANCE"
-    if any(
-        term in q_ascii
-        for term in [
-            "bao nhieu tuoi",
-            "may tuoi",
-            "do tuoi",
-            "tuoi toi thieu",
-            "tuoi toi da",
-            "du tuoi",
-            "tu bao nhieu tuoi",
-            "duoc phep lai",
-            "duoc phep dieu khien",
-            "duoc lai",
-            "duoc dieu khien",
-        ]
-    ):
+    if explicit_age_question:
         return "DRIVER_AGE_REQUIREMENT"
     if _is_enumeration_query(query):
         return "ENUMERATION"
@@ -105,6 +95,43 @@ def _detect_intent(query: str) -> str:
     if ARTICLE_RE.search(q) or ARTICLE_RE.search(q_ascii):
         return "ARTICLE_LOOKUP"
     return "GENERAL_LEGAL_QA"
+
+
+def _is_explicit_age_question(q_ascii: str) -> bool:
+    return any(
+        term in q_ascii
+        for term in [
+            "bao nhieu tuoi",
+            "may tuoi",
+            "do tuoi",
+            "tuoi toi thieu",
+            "tuoi toi da",
+            "du tuoi",
+            "tu bao nhieu tuoi",
+        ]
+    ) or re.search(r"\b\d+\s*tuoi\b", q_ascii) is not None
+
+
+def _is_license_scope_query(q_ascii: str, license_classes: list[str]) -> bool:
+    if not license_classes:
+        return False
+    asks_drivable_scope = any(
+        term in q_ascii
+        for term in [
+            "duoc lai",
+            "duoc phep lai",
+            "duoc dieu khien",
+            "duoc phep dieu khien",
+            "lai nhung loai",
+            "dieu khien nhung loai",
+            "loai xe nao",
+            "nhung loai xe",
+            "loai o to",
+            "o to nao",
+        ]
+    )
+    asks_validity = any(term in q_ascii for term in ["thoi han", "hieu luc", "gia tri su dung"])
+    return asks_drivable_scope and not asks_validity
 
 
 def _is_enumeration_query(query: str) -> bool:
@@ -198,6 +225,8 @@ def _requested_facets(query: str) -> list[str]:
         facets.append("FINE")
     if asks_deduction or any(term in q for term in ["diem gplx", "mat may diem"]):
         facets.append("LICENSE_POINTS")
+    if _is_license_scope_query(q, extract_license_classes(query)):
+        facets.append("LICENSE_SCOPE")
     if any(term in q for term in ["tuoc", "bi tuoc", "tuoc gplx", "tuoc giay phep lai xe"]):
         facets.append("LICENSE_SUSPENSION")
     return facets
@@ -217,12 +246,34 @@ def _intent_query_expansion(query: str, intent: str) -> str:
             f"{query} điểm của giấy phép lái xe bao gồm 12 điểm phục hồi đủ 12 điểm "
             "Điều 58 Luật Trật tự an toàn giao thông đường bộ"
         )
+    if intent == "DRIVER_LICENSE" and _is_license_scope_query(
+        strip_accents(normalize_text(query)),
+        extract_license_classes(query),
+    ):
+        classes = " ".join(f"hang {item}" for item in extract_license_classes(query))
+        return (
+            f"{query} giay phep lai xe {classes} cap cho nguoi lai xe loai xe duoc dieu khien "
+            "Dieu 57 Luat Trat tu an toan giao thong duong bo"
+        )
+    if _is_csgt_stop_reason_rights_query(query):
+        return (
+            f"{query} quyen nguoi dieu khien phuong tien duoc thong bao ve can cu dung phuong tien "
+            "de kiem tra kiem soat noi dung ket qua kiem tra hanh vi vi pham bien phap xu ly Dieu 72"
+        )
     if intent != "DRIVER_AGE_REQUIREMENT":
         return query
     return (
         f"{query} tuổi sức khỏe người điều khiển phương tiện được cấp giấy phép lái xe "
         "hạng B hạng C1 đủ 18 tuổi điều kiện người lái xe"
     )
+
+
+def _is_csgt_stop_reason_rights_query(query: str) -> bool:
+    q = strip_accents(normalize_text(query))
+    has_authority = any(term in q for term in ["csgt", "canh sat giao thong", "luc luong tuan tra"])
+    has_stop_context = any(term in q for term in ["dung xe", "dung phuong tien", "kiem tra", "kiem soat"])
+    asks_reason = any(term in q for term in ["ly do", "can cu", "duoc biet", "duoc thong bao", "quyen"])
+    return has_authority and has_stop_context and asks_reason
 
 
 def _detect_temporal_intent(query: str, intent: str, has_request_event_date: bool) -> str:
@@ -275,7 +326,10 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
     query_reference_date = request.as_of_date or date.today()
     legal_effective_date = event_date or query_reference_date
     intent = _detect_intent(query)
+    license_classes = extract_license_classes(query)
     if intent == "LICENSE_POINT_BALANCE":
+        is_enumeration = False
+    if intent == "DRIVER_LICENSE" and license_classes:
         is_enumeration = False
     expanded_query = expand_query(_intent_query_expansion(query, intent))
     behavior_contains = behavior_contains_from_query(query)
@@ -309,6 +363,7 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
         retrieval_mode="EXHAUSTIVE" if is_enumeration else "FACTOID",
         answer_scope="ALL_CHILDREN" if is_enumeration else None,
         keywords=[],
+        license_classes=license_classes,
     )
     from rag_luat_gt.retrieval.query_planner import build_query_plan
 

@@ -12,6 +12,7 @@ from rag_luat_gt.citation_format import (
 from rag_luat_gt.generation.llm_client import is_chat_provider_configured, provider_unconfigured_message, resolve_llm
 from rag_luat_gt.generation.openai_provider import generate_with_llm
 from rag_luat_gt.legal_notes import legal_notes
+from rag_luat_gt.license_classes import citation_defined_license_class_hits, citation_license_class_hits
 from rag_luat_gt.rule_function import effective_rule_function
 from rag_luat_gt.schemas import ChatResponse, Citation, Chunk, ParsedQuery
 from rag_luat_gt.text import normalize_text, strip_accents, tokenize
@@ -156,6 +157,16 @@ def _focused_citations(parsed: ParsedQuery, citations: list[Citation]) -> list[C
         score = len(query_tokens & _content_tokens(text))
         if _citation_matches_query_focus(parsed, citation):
             score += 5
+        if parsed.license_classes:
+            hits = (
+                citation_defined_license_class_hits(citation.text, parsed.license_classes)
+                if parsed.intent == "DRIVER_LICENSE"
+                else citation_license_class_hits(text, parsed.license_classes)
+            )
+            if hits:
+                score += 4 if len(hits) == len(parsed.license_classes) else 2
+            elif parsed.intent in {"DRIVER_LICENSE", "DRIVER_AGE_REQUIREMENT"}:
+                score -= 2
         if parsed.document_number and citation.document_number == parsed.document_number:
             score += 3
         if parsed.article and citation.article == parsed.article:
@@ -278,12 +289,16 @@ def _build_license_point_balance_answer(parsed: ParsedQuery, citations: list[Cit
 
 def _build_yes_no_extractive_answer(parsed: ParsedQuery, citations: list[Citation]) -> str | None:
     query = strip_accents(normalize_text(parsed.query))
-    if not any(term in query for term in ["co duoc", "duoc phep", "co phai", "duoc khong"]):
+    if not any(term in query for term in ["co duoc", "duoc phep", "co phai", "duoc khong", "co quyen", "duoc biet"]):
         return None
     citation = next((item for item in citations if item.chunk_type != "ARTICLE"), citations[0] if citations else None)
     if not citation:
         return None
     text = strip_accents(normalize_text(f"{citation.article_title or ''} {citation.text}"))
+    if citation.document_number == "36/2024/QH15" and citation.article == "72" and citation.clause == "1":
+        return f"Có. {_clean_evidence_text(citation.text, limit=260)} [{_short_ref(citation)}]."
+    if "duoc thong bao" in text:
+        return f"Có. {_clean_evidence_text(citation.text, limit=260)} [{_short_ref(citation)}]."
     if _looks_prohibitive_or_sanction(citation, text):
         return f"Không. {_clean_evidence_text(citation.text, limit=260)} [{_short_ref(citation)}]."
     if "duoc" in text or "cho phep" in text:
@@ -594,6 +609,15 @@ def _bicycle_helmet_scope_citations(citations: list[Citation]) -> list[Citation]
 def _citation_matches_query_focus(parsed: ParsedQuery, citation: Citation) -> bool:
     query = strip_accents(normalize_text(parsed.query))
     text = strip_accents(normalize_text(citation.text))
+
+    if parsed.intent == "DRIVER_LICENSE" and parsed.license_classes:
+        return citation.document_number == "36/2024/QH15" and citation.article == "57" and bool(
+            citation_defined_license_class_hits(citation.text, parsed.license_classes)
+        )
+    if parsed.intent == "DRIVER_AGE_REQUIREMENT" and parsed.license_classes:
+        return citation.document_number == "36/2024/QH15" and citation.article == "59" and bool(
+            citation_license_class_hits(text, parsed.license_classes)
+        )
 
     behavior_groups = [
         (["quay dau", "quay dau xe"], ["quay dau"]),

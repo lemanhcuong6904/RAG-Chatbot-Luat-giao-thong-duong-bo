@@ -147,4 +147,5 @@ class ParsedQuery(BaseModel):
     retrieval_mode: str = "FACTOID"
     answer_scope: str | None = None
     keywords: list[str] = Field(default_factory=list)
+    license_classes: list[str] = Field(default_factory=list)
     query_plan: QueryPlan | None = None

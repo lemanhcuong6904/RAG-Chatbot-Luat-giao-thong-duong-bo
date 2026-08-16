@@ -69,6 +69,16 @@ def test_parse_query_detects_driver_age_requirement() -> None:
     assert "MINIMUM_AGE" in parsed.requested_facets
 
 
+def test_parse_query_detects_license_class_scope_before_age_intent() -> None:
+    parsed = parse_query(ChatRequest(query="Bằng B được lái những loại ô tô nào?"))
+
+    assert parsed.intent == "DRIVER_LICENSE"
+    assert parsed.answer_mode == "FACTOID"
+    assert parsed.retrieval_mode == "FACTOID"
+    assert parsed.license_classes == ["B"]
+    assert "LICENSE_SCOPE" in parsed.requested_facets
+
+
 def test_parse_query_detects_fee_lookup_before_driver_license() -> None:
     parsed = parse_query(ChatRequest(query="Tổng lệ phí thi sát hạch lái xe A1 là bao nhiêu?"))
 

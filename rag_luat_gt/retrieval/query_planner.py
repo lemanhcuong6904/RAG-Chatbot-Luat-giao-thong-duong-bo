@@ -98,6 +98,10 @@ def _should_multi_query(parsed: ParsedQuery) -> bool:
         return False
     if parsed.intent == "DRIVER_AGE_REQUIREMENT" and _has_vehicle_capacity(parsed.query):
         return True
+    if parsed.intent == "DRIVER_LICENSE" and parsed.license_classes:
+        return True
+    if _is_csgt_stop_reason_rights_query(parsed.query):
+        return True
     if parsed.answer_mode == "ENUMERATION":
         return True
     q = strip_accents(normalize_text(parsed.query))
@@ -126,6 +130,14 @@ def _multi_queries(parsed: ParsedQuery) -> list[str]:
                     "nguoi du 18 tuoi tro len duoc cap giay phep lai xe hang A1 A",
                 ]
             )
+    elif parsed.intent == "DRIVER_LICENSE" and parsed.license_classes:
+        classes = " ".join(f"hang {item}" for item in parsed.license_classes)
+        variants.extend(
+            [
+                f"giay phep lai xe {classes} cap cho nguoi lai xe",
+                f"{classes} duoc dieu khien loai xe nao dieu 57",
+            ]
+        )
     elif parsed.intent == "LICENSE_POINT_BALANCE":
         variants.extend(
             [
@@ -138,6 +150,13 @@ def _multi_queries(parsed: ParsedQuery) -> list[str]:
             [
                 "quy dinh ve xe uu tien dang phat tin hieu uu tien",
                 "nguoi tham gia giao thong phai nhuong duong cho xe uu tien",
+            ]
+        )
+    elif _is_csgt_stop_reason_rights_query(query):
+        variants.extend(
+            [
+                "quyen nguoi dieu khien phuong tien duoc thong bao can cu dung phuong tien de kiem tra kiem soat",
+                "can cu dung phuong tien kiem tra kiem soat noi dung ket qua kiem tra hanh vi vi pham bien phap xu ly dieu 72",
             ]
         )
     else:
@@ -155,6 +174,14 @@ def _multi_queries(parsed: ParsedQuery) -> list[str]:
 def _has_vehicle_capacity(query: str) -> bool:
     q = strip_accents(normalize_text(query))
     return any(term in q for term in ["cm3", "cm³", "xi lanh", "dung tich", "kw", "cong suat"])
+
+
+def _is_csgt_stop_reason_rights_query(query: str) -> bool:
+    q = strip_accents(normalize_text(query))
+    has_authority = any(term in q for term in ["csgt", "canh sat giao thong", "luc luong tuan tra"])
+    has_stop_context = any(term in q for term in ["dung xe", "dung phuong tien", "kiem tra", "kiem soat"])
+    asks_reason = any(term in q for term in ["ly do", "can cu", "duoc biet", "duoc thong bao", "quyen"])
+    return has_authority and has_stop_context and asks_reason
 
 
 def _should_hyde(parsed: ParsedQuery) -> bool:

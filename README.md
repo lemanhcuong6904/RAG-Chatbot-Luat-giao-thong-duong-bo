@@ -18,7 +18,31 @@ SANCTION_DB_PATH=structured_sanction_layer/structured_sanction_layer/sanctions.s
 
 `RAG_LLM_PROVIDER=openai` dùng LLM để sinh câu trả lời RAG thường. `RAG_SANCTION_LLM_PROVIDER` mặc định kế thừa `RAG_LLM_PROVIDER`, nhưng có thể đặt rõ `openai` để câu trả lời Structured Sanction cũng đi qua LLM renderer.
 
-Nếu `RAG_REQUIRE_LLM=true`, hệ thống không trả fallback trích xuất/deterministic khi bước gọi LLM lỗi hoặc thiếu `OPENAI_API_KEY`; thay vào đó sẽ báo lỗi LLM rõ ràng. Nếu đặt `false`, hệ thống vẫn fallback để app tiếp tục trả lời được.
+Để chạy Qwen3.5 4B Q4_K_M local, chạy model bằng server OpenAI-compatible, ví dụ `llama-server` ở `http://127.0.0.1:8080/v1`, rồi cấu hình:
+
+```text
+RAG_LLM_PROVIDER=qwen_local
+RAG_LLM_MODEL=qwen3.5-4b-q4_k_m
+RAG_LOCAL_LLM_BASE_URL=http://127.0.0.1:8080/v1
+RAG_LOCAL_LLM_API_KEY=local
+RAG_LOCAL_LLM_MODEL=qwen3.5-4b-q4_k_m
+
+# Tùy chọn nếu muốn Pre-RAG/router/Structured Sanction renderer cũng dùng Qwen local:
+RAG_PRERAG_PROVIDER=qwen_local
+RAG_PRERAG_MODEL=qwen3.5-4b-q4_k_m
+RAG_QUERY_ROUTER_PROVIDER=qwen_local
+RAG_QUERY_ROUTER_MODEL=qwen3.5-4b-q4_k_m
+RAG_SANCTION_LLM_PROVIDER=qwen_local
+RAG_SANCTION_LLM_MODEL=qwen3.5-4b-q4_k_m
+```
+
+Ví dụ `llama.cpp`:
+
+```powershell
+llama-server.exe -m C:\models\qwen3.5-4b-q4_k_m.gguf --host 127.0.0.1 --port 8080 -c 8192
+```
+
+Nếu `RAG_REQUIRE_LLM=true`, hệ thống không trả fallback trích xuất/deterministic khi bước gọi LLM lỗi hoặc thiếu cấu hình provider tương ứng; thay vào đó sẽ báo lỗi LLM rõ ràng. Nếu đặt `false`, hệ thống vẫn fallback để app tiếp tục trả lời được.
 
 Nếu `OPENAI_API_KEY` để trống, hệ thống tự dùng chế độ trả lời trích xuất từ nguồn.
 

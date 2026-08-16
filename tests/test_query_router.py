@@ -5,7 +5,7 @@ import pytest
 from rag_luat_gt.retrieval.query_parser import parse_query
 from rag_luat_gt.retrieval.query_router import QueryRouteDecision, apply_route_decision, direct_route_response, route_query
 from rag_luat_gt.schemas import ChatRequest
-from rag_luat_gt.service import _router_has_sufficient_rag_plan
+from rag_luat_gt.service import _looks_like_traffic_law_query, _router_has_sufficient_rag_plan
 from rag_luat_gt.service import RAGService
 
 
@@ -134,6 +134,23 @@ def test_router_keeps_traffic_law_questions_in_rag(query: str) -> None:
     assert decision.route == "RAG"
 
 
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Sao chép phần mềm trái phép bị phạt bao nhiêu?",
+        "Lái xe có nồng độ cồn gây chết người thì bị phạt tù bao nhiêu năm?",
+    ],
+)
+def test_router_rejects_questions_outside_supported_corpus(query: str) -> None:
+    response = RAGService().answer(ChatRequest(query=query, debug=True))
+
+    assert not response.answerable
+    assert not response.citations
+    assert response.debug
+    assert "retrieval" not in response.debug
+    assert response.debug["routing"]["query_router"]["decision"]["route"] == "OUT_OF_SCOPE"
+
+
 def test_router_decision_can_force_exhaustive_article_strategy() -> None:
     parsed = parse_query(ChatRequest(query="Người điều khiển phương tiện có trách nhiệm gì khi tai nạn?"))
     decision = QueryRouteDecision(
@@ -155,3 +172,17 @@ def test_router_decision_can_force_exhaustive_article_strategy() -> None:
     assert routed.answer_scope == "ALL_CHILDREN"
     assert routed.query_plan
     assert "EXHAUSTIVE_ARTICLE" in routed.query_plan.strategy
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Giá khởi điểm đấu giá biển số xe ô tô là bao nhiêu?",
+        "Cơ sở dữ liệu đường bộ bao gồm những loại dữ liệu nào?",
+        "Các quốc lộ nào không phân cấp cho UBND cấp tỉnh quản lý?",
+    ],
+)
+def test_local_domain_guard_keeps_structured_traffic_facts(query: str) -> None:
+    parsed = parse_query(ChatRequest(query=query))
+
+    assert _looks_like_traffic_law_query(parsed)

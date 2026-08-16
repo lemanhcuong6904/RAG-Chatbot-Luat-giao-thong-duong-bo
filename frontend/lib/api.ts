@@ -27,6 +27,8 @@ export type ChatResponse = {
   debug?: Record<string, unknown> | null;
 };
 
+export type PreRagMode = "rule" | "llm" | "optimized";
+
 export type DocumentItem = {
   document_id: string;
   document_number?: string | null;
@@ -60,6 +62,7 @@ export type HealthResponse = {
   index?: Record<string, unknown>;
   pipeline?: Record<string, unknown>;
   sanctions?: Record<string, unknown>;
+  structured_lookup?: Record<string, unknown>;
 };
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8010";
@@ -88,6 +91,9 @@ export function sendChat(payload: {
   top_k: number;
   debug: boolean;
   pre_rag_enabled: boolean;
+  pre_rag_mode?: PreRagMode;
+  structured_lookup_enabled?: boolean;
+  structured_sanction_enabled?: boolean;
 }) {
   return request<ChatResponse>("/api/v1/chat", {
     method: "POST",

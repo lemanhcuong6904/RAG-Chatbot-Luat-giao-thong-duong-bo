@@ -23,7 +23,7 @@ def test_structured_sanction_llm_renderer_rewrites_answer(monkeypatch) -> None:
         response,
     )
 
-    assert rendered.answer == "### Trả lời\nCâu trả lời mượt hơn."
+    assert rendered.answer == "Câu trả lời mượt hơn."
     assert rendered.debug
     assert rendered.debug["structured_sanction_llm"]["enabled"] is True
 

@@ -48,8 +48,8 @@ ALLOWED_INTENTS = {
 }
 
 
-def transform_query_with_llm(parsed: ParsedQuery) -> tuple[ParsedQuery, dict[str, Any]]:
-    if RAG_PRERAG_PROVIDER != "openai":
+def transform_query_with_llm(parsed: ParsedQuery, *, force_openai: bool = False) -> tuple[ParsedQuery, dict[str, Any]]:
+    if not force_openai and RAG_PRERAG_PROVIDER != "openai":
         return parsed, {"enabled": False, "provider": RAG_PRERAG_PROVIDER}
     if not OPENAI_API_KEY:
         return parsed, {"enabled": True, "provider": "openai", "error": "OPENAI_API_KEY is not configured"}
@@ -57,9 +57,21 @@ def transform_query_with_llm(parsed: ParsedQuery) -> tuple[ParsedQuery, dict[str
     try:
         payload = _call_openai(parsed)
         transformed = merge_llm_transform(parsed, payload)
-        return transformed, {"enabled": True, "provider": "openai", "model": RAG_PRERAG_MODEL, "payload": payload}
+        return transformed, {
+            "enabled": True,
+            "provider": "openai",
+            "model": RAG_PRERAG_MODEL,
+            "forced": force_openai,
+            "payload": payload,
+        }
     except Exception as exc:
-        return parsed, {"enabled": True, "provider": "openai", "model": RAG_PRERAG_MODEL, "error": str(exc)}
+        return parsed, {
+            "enabled": True,
+            "provider": "openai",
+            "model": RAG_PRERAG_MODEL,
+            "forced": force_openai,
+            "error": str(exc),
+        }
 
 
 def merge_llm_transform(parsed: ParsedQuery, payload: dict[str, Any]) -> ParsedQuery:

@@ -93,3 +93,11 @@ def test_responsibility_question_with_nhung_gi_is_enumeration() -> None:
     assert parsed.intent == "ENUMERATION"
     assert parsed.answer_mode == "ENUMERATION"
     assert parsed.retrieval_mode == "EXHAUSTIVE"
+
+
+def test_parse_query_does_not_detect_car_inside_highway() -> None:
+    parsed = parse_query(ChatRequest(query="Tren cao toc chay qua toc do 35 km/h bi tru diem khong?"))
+
+    assert parsed.intent == "PENALTY_LOOKUP"
+    assert parsed.vehicle_type is None
+    assert parsed.vehicle_code is None

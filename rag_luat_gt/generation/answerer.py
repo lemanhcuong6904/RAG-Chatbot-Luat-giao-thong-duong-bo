@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+from datetime import date
 import re
 
 from rag_luat_gt.config import OPENAI_API_KEY, RAG_LLM_PROVIDER, RAG_REQUIRE_LLM
+from rag_luat_gt.citation_format import (
+    normalize_inline_legal_refs,
+    replace_source_markers,
+    short_ref as format_short_ref,
+)
 from rag_luat_gt.generation.openai_provider import generate_with_openai
 from rag_luat_gt.legal_notes import legal_notes
 from rag_luat_gt.rule_function import effective_rule_function
@@ -92,7 +98,7 @@ def _evidence_gate(
                 "Nguồn truy xuất chỉ chứa quy định xử phạt; quy định xử phạt không chứng minh hành vi được phép."
             )
 
-    asks_missing_appendix = any(term in query for term in ["phu luc", "bieu mau", "mau so", "bang"])
+    asks_missing_appendix = _asks_missing_appendix_or_table(query)
     weak_coverage = [
         chunk.coverage_status
         for chunk, _score in results[:5]
@@ -108,6 +114,14 @@ def _evidence_gate(
     return not notes, notes
 
 
+def _asks_missing_appendix_or_table(query: str) -> bool:
+    if any(term in query for term in ["phu luc", "bieu mau", "mau so"]):
+        return True
+    if any(term in query for term in ["bang lai", "bang c", "bang d", "bang a", "bang b", "gplx", "giay phep lai xe"]):
+        return False
+    return any(term in query for term in ["bang gia", "bang muc", "bang so", "bang 1", "bang 2", "bang 3"])
+
+
 def _build_extractive_answer(
     parsed: ParsedQuery,
     results: list[tuple[Chunk, float]],
@@ -119,32 +133,243 @@ def _build_extractive_answer(
     if _has_bicycle_helmet_scope_note(legal_notes):
         return _build_bicycle_helmet_scope_answer(parsed, citations, legal_notes)
 
-    evidence_limit = 30 if parsed.retrieval_mode == "EXHAUSTIVE" else 3
-    refs_limit = 30 if parsed.retrieval_mode == "EXHAUSTIVE" else 5
-    evidence = "\n\n".join(
-        f"- {_legal_ref(citations[index])}: {chunk.text[:900]}"
-        for index, (chunk, _score) in enumerate(results[:evidence_limit])
-    )
-    refs = "\n".join(
-        f"{index + 1}. {citation.document_number or citation.document_title}: {_legal_ref(citation)}"
-        for index, citation in enumerate(citations[:refs_limit])
-    )
-    date_line = parsed.legal_effective_date or parsed.event_date or parsed.as_of_date or "ngày hiện tại"
-    notes = "\n".join(f"- {note}" for note in legal_notes)
-    note_block = f"\n\n{notes}" if notes else ""
+    focused = _focused_citations(parsed, citations)
+    direct = _build_direct_extractive_answer(parsed, focused)
+    if direct:
+        return direct
 
-    return (
-        "### Trả lời\n"
-        "Dưới đây là các căn cứ liên quan nhất tìm được trong corpus.\n\n"
-        f"{evidence}\n\n"
-        "### Căn cứ pháp lý\n"
-        f"{refs}\n\n"
-        "### Thời điểm áp dụng\n"
-        f"Kết quả đã lọc sơ bộ theo ngày {date_line} dựa trên metadata hiệu lực cấp văn bản/chunk."
-        f"{note_block}\n\n"
-        "### Lưu ý\n"
-        "Với câu hỏi về mức phạt hoặc quy định có văn bản sửa đổi, cần kiểm tra kỹ các nguồn được dẫn."
+    evidence_limit = 12 if parsed.retrieval_mode == "EXHAUSTIVE" else 2
+    selected = focused[:evidence_limit] or citations[:evidence_limit]
+    lines = []
+    for citation in selected:
+        text = _clean_evidence_text(citation.text, limit=700 if parsed.retrieval_mode == "EXHAUSTIVE" else 300)
+        lines.append(f"- {text} [{_short_ref(citation)}]")
+    return "\n".join(lines)
+
+
+def _focused_citations(parsed: ParsedQuery, citations: list[Citation]) -> list[Citation]:
+    query_tokens = _content_tokens(parsed.evidence_validation_query or parsed.query)
+    scored: list[tuple[int, int, Citation]] = []
+    for index, citation in enumerate(citations):
+        text = f"{citation.article_title or ''} {citation.text}"
+        score = len(query_tokens & _content_tokens(text))
+        if _citation_matches_query_focus(parsed, citation):
+            score += 5
+        if parsed.document_number and citation.document_number == parsed.document_number:
+            score += 3
+        if parsed.article and citation.article == parsed.article:
+            score += 3
+        if parsed.clause and citation.clause == parsed.clause:
+            score += 2
+        if citation.chunk_type in {"POINT", "STRUCTURED_PROVISION", "STRUCTURED_TABLE", "SANCTION_RULE"}:
+            score += 1
+        if score >= 2:
+            scored.append((score, index, citation))
+
+    selected = [citation for _score, _index, citation in sorted(scored, key=lambda item: (-item[0], item[1]))]
+    return _drop_redundant_parent_citations(parsed, selected)
+
+
+_FOCUS_STOPWORDS = {
+    "ban",
+    "bao",
+    "bi",
+    "bo",
+    "cac",
+    "can",
+    "cho",
+    "co",
+    "cua",
+    "dang",
+    "de",
+    "den",
+    "duoc",
+    "gi",
+    "hoi",
+    "khong",
+    "khi",
+    "la",
+    "lai",
+    "luat",
+    "nao",
+    "neu",
+    "nguoi",
+    "phai",
+    "quy",
+    "quy dinh",
+    "su",
+    "tai",
+    "the",
+    "thi",
+    "tren",
+    "trong",
+    "ve",
+    "voi",
+    "xe",
+}
+
+
+def _content_tokens(text: str) -> set[str]:
+    return {
+        token
+        for token in tokenize(strip_accents(normalize_text(text)))
+        if len(token) >= 3 and token not in _FOCUS_STOPWORDS
+    }
+
+
+def _drop_redundant_parent_citations(parsed: ParsedQuery, citations: list[Citation]) -> list[Citation]:
+    keep_parent_with_amount = parsed.intent == "PENALTY_LOOKUP" or _query_asks_amount(parsed.query)
+    child_keys = {
+        (citation.document_number, citation.article, citation.clause)
+        for citation in citations
+        if citation.chunk_type not in {"ARTICLE", "CLAUSE"} and citation.clause
+    }
+    selected: list[Citation] = []
+    seen: set[str] = set()
+    for citation in citations:
+        if citation.chunk_id in seen:
+            continue
+        if (
+            citation.chunk_type in {"ARTICLE", "CLAUSE"}
+            and (citation.document_number, citation.article, citation.clause) in child_keys
+            and not (keep_parent_with_amount and _contains_money(citation.text))
+        ):
+            continue
+        selected.append(citation)
+        seen.add(citation.chunk_id)
+    return selected
+
+
+def _build_direct_extractive_answer(parsed: ParsedQuery, citations: list[Citation]) -> str | None:
+    license_points_answer = _build_license_point_balance_answer(parsed, citations)
+    if license_points_answer:
+        return license_points_answer
+
+    effective_answer = _build_effective_date_extractive_answer(parsed, citations)
+    if effective_answer:
+        return effective_answer
+
+    yes_no_answer = _build_yes_no_extractive_answer(parsed, citations)
+    if yes_no_answer:
+        return yes_no_answer
+
+    return None
+
+
+def _build_license_point_balance_answer(parsed: ParsedQuery, citations: list[Citation]) -> str | None:
+    if parsed.intent != "LICENSE_POINT_BALANCE":
+        return None
+    citation = next(
+        (
+            item
+            for item in citations
+            if item.document_number == "36/2024/QH15" and item.article == "58" and item.clause == "1"
+        ),
+        None,
     )
+    if not citation:
+        return None
+    text = strip_accents(normalize_text(citation.text))
+    if "bao gom 12 diem" not in text and "12 diem" not in text:
+        return None
+    return f"Mỗi giấy phép lái xe có 12 điểm để quản lý việc chấp hành pháp luật về trật tự, an toàn giao thông đường bộ [{_short_ref(citation)}]."
+
+
+def _build_yes_no_extractive_answer(parsed: ParsedQuery, citations: list[Citation]) -> str | None:
+    query = strip_accents(normalize_text(parsed.query))
+    if not any(term in query for term in ["co duoc", "duoc phep", "co phai", "duoc khong"]):
+        return None
+    citation = next((item for item in citations if item.chunk_type != "ARTICLE"), citations[0] if citations else None)
+    if not citation:
+        return None
+    text = strip_accents(normalize_text(f"{citation.article_title or ''} {citation.text}"))
+    if _looks_prohibitive_or_sanction(citation, text):
+        return f"Không. {_clean_evidence_text(citation.text, limit=260)} [{_short_ref(citation)}]."
+    if "duoc" in text or "cho phep" in text:
+        return f"Có. {_clean_evidence_text(citation.text, limit=260)} [{_short_ref(citation)}]."
+    return None
+
+
+def _looks_prohibitive_or_sanction(citation: Citation, normalized_text: str) -> bool:
+    return (
+        citation.rule_function == "SANCTION"
+        or "xu phat" in strip_accents(normalize_text(citation.article_title or ""))
+        or any(term in normalized_text for term in ["khong duoc", "nghiem cam", "vi pham", "phat tien"])
+    )
+
+
+def _build_effective_date_extractive_answer(parsed: ParsedQuery, citations: list[Citation]) -> str | None:
+    query = strip_accents(normalize_text(parsed.query))
+    if "hieu luc" not in query:
+        return None
+    citation = next((item for item in citations if "hiệu lực" in normalize_text(item.text)), None)
+    if not citation:
+        return None
+    effective_date = _effective_date_from_text(citation.text)
+    asked_date = _question_date(parsed)
+    effective_text = _effective_text(citation.text)
+    document = _short_ref(citation).split(", Điều", maxsplit=1)[0]
+
+    if asked_date and effective_date:
+        prefix = "Có." if asked_date >= effective_date else "Chưa."
+        return f"{prefix} {document} có hiệu lực từ {effective_text} [{_short_ref(citation)}]."
+    if effective_text:
+        return f"{document} có hiệu lực từ {effective_text} [{_short_ref(citation)}]."
+    return None
+
+
+def _effective_text(text: str) -> str:
+    match = re.search(r"có hiệu lực thi hành từ\s+(ngày\s+[^.;]+)", text, flags=re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    return "ngày được nêu trong nguồn"
+
+
+def _effective_date_from_text(text: str) -> date | None:
+    match = re.search(r"ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(\d{4})", text, flags=re.IGNORECASE)
+    if not match:
+        return None
+    return _safe_date(int(match.group(3)), int(match.group(2)), int(match.group(1)))
+
+
+def _question_date(parsed: ParsedQuery) -> date | None:
+    for raw in [parsed.event_date, parsed.query_reference_date, parsed.as_of_date]:
+        if raw:
+            try:
+                return date.fromisoformat(str(raw))
+            except ValueError:
+                pass
+    match = re.search(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b", parsed.query)
+    if match:
+        return _safe_date(int(match.group(3)), int(match.group(2)), int(match.group(1)))
+    return None
+
+
+def _safe_date(year: int, month: int, day: int) -> date | None:
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+def _query_asks_amount(query: str) -> bool:
+    normalized = strip_accents(normalize_text(query))
+    return any(term in normalized for term in ["bao nhieu", "muc phat", "phat tien", "dong"])
+
+
+def _contains_money(text: str) -> bool:
+    normalized = strip_accents(normalize_text(text))
+    return "dong" in normalized or bool(re.search(r"\d[\d.]*\s*đồng", text, flags=re.IGNORECASE))
+
+
+def _clean_evidence_text(text: str, *, limit: int) -> str:
+    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"^[a-zA-ZđĐ]\)\s*", "", text)
+    text = re.sub(r"^\d+\.\s*", "", text)
+    if len(text) <= limit:
+        return text.rstrip(" ;")
+    truncated = text[:limit].rsplit(" ", 1)[0].rstrip(" ,;")
+    return truncated + "..."
 
 
 def _exact_reference_target(parsed: ParsedQuery, citations: list[Citation]) -> Citation | None:
@@ -300,14 +525,17 @@ def _extract_fine_text(text: str) -> str:
 
 
 def _short_ref(citation: Citation) -> str:
-    parts = [citation.document_number or citation.document_title or "Nguồn"]
-    if citation.article:
-        parts.append(f"Điều {citation.article}")
-    if citation.clause:
-        parts.append(f"Khoản {citation.clause}")
-    if citation.point:
-        parts.append(f"Điểm {citation.point}")
-    return ", ".join(parts)
+    return format_short_ref(citation)
+
+
+def _normalize_answer_style(answer: str, citations: list[Citation]) -> str:
+    answer = replace_source_markers(answer, citations)
+    answer = normalize_inline_legal_refs(answer, citations)
+    answer = re.sub(r"^\s*###\s*Trả lời\s*", "", answer, flags=re.IGNORECASE)
+    answer = re.split(r"\n\s*###\s*Căn cứ pháp lý\b", answer, maxsplit=1, flags=re.IGNORECASE)[0]
+    answer = re.split(r"\n\s*###\s*Căn cứ pháp lý đã truy xuất\b", answer, maxsplit=1, flags=re.IGNORECASE)[0]
+    answer = re.split(r"\n\s*###\s*Thời điểm áp dụng\b", answer, maxsplit=1, flags=re.IGNORECASE)[0]
+    return answer.strip()
 
 
 def _vehicle_scope_citations(parsed: ParsedQuery, citations: list[Citation]) -> list[Citation]:
@@ -482,7 +710,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
     exact_answer = _build_exact_reference_answer(parsed, citations)
     if exact_answer and not llm_configured:
         return ChatResponse(
-            answer=exact_answer,
+            answer=_normalize_answer_style(exact_answer, citations),
             citations=citations,
             warnings=warnings,
             answerable=True,
@@ -492,7 +720,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
     if parsed.intent == "PENALTY_LOOKUP" and not parsed.vehicle_code and _has_vehicle_scope_note(notes) and not llm_configured:
         scoped_citations = _vehicle_scope_citations(parsed, citations)
         return ChatResponse(
-            answer=_build_vehicle_scope_answer(parsed, scoped_citations, notes),
+            answer=_normalize_answer_style(_build_vehicle_scope_answer(parsed, scoped_citations, notes), scoped_citations),
             citations=scoped_citations,
             warnings=notes,
             answerable=True,
@@ -502,7 +730,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
     if _has_bicycle_helmet_scope_note(notes):
         scoped_citations = _bicycle_helmet_scope_citations(citations)
         return ChatResponse(
-            answer=_build_bicycle_helmet_scope_answer(parsed, scoped_citations, notes),
+            answer=_normalize_answer_style(_build_bicycle_helmet_scope_answer(parsed, scoped_citations, notes), scoped_citations),
             citations=scoped_citations,
             warnings=notes,
             answerable=True,
@@ -513,7 +741,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
     if not gate_passed:
         all_notes = [*notes, *gate_notes]
         return ChatResponse(
-            answer=_build_insufficient_evidence_answer(parsed, citations, all_notes),
+            answer=_normalize_answer_style(_build_insufficient_evidence_answer(parsed, citations, all_notes), citations),
             citations=citations,
             warnings=all_notes,
             answerable=False,
@@ -523,7 +751,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
     missing_amount = any("không đủ căn cứ để kết luận con số cụ thể" in note for note in notes)
     if missing_amount:
         return ChatResponse(
-            answer=_build_missing_amount_answer(parsed, citations, notes),
+            answer=_normalize_answer_style(_build_missing_amount_answer(parsed, citations, notes), citations),
             citations=citations,
             warnings=notes,
             answerable=False,
@@ -533,7 +761,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
     fee_answer = _build_fee_lookup_answer(parsed, citations)
     if fee_answer:
         return ChatResponse(
-            answer=fee_answer,
+            answer=_normalize_answer_style(fee_answer, citations),
             citations=citations,
             warnings=warnings,
             answerable=True,
@@ -543,7 +771,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
     capacity_age_answer = _build_capacity_age_answer(parsed, citations)
     if capacity_age_answer:
         return ChatResponse(
-            answer=capacity_age_answer[0],
+            answer=_normalize_answer_style(capacity_age_answer[0], capacity_age_answer[1]),
             citations=capacity_age_answer[1],
             warnings=notes,
             answerable=True,
@@ -558,7 +786,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
             if RAG_REQUIRE_LLM:
                 error = f"OpenAI generation failed and RAG_REQUIRE_LLM=true: {exc}"
                 return ChatResponse(
-                    answer=_build_llm_required_error_answer(parsed, citations, error),
+                    answer=_normalize_answer_style(_build_llm_required_error_answer(parsed, citations, error), citations),
                     citations=citations,
                     warnings=[*notes, error],
                     answerable=False,
@@ -571,7 +799,10 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
             warning = "OPENAI_API_KEY is empty, used extractive fallback."
             if RAG_REQUIRE_LLM:
                 return ChatResponse(
-                    answer=_build_llm_required_error_answer(parsed, citations, "OPENAI_API_KEY is not configured."),
+                    answer=_normalize_answer_style(
+                        _build_llm_required_error_answer(parsed, citations, "OPENAI_API_KEY is not configured."),
+                        citations,
+                    ),
                     citations=citations,
                     warnings=[*notes, "OPENAI_API_KEY is not configured."],
                     answerable=False,
@@ -585,7 +816,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
         answer = exact_answer or _build_extractive_answer(parsed, results, citations, notes)
 
     return ChatResponse(
-        answer=answer,
+        answer=_normalize_answer_style(_normalize_document_names(answer, citations), citations),
         citations=citations,
         warnings=warnings,
         answerable=True,
@@ -686,6 +917,30 @@ def _dedupe_citations(citations: list[Citation]) -> list[Citation]:
         selected.append(citation)
         seen.add(citation.chunk_id)
     return selected
+
+
+def _normalize_document_names(answer: str, citations: list[Citation]) -> str:
+    replacements: dict[str, str] = {}
+    for citation in citations:
+        number = citation.document_number
+        title = citation.document_title or ""
+        if not number:
+            continue
+        if "Luật Trật tự, an toàn giao thông đường bộ" in title:
+            correct = f"Luật số {number}"
+            replacements[number] = correct
+            answer = re.sub(rf"\b(?:Nghị\s+quyết|Nghị\s+định|Thông\s+tư)\s+(?:số\s+)?{re.escape(number)}", correct, answer, flags=re.IGNORECASE)
+            answer = re.sub(rf"\bLuật\s+Giao\s+thông\s+đường\s+bộ\s+(?:số\s+)?{re.escape(number)}", correct, answer, flags=re.IGNORECASE)
+            answer = re.sub(r"\bLuật\s+Giao\s+thông\s+đường\s+bộ\b", "Luật Trật tự, an toàn giao thông đường bộ", answer, flags=re.IGNORECASE)
+        elif title.startswith("Luật Đường bộ"):
+            correct = f"Luật số {number}"
+            replacements[number] = correct
+            answer = re.sub(rf"\b(?:Nghị\s+quyết|Nghị\s+định|Thông\s+tư)\s+(?:số\s+)?{re.escape(number)}", correct, answer, flags=re.IGNORECASE)
+        elif title.startswith("Nghị định") or "/NĐ-CP" in number:
+            correct = f"Nghị định {number}"
+            replacements[number] = correct
+            answer = re.sub(rf"\b(?:Nghị\s+quyết|Luật|Thông\s+tư)\s+(?:số\s+)?{re.escape(number)}", correct, answer, flags=re.IGNORECASE)
+    return answer
 
 
 def _build_missing_amount_answer(

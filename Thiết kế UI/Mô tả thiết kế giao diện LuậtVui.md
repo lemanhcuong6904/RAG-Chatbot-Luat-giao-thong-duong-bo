@@ -1,10 +1,10 @@
-# TÀI LIỆU MÔ TẢ THIẾT KẾ CHI TIẾT GIAO DIỆN "LUẬT VUI"
+# TÀI LIỆU MÔ TẢ THIẾT KẾ CHI TIẾT GIAO DIỆN "LUẬT GIAO THÔNG"
 
 ## 1. Tổng quan dự án
-"Luật Vui" là hệ thống trợ lý pháp lý AI chuyên sâu về Luật Giao thông đường bộ Việt Nam. Khác với các hệ thống tra cứu truyền thống khô khan, Luật Vui được thiết kế với triết lý: **"Hiểu luật dễ dàng, lính lái an toàn"**. Giao diện tập trung vào sự thân thiện, trực quan và giảm bớt căng thẳng cho người dùng khi đối mặt với các quy định pháp luật phức tạp.
+"Luật Giao Thông" là hệ thống trợ lý pháp lý AI chuyên sâu về Luật Giao thông đường bộ Việt Nam. Giao diện tập trung vào sự rõ ràng, trực quan và giảm bớt căng thẳng cho người dùng khi đối mặt với các quy định pháp luật phức tạp.
 
 ## 2. Ngôn ngữ thiết kế: Kinetic Juris Playful
-Dựa trên hệ thống thiết kế `{{DATA:DESIGN_SYSTEM:DESIGN_SYSTEM_2}}`, giao diện Luật Vui tuân theo phong cách **Playful & Friendly**.
+Dựa trên hệ thống thiết kế `{{DATA:DESIGN_SYSTEM:DESIGN_SYSTEM_2}}`, giao diện Luật Giao Thông tuân theo phong cách thân thiện, rõ ràng và dễ sử dụng.
 
 ### 2.1. Hệ màu (Color Palette)
 Hệ màu được lựa chọn để tạo cảm giác an tâm nhưng vẫn tràn đầy năng lượng:
@@ -32,7 +32,7 @@ Hệ màu được lựa chọn để tạo cảm giác an tâm nhưng vẫn tr�
 
 ### 3.1. Trang chủ (Landing Page) `{{DATA:SCREEN:SCREEN_12}}`
 Màn hình đầu tiên tập trung vào việc kích thích người dùng đặt câu hỏi.
-- **Hero Section:** Logo "LuậtVui" nổi bật với icon đèn giao thông cười. Slogan "Hỏi luật giao thông, vui là chính!" được đặt chính giữa.
+- **Hero Section:** Logo "Luật Giao Thông" nổi bật với icon đèn giao thông. Slogan "Tra cứu pháp luật giao thông chính xác, có căn cứ" được đặt chính giữa.
 - **Gợi ý nhanh:** Các thẻ màu sắc (Vượt đèn đỏ, Nồng độ cồn, GPLX) giúp người dùng bắt đầu cuộc hội thoại chỉ với một lần chạm.
 - **Smart Composer:** Khung nhập liệu nằm cố định phía dưới với tùy chọn chọn "Ngày áp dụng" để AI tra cứu đúng hiệu lực văn bản tại thời điểm đó.
 

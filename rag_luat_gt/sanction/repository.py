@@ -131,6 +131,53 @@ class SanctionRepository:
             return SanctionLookup(status="NOT_FOUND", warnings=["Không tìm thấy sanction rule phù hợp."])
         return SanctionLookup(status="FOUND", rules=rows)
 
+    def candidate_rules(
+        self,
+        *,
+        event_date: str,
+        vehicle_code: str | None = None,
+        document_number: str | None = None,
+        article: str | None = None,
+        clause: str | None = None,
+        point: str | None = None,
+        limit: int = 300,
+    ) -> SanctionLookup:
+        if not self.available():
+            return SanctionLookup(status="UNAVAILABLE", warnings=[f"Sanction DB not found: {self.db_path}"])
+
+        where = [
+            "(valid_from IS NULL OR valid_from <= ?)",
+            "(valid_to IS NULL OR ? < valid_to)",
+            "validation_status = 'PASS'",
+        ]
+        values: list[object] = [event_date, event_date]
+
+        if vehicle_code:
+            where.append("vehicle_codes_json LIKE ?")
+            values.append(f'%"{vehicle_code}"%')
+        if document_number:
+            where.append("document_number = ?")
+            values.append(document_number)
+        for field, value in [("article", article), ("clause", clause), ("point", point)]:
+            if value:
+                where.append(f"{field} = ?")
+                values.append(value)
+
+        sql = (
+            "SELECT * FROM sanction_rules WHERE "
+            + " AND ".join(where)
+            + " ORDER BY CAST(article AS INTEGER), CAST(clause AS INTEGER), point LIMIT ?"
+        )
+        values.append(limit)
+
+        with sqlite3.connect(self.db_path) as connection:
+            connection.row_factory = sqlite3.Row
+            rows = [self._row_to_rule(dict(row), event_date) for row in connection.execute(sql, values)]
+
+        if not rows:
+            return SanctionLookup(status="NOT_FOUND", warnings=["Không tìm thấy sanction rule phù hợp."])
+        return SanctionLookup(status="FOUND", rules=rows)
+
     @staticmethod
     def _row_to_rule(row: dict, event_date: str) -> SanctionRule:
         data = dict(row)
@@ -141,6 +188,8 @@ class SanctionRepository:
                     data[target_field] = json.loads(value)
                 except json.JSONDecodeError:
                     data[target_field] = []
+        if data.get("currency") is None:
+            data["currency"] = "VND"
         if data.get("deferred_effective_from") and event_date < data["deferred_effective_from"]:
             data["temporal_status"] = "DEFERRED"
             data["temporal_warning"] = (

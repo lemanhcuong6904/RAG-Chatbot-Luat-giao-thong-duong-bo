@@ -96,7 +96,7 @@ export function AppShell({
               <TrafficLightIcon className="h-7 w-7" />
             </div>
             <div className="min-w-0">
-              <div className="font-display text-xl font-extrabold leading-tight text-[#1a1c1c]">LuậtVui</div>
+              <div className="font-display text-xl font-extrabold leading-tight text-[#1a1c1c]">Luật Giao Thông</div>
               <div className="truncate text-xs font-bold text-muted-foreground">Hiểu luật, lái an toàn</div>
             </div>
             <Button
@@ -192,7 +192,7 @@ export function AppShell({
             <div className="flex h-9 w-9 items-center justify-center rounded-xl neo-border bg-[#ffd600] text-[#1a1c1c]">
               <TrafficLightIcon className="h-6 w-6" />
             </div>
-            <span className="font-display text-base font-extrabold">LuậtVui</span>
+            <span className="font-display text-base font-extrabold">Luật Giao Thông</span>
           </div>
           <Button size="icon" variant="secondary" onClick={onNewChat} aria-label="Cuộc trò chuyện mới">
             <Plus className="h-5 w-5" />

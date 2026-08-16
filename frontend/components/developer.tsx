@@ -1,26 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, ListOrdered, Network, RefreshCw, Search, SlidersHorizontal, Terminal } from "lucide-react";
+import { Activity, Gavel, ListOrdered, Network, RefreshCw, Search, SlidersHorizontal, Terminal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { HealthResponse, getHealth } from "@/lib/api";
+import { HealthResponse, PreRagMode, getHealth } from "@/lib/api";
 
 export function DeveloperView({
   topK,
   debug,
-  preRagEnabled,
+  preRagMode,
+  structuredLookupEnabled,
   onTopKChange,
   onDebugChange,
-  onPreRagEnabledChange,
+  onPreRagModeChange,
+  onStructuredLookupEnabledChange,
 }: {
   topK: number;
   debug: boolean;
-  preRagEnabled: boolean;
+  preRagMode: PreRagMode;
+  structuredLookupEnabled: boolean;
   onTopKChange: (value: number) => void;
   onDebugChange: (value: boolean) => void;
-  onPreRagEnabledChange: (value: boolean) => void;
+  onPreRagModeChange: (value: PreRagMode) => void;
+  onStructuredLookupEnabledChange: (value: boolean) => void;
 }) {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,13 +48,14 @@ export function DeveloperView({
 
   const pipeline = health?.pipeline ?? {};
   const sanctions = health?.sanctions ?? {};
+  const structuredLookup = health?.structured_lookup ?? {};
 
   return (
     <main className="flex-1 overflow-y-auto p-6 md:p-8">
       <div className="mx-auto max-w-[1200px] space-y-7">
         <div className="flex flex-col justify-between gap-4 rounded-[32px] neo-border bg-white p-6 shadow-[6px_6px_0_#1a1c1c] sm:flex-row sm:items-start">
           <div>
-            <h1 className="font-display text-4xl font-extrabold tracking-tight text-[#1a1c1c]">Trung tâm RAG</h1>
+            <h1 className="font-display text-4xl font-extrabold tracking-tight text-[#1a1c1c]">Hệ thống RAG</h1>
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-muted-foreground">
               Theo dõi pipeline truy xuất và bật tùy chọn nâng cao cho phiên hiện tại.
             </p>
@@ -63,10 +68,10 @@ export function DeveloperView({
 
         {error && <div className="rounded-[24px] border-2 border-red-700 bg-red-50 p-4 text-sm font-semibold text-red-700 shadow-[4px_4px_0_#7f1d1d]">{error}</div>}
 
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-4">
           <StatusCard
             icon={<Search />}
-            title="Lexial BM25"
+            title="Lexical BM25"
             active={Boolean(pipeline.bm25_active)}
             description="Tìm theo từ khóa, số hiệu văn bản và cụm pháp lý."
             tone="yellow"
@@ -84,6 +89,13 @@ export function DeveloperView({
             active={Boolean(pipeline.reranker_active)}
             description={(pipeline.reranker_error as string) || "Xếp hạng lại kết quả truy xuất trước khi trả lời."}
             tone="orange"
+          />
+          <StatusCard
+            icon={<Gavel />}
+            title="Rule-based Structured Lookup"
+            active={Boolean(structuredLookup.enabled && (structuredLookup.fact_enabled || structuredLookup.sanction_enabled))}
+            description="Trạng thái master switch cho Structured Fact và Structured Sanction của backend."
+            tone="mint"
           />
         </div>
 
@@ -121,18 +133,44 @@ export function DeveloperView({
                   onChange={(event) => onDebugChange(event.target.checked)}
                 />
               </label>
-              <label className="block cursor-pointer rounded-[24px] border-2 border-[#1a1c1c] bg-[#fff6bf] p-4 text-sm font-extrabold shadow-[3px_3px_0_#1a1c1c]">
+              <div className="rounded-[24px] border-2 border-[#1a1c1c] bg-[#fff6bf] p-4 text-sm font-extrabold shadow-[3px_3px_0_#1a1c1c]">
+                <div className="mb-3">Pre-RAG</div>
+                <div className="space-y-3">
+                  <PreRagOption
+                    value="rule"
+                    checked={preRagMode === "rule"}
+                    title="Rule-based"
+                    description="Chỉ dùng parser/query planner rule-based, không gọi LLM."
+                    onChange={onPreRagModeChange}
+                  />
+                  <PreRagOption
+                    value="llm"
+                    checked={preRagMode === "llm"}
+                    title="LLM"
+                    description="Luôn gọi LLM Pre-RAG để rewrite, multi-query, step-back hoặc HyDE."
+                    onChange={onPreRagModeChange}
+                  />
+                  <PreRagOption
+                    value="optimized"
+                    checked={preRagMode === "optimized"}
+                    title="Tối ưu"
+                    description="Chỉ gọi LLM khi router chưa đủ tự tin hoặc thiếu rewrite rõ ràng."
+                    onChange={onPreRagModeChange}
+                  />
+                </div>
+              </div>
+              <label className="block cursor-pointer rounded-[24px] border-2 border-[#1a1c1c] bg-[#eafff6] p-4 text-sm font-extrabold shadow-[3px_3px_0_#1a1c1c]">
                 <div className="flex items-center justify-between gap-3">
-                  <span>Bật Pre-RAG tối ưu</span>
+                  <span>Dùng Structured Fact/Sanction Lookup cho phiên này</span>
                   <input
                     className="h-6 w-6 cursor-pointer accent-[#ff6b00]"
                     type="checkbox"
-                    checked={preRagEnabled}
-                    onChange={(event) => onPreRagEnabledChange(event.target.checked)}
+                    checked={structuredLookupEnabled}
+                    onChange={(event) => onStructuredLookupEnabledChange(event.target.checked)}
                   />
                 </div>
                 <p className="mt-3 text-xs font-semibold leading-5 text-muted-foreground">
-                  Khi bật, hệ thống chỉ gọi Pre-RAG nếu router chưa đủ tự tin hoặc thiếu rewrite rõ ràng.
+                  Khi bật, phiên hiện tại ưu tiên các rule-based lookup có cấu trúc: fact cố định và rule xử phạt, trước khi fallback sang RAG thường.
                 </p>
               </label>
               <div className="rounded-[22px] border-2 border-dashed border-[#1a1c1c] bg-[#fcf3e0] p-4 text-xs font-semibold leading-6 text-muted-foreground">
@@ -155,13 +193,43 @@ export function DeveloperView({
             </div>
             <CardContent className="p-0">
               <pre className="traffic-tile max-h-[520px] overflow-auto p-5 font-mono text-xs font-semibold leading-6 text-[#1a1c1c]">
-                {JSON.stringify({ status: health?.status, pipeline, controls: { top_k: topK, debug, pre_rag_enabled: preRagEnabled }, sanctions, index: health?.index }, null, 2)}
+                {JSON.stringify({ status: health?.status, system: { pipeline, structured_lookup: structuredLookup, sanctions }, controls: { top_k: topK, debug, pre_rag_mode: preRagMode, structured_lookup_enabled: structuredLookupEnabled }, index: health?.index }, null, 2)}
               </pre>
             </CardContent>
           </Card>
         </div>
       </div>
     </main>
+  );
+}
+
+function PreRagOption({
+  value,
+  checked,
+  title,
+  description,
+  onChange,
+}: {
+  value: PreRagMode;
+  checked: boolean;
+  title: string;
+  description: string;
+  onChange: (value: PreRagMode) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-[18px] border-2 border-[#1a1c1c] bg-white/70 p-3">
+      <input
+        className="mt-1 h-5 w-5 cursor-pointer accent-[#ff6b00]"
+        type="radio"
+        name="pre-rag-mode"
+        checked={checked}
+        onChange={() => onChange(value)}
+      />
+      <span>
+        <span className="block font-extrabold text-[#1a1c1c]">{title}</span>
+        <span className="mt-1 block text-xs font-semibold leading-5 text-muted-foreground">{description}</span>
+      </span>
+    </label>
   );
 }
 

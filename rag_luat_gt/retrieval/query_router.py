@@ -201,6 +201,16 @@ def _rule_route(parsed: ParsedQuery) -> QueryRouteDecision:
             reason="minimal capability fallback",
             confidence=0.9,
         )
+    out_of_scope_answer = _out_of_scope_answer(q)
+    if out_of_scope_answer:
+        return QueryRouteDecision(
+            route="OUT_OF_SCOPE",
+            legal_domain="other_law",
+            retrieval_strategy="NONE",
+            direct_answer=out_of_scope_answer,
+            reason="outside supported traffic-law administrative corpus",
+            confidence=0.9,
+        )
 
     return QueryRouteDecision(
         route="RAG",
@@ -228,6 +238,20 @@ def _is_minimal_capability_question(query_ascii: str) -> bool:
 
 def _minimal_meta_key(query_ascii: str) -> str:
     return re.sub(r"\s+", " ", query_ascii.strip(" \t\r\n?.!,;:")).strip()
+
+
+def _out_of_scope_answer(query_ascii: str) -> str | None:
+    if any(term in query_ascii for term in ["sao chep phan mem", "ban quyen phan mem", "phan mem trai phep"]):
+        return (
+            "Không có căn cứ về bản quyền phần mềm trong các văn bản giao thông đường bộ đang được cung cấp, "
+            "nên không thể xác định mức phạt từ bộ tài liệu này."
+        )
+    if any(term in query_ascii for term in ["phat tu", "tu bao nhieu", "bao nhieu nam tu", "trach nhiem hinh su"]):
+        return (
+            "Bộ tài liệu hiện có tập trung vào quy tắc và xử phạt hành chính về giao thông đường bộ. "
+            "Câu hỏi về phạt tù hoặc trách nhiệm hình sự cần căn cứ pháp luật hình sự ngoài bộ nguồn này."
+        )
+    return None
 
 
 def _call_openai(parsed: ParsedQuery) -> dict[str, Any]:

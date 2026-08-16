@@ -21,9 +21,8 @@ Không tự tính lại, không thêm mức phạt, không thêm điều khoản
 Mỗi kết luận về mức phạt, điểm GPLX, tước GPLX hoặc biện pháp khác phải giữ citation inline ngay sau câu kết luận.
 Không dồn toàn bộ citation xuống cuối nếu DETERMINISTIC_ANSWER đã có citation inline.
 Nếu payload có trạng thái CONDITIONAL hoặc thiếu điều kiện, phải nói rõ chưa thể chốt một tổng duy nhất.
-Giữ cấu trúc Markdown với các mục:
-### Trả lời
-### Căn cứ pháp lý
+Trả lời trực tiếp, không bắt buộc tiêu đề Markdown và không thêm mục "Căn cứ pháp lý" nếu claim đã có citation inline.
+Không mở đầu bằng công thức dài như "Theo quy định tại..." hoặc "Theo Điều...".
 
 Không thêm mục "Thời điểm áp dụng" hoặc "Lưu ý" vào câu trả lời cuối, trừ khi người dùng hỏi trực tiếp về thời điểm hiệu lực hoặc cảnh báo kỹ thuật.
 
@@ -66,7 +65,7 @@ def maybe_render_structured_sanction_with_llm(
         return response
 
     try:
-        response.answer = _render_with_openai(parsed, _sanction_render_prompt(response.answer), payload)
+        response.answer = _normalize_rendered_answer(_render_with_openai(parsed, _sanction_render_prompt(response.answer), payload))
         render_debug = response.debug.setdefault("structured_sanction_llm", {})
         render_debug.update(
             {
@@ -93,6 +92,7 @@ def _sanction_render_prompt(deterministic_answer: str) -> str:
         "không bê nguyên mô tả bucket rule nếu câu trả lời đã có nhãn hành vi ngắn hơn; "
         "không hiện mã nội bộ như CAR, UNSPECIFIED, rule_id; không thêm chế tài ngoài payload; "
         "giữ nguyên citation inline sau từng kết luận mức phạt/điểm, không gom citation xuống cuối; "
+        "trả lời trực tiếp, không thêm mục Căn cứ pháp lý riêng nếu citation đã nằm cuối claim; "
         "không đưa các ghi chú kỹ thuật, validation_status hoặc ngày hiệu lực vào câu trả lời cuối."
     )
 
@@ -101,19 +101,22 @@ def _strip_non_user_sections(answer: str) -> str:
     return re.split(r"\n###\s*(?:Thời điểm áp dụng|Lưu ý)\b", answer, maxsplit=1)[0].rstrip()
 
 
+def _normalize_rendered_answer(answer: str) -> str:
+    answer = re.sub(r"^\s*###\s*Trả lời\s*", "", answer, flags=re.IGNORECASE)
+    answer = re.split(r"\n\s*###\s*Căn cứ pháp lý\b", answer, maxsplit=1, flags=re.IGNORECASE)[0]
+    return answer.strip()
+
+
 def _mark_skip(response: ChatResponse, reason: str) -> None:
     response.debug.setdefault("structured_sanction_llm", {}).update({"enabled": False, "skip_reason": reason})
 
 
 def _replace_with_required_error(response: ChatResponse, error: str) -> None:
     response.answer = (
-        "### Trả lời\n"
         "Hệ thống đang được cấu hình bắt buộc sinh câu trả lời bằng LLM, nhưng bước diễn đạt LLM cho kết quả xử phạt chưa thực hiện được. "
         "Tôi không trả fallback cứng để tránh nhầm với câu trả lời đã được sinh hoàn chỉnh.\n\n"
-        "### Căn cứ pháp lý\n"
         "Đã có dữ liệu xử phạt có cấu trúc trong debug/citation, nhưng chưa render bằng LLM.\n\n"
-        "### Lưu ý\n"
-        f"- Lỗi LLM: {error}"
+        f"Lỗi LLM: {error}"
     )
     response.answerable = False
     response.warnings.append(error)

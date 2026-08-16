@@ -22,8 +22,8 @@ sys.path.insert(0, str(ROOT_DIR))
 # CONFIG - edit here only
 # =========================
 DATASET_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "golden_v2_200.jsonl"
-REPORT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "EVALUATION_REPORT_V2.md"
-CACHE_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2.jsonl"
+REPORT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "EVALUATION_REPORT_V2_router.md"
+CACHE_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2_router.jsonl"
 
 # Smoke-test alternative:
 # DATASET_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "smoke_v2_50.jsonl"
@@ -45,8 +45,8 @@ RESUME_FROM_CACHE = False
 # Keep ENABLE_QUERY_ROUTER_LLM=False when you want the Pre-RAG transformer to run
 # consistently; an OpenAI router can make the transformer skip when its plan is sufficient.
 ENABLE_PRE_RAG_STAGE = True
-ENABLE_PRE_RAG_LLM = False
-ENABLE_QUERY_ROUTER_LLM = False
+ENABLE_PRE_RAG_LLM = True
+ENABLE_QUERY_ROUTER_LLM = True
 
 
 def _parse_expected_answerable(row: dict[str, Any]) -> bool:

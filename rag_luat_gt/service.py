@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from rag_luat_gt.config import SANCTION_ENABLED
+from rag_luat_gt.config import RAG_STRUCTURED_FACT_ENABLED, RAG_STRUCTURED_LOOKUP_ENABLED, SANCTION_ENABLED
+from rag_luat_gt.citation_format import ensure_claim_citations, normalize_inline_legal_refs
 from rag_luat_gt.generation.answerer import build_answer
 from rag_luat_gt.generation.multi_sanction_answerer import build_multi_sanction_response
 from rag_luat_gt.generation.sanction_answerer import build_sanction_response
@@ -9,11 +10,13 @@ from rag_luat_gt.retrieval.hybrid import HybridRetriever
 from rag_luat_gt.retrieval.llm_query_transformer import transform_query_with_llm
 from rag_luat_gt.retrieval.query_parser import parse_query
 from rag_luat_gt.retrieval.query_router import QueryRouteDecision, apply_route_decision, direct_route_response, route_query
-from rag_luat_gt.sanction.behavior_catalog import behavior_contains_from_query
 from rag_luat_gt.sanction.composition_engine import compose_sanctions
-from rag_luat_gt.sanction.condition_resolver import resolve_violations
 from rag_luat_gt.sanction.repository import SanctionRepository
+from rag_luat_gt.sanction.structured_resolver import resolve_penalty_query
+from rag_luat_gt.structured_facts import build_structured_fact_answer
 from rag_luat_gt.schemas import ChatRequest, ChatResponse, ParsedQuery
+from rag_luat_gt.structured_tables import build_structured_table_answer
+from rag_luat_gt.text import normalize_text, strip_accents
 
 
 class RAGService:
@@ -48,6 +51,21 @@ class RAGService:
     def answer(self, request: ChatRequest) -> ChatResponse:
         parsed = parse_query(request)
         parsed, route_decision, router_debug = route_query(parsed)
+        if (
+            route_decision.route == "OUT_OF_SCOPE"
+            and _looks_like_traffic_law_query(parsed)
+            and not _requires_external_law(parsed)
+        ):
+            route_decision = route_decision.model_copy(
+                update={
+                    "route": "RAG",
+                    "legal_domain": "traffic_law",
+                    "retrieval_strategy": "FACTOID",
+                    "reason": f"{route_decision.reason or 'router'}; overridden by local traffic-law taxonomy",
+                    "confidence": min(route_decision.confidence, 0.5),
+                }
+            )
+            router_debug = {**router_debug, "out_of_scope_override": True, "override_decision": route_decision.model_dump()}
         direct_response = direct_route_response(route_decision)
         if direct_response:
             if request.debug:
@@ -61,21 +79,59 @@ class RAGService:
                 }
             else:
                 direct_response.debug = None
-            return direct_response
+            return _finalize_response(direct_response)
 
-        parsed, prerag_debug = self._maybe_transform_query_with_prerag(parsed, route_decision, request.pre_rag_enabled)
+        parsed, prerag_debug = self._maybe_transform_query_with_prerag(
+            parsed,
+            route_decision,
+            request.pre_rag_mode,
+            request.pre_rag_enabled,
+        )
         parsed = apply_route_decision(parsed, route_decision)
+        structured_lookup_request_enabled = request.structured_lookup_enabled
+        structured_fact_enabled = (
+            RAG_STRUCTURED_FACT_ENABLED
+            if structured_lookup_request_enabled is None
+            else RAG_STRUCTURED_FACT_ENABLED and structured_lookup_request_enabled
+        )
+        if structured_lookup_request_enabled is None:
+            structured_sanction_enabled = (
+                SANCTION_ENABLED
+                if request.structured_sanction_enabled is None
+                else SANCTION_ENABLED and request.structured_sanction_enabled
+            )
+        else:
+            structured_sanction_enabled = SANCTION_ENABLED and structured_lookup_request_enabled
         routing_debug: dict[str, object] = {
             "sanction_attempted": False,
+            "structured_lookup_enabled": structured_fact_enabled or structured_sanction_enabled,
+            "structured_lookup_env_enabled": RAG_STRUCTURED_LOOKUP_ENABLED,
+            "structured_lookup_request_enabled": structured_lookup_request_enabled,
+            "structured_fact_enabled": structured_fact_enabled,
+            "structured_sanction_enabled": structured_sanction_enabled,
+            "structured_sanction_env_enabled": SANCTION_ENABLED,
+            "structured_sanction_request_enabled": request.structured_sanction_enabled,
             "fallback_to_rag": False,
             "query_router": router_debug,
             "pre_rag": prerag_debug,
         }
-        if SANCTION_ENABLED and parsed.intent == "PENALTY_LOOKUP":
-            if len(parsed.violations) >= 2:
-                routing_debug["sanction_attempted"] = True
-                resolutions = resolve_violations(self.sanctions, parsed)
-                composition = compose_sanctions(resolutions)
+
+        fact_response = build_structured_fact_answer(parsed) if structured_fact_enabled else None
+        if fact_response:
+            if request.debug:
+                debug = fact_response.debug or {}
+                debug["routing"] = {**routing_debug, "structured_fact_answered": True}
+                fact_response.debug = debug
+            else:
+                fact_response.debug = None
+            return _finalize_response(fact_response)
+
+        if structured_sanction_enabled and parsed.intent == "PENALTY_LOOKUP":
+            routing_debug["sanction_attempted"] = True
+            penalty = resolve_penalty_query(self.sanctions, parsed)
+            routing_debug.update(penalty.debug)
+            if penalty.resolutions:
+                composition = compose_sanctions(penalty.resolutions)
                 answerable = any(resolution.selected_rule or resolution.rules for resolution in composition.resolutions)
                 routing_debug.update(
                     {
@@ -84,63 +140,44 @@ class RAGService:
                         "sanction_resolution_statuses": [resolution.status for resolution in composition.resolutions],
                     }
                 )
-                if not answerable:
-                    routing_debug["fallback_to_rag"] = True
-                else:
+                if answerable or not penalty.fallback_to_rag:
                     response = build_multi_sanction_response(parsed, composition)
                     if request.debug and response.debug is not None:
                         response.debug["routing"] = routing_debug
                     response = maybe_render_structured_sanction_with_llm(parsed, response)
                     if not request.debug:
                         response.debug = None
-                    return response
-            else:
-                lookup = self.sanctions.lookup(
-                    event_date=parsed.legal_effective_date or parsed.event_date or parsed.query_reference_date or "",
-                    vehicle_code=parsed.vehicle_code,
-                    behavior_code=parsed.behavior_code,
-                    behavior_contains=parsed.behavior_text_query or behavior_contains_from_query(parsed.query),
-                    document_number=parsed.document_number,
-                    article=parsed.article,
-                    clause=parsed.clause,
-                    point=parsed.point,
-                )
+                    return _finalize_response(response)
+            if penalty.lookup:
+                lookup = penalty.lookup
                 routing_debug.update(
                     {
-                        "sanction_attempted": True,
                         "sanction_status": lookup.status,
                         "sanction_missing_fields": lookup.missing_fields,
                     }
                 )
                 explicit_ref = any([parsed.document_number, parsed.article, parsed.clause, parsed.point])
-                if lookup.status == "FOUND" or lookup.status in {"NOT_FOUND", "TEMPORAL_AMBIGUOUS"} and explicit_ref:
+                if lookup.status in {"FOUND", "AMBIGUOUS", "NEEDS_CLARIFICATION"} or (
+                    lookup.status in {"NOT_FOUND", "TEMPORAL_AMBIGUOUS"} and explicit_ref
+                ):
                     response = build_sanction_response(parsed, lookup)
                     if request.debug and response.debug is not None:
                         response.debug["routing"] = routing_debug
                     response = maybe_render_structured_sanction_with_llm(parsed, response)
                     if not request.debug:
                         response.debug = None
-                    return response
-                if lookup.status == "NEEDS_CLARIFICATION" and parsed.behavior_code:
-                    scoped_lookup = self.sanctions.lookup_behavior_codes(
-                        event_date=parsed.legal_effective_date or parsed.event_date or parsed.query_reference_date or "",
-                        behavior_codes=[parsed.behavior_code],
-                    )
-                    routing_debug.update(
-                        {
-                            "sanction_status": scoped_lookup.status,
-                            "sanction_vehicle_scope_split": True,
-                        }
-                    )
-                    if scoped_lookup.status == "FOUND" and _has_multiple_vehicle_groups(scoped_lookup.rules):
-                        response = build_sanction_response(parsed, scoped_lookup)
-                        if request.debug and response.debug is not None:
-                            response.debug["routing"] = routing_debug
-                        response = maybe_render_structured_sanction_with_llm(parsed, response)
-                        if not request.debug:
-                            response.debug = None
-                        return response
-                routing_debug["fallback_to_rag"] = True
+                    return _finalize_response(response)
+            routing_debug["fallback_to_rag"] = penalty.fallback_to_rag
+
+        table_response = build_structured_table_answer(parsed)
+        if table_response:
+            if request.debug:
+                debug = table_response.debug or {}
+                debug["routing"] = {**routing_debug, "structured_table_answered": True}
+                table_response.debug = debug
+            else:
+                table_response.debug = None
+            return _finalize_response(table_response)
 
         results = self.retriever.search(parsed, top_k=request.top_k)
         response = build_answer(parsed, results)
@@ -161,24 +198,41 @@ class RAGService:
             response.debug = debug
         if not request.debug:
             response.debug = None
-        return response
+        return _finalize_response(response)
 
     def _maybe_transform_query_with_prerag(
         self,
         parsed: ParsedQuery,
         route_decision: QueryRouteDecision,
-        enabled: bool,
+        mode: str | None,
+        legacy_enabled: bool,
     ) -> tuple[ParsedQuery, dict[str, object]]:
-        if not enabled:
+        explicit_mode = mode is not None
+        normalized_mode = _normalize_pre_rag_mode(mode, legacy_enabled)
+        if normalized_mode == "disabled":
             return parsed, {"enabled": False, "skip_reason": "disabled_by_request"}
+        if normalized_mode == "rule":
+            return parsed, {
+                "enabled": True,
+                "mode": "rule",
+                "provider": "rule",
+                "skipped": True,
+                "skip_reason": "rule_based_mode",
+                "query_plan": parsed.query_plan.model_dump() if parsed.query_plan else None,
+            }
+        if normalized_mode == "llm":
+            transformed, debug = transform_query_with_llm(parsed, force_openai=explicit_mode)
+            return transformed, {**debug, "mode": "llm"}
         if _router_has_sufficient_rag_plan(route_decision):
             return parsed, {
                 "enabled": True,
+                "mode": "optimized",
                 "skipped": True,
                 "skip_reason": "router_plan_sufficient",
                 "router_confidence": route_decision.confidence,
             }
-        return transform_query_with_llm(parsed)
+        transformed, debug = transform_query_with_llm(parsed, force_openai=explicit_mode)
+        return transformed, {**debug, "mode": "optimized"}
 
     def _attach_score_details(self, response: ChatResponse) -> None:
         score_trace = getattr(self.retriever, "last_score_trace", {})
@@ -232,6 +286,83 @@ def _router_has_sufficient_rag_plan(decision: QueryRouteDecision) -> bool:
         "EXPAND_PARENT_SIBLINGS",
         "EXHAUSTIVE_ARTICLE",
     }
+
+
+def _normalize_pre_rag_mode(mode: str | None, legacy_enabled: bool) -> str:
+    if mode is None:
+        return "optimized" if legacy_enabled else "disabled"
+    normalized = mode.strip().lower().replace("-", "_")
+    aliases = {
+        "off": "disabled",
+        "false": "disabled",
+        "disabled": "disabled",
+        "rule_based": "rule",
+        "rule": "rule",
+        "llm": "llm",
+        "openai": "llm",
+        "optimal": "optimized",
+        "optimised": "optimized",
+        "optimized": "optimized",
+        "toi_uu": "optimized",
+    }
+    return aliases.get(normalized, "optimized")
+
+
+def _looks_like_traffic_law_query(parsed: ParsedQuery) -> bool:
+    if parsed.intent != "GENERAL_LEGAL_QA":
+        return True
+    if parsed.vehicle_code or parsed.behavior_code or parsed.violations:
+        return True
+    query = strip_accents(normalize_text(parsed.query))
+    traffic_terms = {
+        "giao thong",
+        "duong bo",
+        "xe may",
+        "mo to",
+        "o to",
+        "xe tai",
+        "xe khach",
+        "xe dap",
+        "gplx",
+        "giay phep lai xe",
+        "bien so",
+        "dang ky xe",
+        "toc do",
+        "cao toc",
+        "den do",
+        "nong do con",
+        "mu bao hiem",
+        "dau gia",
+        "co so du lieu",
+        "quoc lo",
+        "phan cap",
+        "ubnd cap tinh",
+        "xe uu tien",
+        "thiet bi an toan",
+    }
+    return any(term in query for term in traffic_terms)
+
+
+def _requires_external_law(parsed: ParsedQuery) -> bool:
+    query = strip_accents(normalize_text(parsed.query))
+    return any(
+        term in query
+        for term in [
+            "phat tu",
+            "tu bao nhieu",
+            "bao nhieu nam tu",
+            "trach nhiem hinh su",
+            "sao chep phan mem",
+            "ban quyen phan mem",
+            "phan mem trai phep",
+        ]
+    )
+
+
+def _finalize_response(response: ChatResponse) -> ChatResponse:
+    if response.answerable and response.citations:
+        response.answer = ensure_claim_citations(normalize_inline_legal_refs(response.answer, response.citations), response.citations)
+    return response
 
 
 def _vehicle_group(code: str) -> str:

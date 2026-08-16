@@ -5,6 +5,7 @@ import { AppShell, ConversationSummary } from "@/components/app-shell";
 import { ChatMessage, ChatView } from "@/components/chat";
 import { DeveloperView } from "@/components/developer";
 import { DocumentsView } from "@/components/documents";
+import { PreRagMode } from "@/lib/api";
 import { shortText } from "@/lib/utils";
 
 type View = "chat" | "documents" | "developer";
@@ -21,7 +22,8 @@ export default function Home() {
   const [activeId, setActiveId] = useState<string>();
   const [topK, setTopK] = useState(8);
   const [debug, setDebug] = useState(false);
-  const [preRagEnabled, setPreRagEnabled] = useState(true);
+  const [preRagMode, setPreRagMode] = useState<PreRagMode>("optimized");
+  const [structuredLookupEnabled, setStructuredLookupEnabled] = useState(true);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -103,7 +105,8 @@ export default function Home() {
           onMessagesChange={setMessages}
           topK={topK}
           debug={debug}
-          preRagEnabled={preRagEnabled}
+          preRagMode={preRagMode}
+          structuredLookupEnabled={structuredLookupEnabled}
         />
       )}
       {view === "documents" && <DocumentsView />}
@@ -111,10 +114,12 @@ export default function Home() {
         <DeveloperView
           topK={topK}
           debug={debug}
-          preRagEnabled={preRagEnabled}
+          preRagMode={preRagMode}
+          structuredLookupEnabled={structuredLookupEnabled}
           onTopKChange={setTopK}
           onDebugChange={setDebug}
-          onPreRagEnabledChange={setPreRagEnabled}
+          onPreRagModeChange={setPreRagMode}
+          onStructuredLookupEnabledChange={setStructuredLookupEnabled}
         />
       )}
     </AppShell>

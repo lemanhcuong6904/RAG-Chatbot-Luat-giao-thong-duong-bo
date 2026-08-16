@@ -17,7 +17,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-
 ROOT_DIR = Path(".").resolve()
 INPUT_DIR = ROOT_DIR / "data" / "markdown"
 OUTPUT_FILE = ROOT_DIR / "data" / "markdown_metadata.json"

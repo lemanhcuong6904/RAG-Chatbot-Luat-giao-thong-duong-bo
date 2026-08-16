@@ -70,4 +70,12 @@ SANCTION_DB_PATH = Path(
         ROOT_DIR / "structured_sanction_layer" / "structured_sanction_layer" / "sanctions.sqlite",
     )
 )
-SANCTION_ENABLED = os.getenv("SANCTION_ENABLED", "true").lower() == "true"
+RAG_STRUCTURED_LOOKUP_ENABLED = os.getenv("RAG_STRUCTURED_LOOKUP_ENABLED", "true").lower() == "true"
+RAG_STRUCTURED_FACT_ENABLED = (
+    RAG_STRUCTURED_LOOKUP_ENABLED and os.getenv("RAG_STRUCTURED_FACT_ENABLED", "true").lower() == "true"
+)
+RAG_STRUCTURED_SANCTION_ENABLED = (
+    RAG_STRUCTURED_LOOKUP_ENABLED
+    and os.getenv("RAG_STRUCTURED_SANCTION_ENABLED", os.getenv("SANCTION_ENABLED", "true")).lower() == "true"
+)
+SANCTION_ENABLED = RAG_STRUCTURED_SANCTION_ENABLED

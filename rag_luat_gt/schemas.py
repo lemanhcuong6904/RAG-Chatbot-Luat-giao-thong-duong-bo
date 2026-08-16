@@ -59,6 +59,9 @@ class ChatRequest(BaseModel):
     top_k: int = 8
     debug: bool = False
     pre_rag_enabled: bool = True
+    pre_rag_mode: str | None = None
+    structured_lookup_enabled: bool | None = None
+    structured_sanction_enabled: bool | None = None
 
 
 class Citation(BaseModel):

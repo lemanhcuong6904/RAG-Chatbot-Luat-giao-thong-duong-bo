@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from rag_luat_gt.generation.sanction_answerer import _citation, _fine_text, _money, _rule_ref
+from rag_luat_gt.citation_format import short_ref
+from rag_luat_gt.generation.sanction_answerer import _citation, _fine_text, _money, _point_citation, _rule_ref
 from rag_luat_gt.sanction.schemas import SanctionComposition, SanctionRule, ViolationResolution
 from rag_luat_gt.schemas import ChatResponse, Citation, ParsedQuery
 
@@ -12,19 +13,12 @@ def build_multi_sanction_response(parsed: ParsedQuery, composition: SanctionComp
 
     return ChatResponse(
         answer=(
-            "### Trả lời\n"
-            f"{_summary(composition)}\n\n"
-            "### Từng hành vi\n"
+            f"{_summary(composition, parsed)}\n\n"
+            "Từng hành vi:\n"
             f"{_violation_lines(composition.resolutions)}\n\n"
-            "### Tổng hợp chế tài\n"
+            "Tổng hợp chế tài:\n"
             f"{_money_lines(composition)}\n"
-            f"{_point_line(composition)}\n\n"
-            "### Căn cứ pháp lý\n"
-            f"{_reference_lines(composition)}\n\n"
-            "### Thời điểm áp dụng\n"
-            f"Đang xét theo ngày {parsed.legal_effective_date or parsed.event_date or 'hiện tại'}.\n\n"
-            "### Lưu ý\n"
-            f"{_notes(composition)}"
+            f"{_point_line(composition)}"
         ),
         citations=citations,
         warnings=warnings,
@@ -33,7 +27,13 @@ def build_multi_sanction_response(parsed: ParsedQuery, composition: SanctionComp
     )
 
 
-def _summary(composition: SanctionComposition) -> str:
+def _summary(composition: SanctionComposition, parsed: ParsedQuery) -> str:
+    query = parsed.query.casefold()
+    if any(term in query for term in ["cộng điểm", "cộng điểm trừ", "thành 8", "cong diem", "cong diem tru"]):
+        return (
+            "Không. Khi nhiều hành vi bị xử phạt trong cùng một lần, điểm GPLX không cộng cơ học; "
+            "áp dụng mức trừ cao nhất trong các hành vi đã resolve."
+        )
     if composition.status == "RESOLVED":
         return (
             "Có. Khi một người thực hiện nhiều hành vi vi phạm, tiền phạt được xác định theo từng hành vi; "
@@ -59,12 +59,12 @@ def _violation_lines(resolutions: list[ViolationResolution]) -> str:
             )
             lines.append(
                 f"{index}. {label}: {_fine_text(rule)}{points} "
-                f"({rule.document_number}, {_rule_ref(rule)})."
+                f"{_inline_rule_ref(rule)}."
             )
         elif resolution.status == "CONDITIONAL" and resolution.rules:
             label = resolution.rules[0].behavior_text or resolution.raw_span or resolution.behavior_text
             alternatives = "; ".join(
-                f"{_condition_label(rule)}: {_fine_text(rule)} ({rule.document_number}, {_rule_ref(rule)})"
+                f"{_condition_label(rule)}: {_fine_text(rule)} {_inline_rule_ref(rule)}"
                 for rule in resolution.rules
             )
             lines.append(f"{index}. {label}: cần phân nhánh điều kiện. {alternatives}.")
@@ -78,16 +78,13 @@ def _money_lines(composition: SanctionComposition) -> str:
     if composition.money.status == "RESOLVED":
         return (
             f"- Tổng khung tiền phạt: từ {_money(composition.money.min_total)} "
-            f"đến {_money(composition.money.max_total)}.\n"
-            f"- Mức trung bình tham khảo khi không có tình tiết tăng nặng/giảm nhẹ: "
-            f"{_money(composition.money.default_total)}."
+            f"đến {_money(composition.money.max_total)}."
         )
     if composition.money_branches:
         lines = ["- Chưa có một tổng duy nhất vì còn thiếu điều kiện về dung tích/công suất xe:"]
         for branch in composition.money_branches:
             lines.append(
-                f"- {branch.label}: từ {_money(branch.min_total)} đến {_money(branch.max_total)}; "
-                f"mức trung bình tham khảo {_money(branch.default_total)}."
+                f"- {branch.label}: từ {_money(branch.min_total)} đến {_money(branch.max_total)}."
             )
         return "\n".join(lines)
     return "- Chưa đủ dữ kiện để tổng hợp tiền phạt."
@@ -115,6 +112,10 @@ def _reference_lines(composition: SanctionComposition) -> str:
     )
 
 
+def _inline_rule_ref(rule: SanctionRule) -> str:
+    return f"[{short_ref(rule)}]"
+
+
 def _notes(composition: SanctionComposition) -> str:
     notes = [
         "- Tiền phạt được trình bày theo từng hành vi độc lập; tổng tiền là tổng các khung tiền đã resolve.",
@@ -129,7 +130,40 @@ def _notes(composition: SanctionComposition) -> str:
 
 
 def _citations(composition: SanctionComposition) -> list[Citation]:
-    return [_citation(rule) for rule in _rules_for_citation(composition)]
+    citations = [item for rule in _rules_for_citation(composition) for item in [_citation(rule), _point_citation(rule)] if item is not None]
+    if composition.license_points.points_deducted is not None and len(_rules_for_citation(composition)) >= 2:
+        citations.append(_license_point_composition_citation())
+    return _dedupe_citations(citations)
+
+
+def _license_point_composition_citation() -> Citation:
+    return Citation(
+        chunk_id="ND168_A50_K1_Pb_STRUCTURED_COMPOSITION",
+        chunk_type="SANCTION_POINT_COMPOSITION_RULE",
+        document_number="168/2024/NĐ-CP",
+        document_title="Nghị định số 168/2024/NĐ-CP",
+        article="50",
+        article_title="Nguyên tắc, thẩm quyền, trình tự, thủ tục trừ điểm giấy phép lái xe",
+        clause="1",
+        point="b",
+        source_file="data/markdown/168-2024-ND-CP_Xu-phat-TTATGT-Tru-diem-GPLX.md",
+        text="b) Trường hợp cá nhân thực hiện nhiều hành vi vi phạm hành chính hoặc vi phạm hành chính nhiều lần mà bị xử phạt trong cùng một lần, nếu có từ 02 hành vi vi phạm trở lên theo quy định bị trừ điểm giấy phép lái xe thì chỉ áp dụng trừ điểm đối với hành vi vi phạm bị trừ nhiều điểm nhất;",
+        rule_function="SANCTION",
+        coverage_status="COMPLETE",
+        source_quality="STRUCTURED_SANCTION:COMPOSITION_RULE",
+    )
+
+
+def _dedupe_citations(citations: list[Citation]) -> list[Citation]:
+    selected: list[Citation] = []
+    seen: set[tuple[str, str | None, str | None, str | None, str | None]] = set()
+    for citation in citations:
+        key = (citation.document_number or "", citation.article, citation.clause, citation.point, citation.rule_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        selected.append(citation)
+    return selected
 
 
 def _rules_for_citation(composition: SanctionComposition) -> list[SanctionRule]:

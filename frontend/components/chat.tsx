@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { TrafficLightIcon } from "@/components/traffic-light-icon";
-import { Citation, sendChat } from "@/lib/api";
+import { Citation, PreRagMode, sendChat } from "@/lib/api";
 import { cn, todayISO } from "@/lib/utils";
 
 export type ChatMessage = {
@@ -46,13 +46,15 @@ export function ChatView({
   onMessagesChange,
   topK,
   debug,
-  preRagEnabled,
+  preRagMode,
+  structuredLookupEnabled,
 }: {
   messages: ChatMessage[];
   onMessagesChange: (messages: ChatMessage[]) => void;
   topK: number;
   debug: boolean;
-  preRagEnabled: boolean;
+  preRagMode: PreRagMode;
+  structuredLookupEnabled: boolean;
 }) {
   const [input, setInput] = useState("");
   const [eventDate, setEventDate] = useState(todayISO());
@@ -91,7 +93,9 @@ export function ChatView({
         as_of_date: eventDate,
         top_k: topK,
         debug,
-        pre_rag_enabled: preRagEnabled,
+        pre_rag_enabled: preRagMode !== "rule",
+        pre_rag_mode: preRagMode,
+        structured_lookup_enabled: structuredLookupEnabled,
       });
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -119,7 +123,7 @@ export function ChatView({
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
       <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto px-4 pb-44 pt-6 md:px-8">
+        <div className="flex-1 overflow-y-auto px-4 pb-72 pt-6 md:px-8 md:pb-80">
           {messages.length === 0 ? (
             <EmptyState onPick={submit} />
           ) : (
@@ -200,7 +204,7 @@ function ChatHeader() {
           <Gavel className="h-5 w-5 text-[#ff6b00]" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-extrabold leading-tight">Tra cứu phạt giao thông</h1>
+          <h1 className="font-display text-2xl font-extrabold leading-tight">Hỏi đáp luật giao thông</h1>
           <p className="text-sm font-semibold text-[#4d4632]">Hỏi tự nhiên, nhận câu trả lời có nguồn đối chiếu.</p>
         </div>
       </div>
@@ -231,7 +235,7 @@ function EmptyState({ onPick }: { onPick: (question: string) => void }) {
   ];
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-[880px] flex-col items-center justify-center pb-20 text-center">
+    <div className="mx-auto flex min-h-full w-full max-w-[1060px] flex-col items-center justify-center pb-20 text-center">
       <div className="relative mb-6">
         <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-[#1a1c1c] bg-[#ffd600] shadow-[7px_7px_0_#1a1c1c]">
           <TrafficLightIcon className="h-14 w-14 p-1" />
@@ -240,10 +244,11 @@ function EmptyState({ onPick }: { onPick: (question: string) => void }) {
           <Sparkles className="h-5 w-5" />
         </div>
       </div>
-      <h1 className="font-display mb-3 max-w-2xl text-4xl font-extrabold leading-tight text-[#1a1c1c] md:text-6xl">
-        Hỏi luật giao thông, vui là chính!
+      <h1 className="font-display mb-3 max-w-[980px] text-4xl font-extrabold leading-tight text-[#1a1c1c] md:text-5xl lg:text-[54px] lg:leading-[1.08]">
+        <span className="block">Hỏi đáp luật giao thông</span>
+        <span className="block">chính xác, rõ ràng, có căn cứ</span>
       </h1>
-      <p className="max-w-xl text-[16px] font-medium leading-7 text-muted-foreground">
+      <p className="max-w-none text-[15px] font-medium leading-7 text-muted-foreground md:whitespace-nowrap">
         Tra cứu quy định, mức phạt, điểm GPLX và căn cứ pháp lý theo cách dễ đọc hơn.
       </p>
       <div className="mt-10 grid w-full grid-cols-1 gap-5 md:grid-cols-3">
@@ -445,7 +450,7 @@ function StageRow({ active, done, label }: { active: boolean; done: boolean; lab
 function EvidencePanel({ citation, onClose }: { citation: Citation | null; onClose: () => void }) {
   if (!citation) return null;
   return (
-    <aside className="hidden w-[420px] shrink-0 flex-col border-l-2 border-[#1a1c1c] bg-[#f0f4f8] shadow-[-5px_0_0_#1a1c1c] xl:flex">
+    <aside className="relative hidden w-[420px] shrink-0 flex-col border-l-2 border-[#1a1c1c] bg-[#f0f4f8] shadow-[-5px_0_0_#1a1c1c] xl:flex">
       <div className="flex h-16 items-center justify-between border-b-2 border-[#1a1c1c] bg-[#ffd600] px-5">
         <div className="flex items-center gap-2 text-sm font-extrabold">
           <FileText className="h-4 w-4" />
@@ -455,7 +460,7 @@ function EvidencePanel({ citation, onClose }: { citation: Citation | null; onClo
           <X className="h-4 w-4" />
         </Button>
       </div>
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-5 pb-44">
         <Badge variant="success" className="mb-3">
           {citation.document_number || citation.chunk_type}
         </Badge>
@@ -470,7 +475,21 @@ function EvidencePanel({ citation, onClose }: { citation: Citation | null; onClo
         </div>
         <ScoreDetails citation={citation} />
       </div>
+      <TrafficPoliceMascot />
     </aside>
+  );
+}
+
+function TrafficPoliceMascot() {
+  return (
+    <div className="pointer-events-none absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center text-center text-xs font-extrabold text-muted-foreground">
+      <img className="mb-1 h-24 w-24 opacity-70" src="/traffic-police.svg" alt="" aria-hidden="true" />
+      <div className="rounded-2xl bg-[#f0f4f8]/90 px-3 py-1 leading-5">
+        Luôn tuân thủ luật lệ
+        <br />
+        để bảo vệ bản thân nhé!
+      </div>
+    </div>
   );
 }
 

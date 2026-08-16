@@ -31,7 +31,39 @@ def _resolve_violation(
         behavior_code=violation.behavior_code,
         behavior_contains=violation.behavior_contains,
     )
+    if lookup.status in {"NOT_FOUND", "NOT_MAPPED"}:
+        scoped = _lookup_violation_behavior_codes(repository, parsed, violation, event_date)
+        if scoped:
+            return scoped
     return _resolution_from_lookup(violation, lookup)
+
+
+def _lookup_violation_behavior_codes(
+    repository: SanctionRepository,
+    parsed: ParsedQuery,
+    violation: ViolationFact,
+    event_date: str,
+) -> ViolationResolution | None:
+    codes = [str(code) for code in violation.conditions.get("behavior_codes", []) if code]
+    if len(codes) < 2:
+        return None
+    lookup = repository.lookup_behavior_codes(event_date=event_date, behavior_codes=codes, limit=50)
+    if lookup.status != "FOUND":
+        return None
+    rules = [rule for rule in lookup.rules if not parsed.vehicle_code or parsed.vehicle_code in rule.vehicle_codes]
+    if len(rules) == 1:
+        return _selected_resolution(violation, rules[0], rules)
+    if rules:
+        return ViolationResolution(
+            status="CONDITIONAL",
+            behavior_code=violation.behavior_code,
+            behavior_text=violation.behavior_text,
+            raw_span=violation.raw_span,
+            rules=rules,
+            missing_conditions=[],
+            warnings=["Có nhiều rule phù hợp với hành vi; cần phân nhánh theo điều kiện áp dụng."],
+        )
+    return None
 
 
 def _resolve_no_driver_license(

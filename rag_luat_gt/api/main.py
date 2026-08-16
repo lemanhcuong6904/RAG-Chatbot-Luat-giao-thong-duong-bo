@@ -17,6 +17,9 @@ from rag_luat_gt.config import (
     MANIFEST_PATH,
     RAG_PRERAG_MODEL,
     RAG_PRERAG_PROVIDER,
+    RAG_STRUCTURED_FACT_ENABLED,
+    RAG_STRUCTURED_LOOKUP_ENABLED,
+    RAG_STRUCTURED_SANCTION_ENABLED,
     ROOT_DIR,
     SANCTION_DB_PATH,
     SANCTION_ENABLED,
@@ -166,13 +169,22 @@ def health() -> dict:
             "reranker_error": service.retriever.reranker_error,
             "pre_rag_provider": RAG_PRERAG_PROVIDER,
             "pre_rag_model": RAG_PRERAG_MODEL,
+            "pre_rag_modes": ["rule", "llm", "optimized"],
             "warmup_status": service.warmup_status,
             "warmup_error": service.warmup_error,
         },
         "sanctions": {
             "enabled": SANCTION_ENABLED,
+            "structured_sanction_enabled": RAG_STRUCTURED_SANCTION_ENABLED,
+            "env_key": "RAG_STRUCTURED_SANCTION_ENABLED",
             "db_path": str(SANCTION_DB_PATH),
             "available": SANCTION_DB_PATH.exists(),
+        },
+        "structured_lookup": {
+            "enabled": RAG_STRUCTURED_LOOKUP_ENABLED,
+            "fact_enabled": RAG_STRUCTURED_FACT_ENABLED,
+            "sanction_enabled": RAG_STRUCTURED_SANCTION_ENABLED,
+            "env_key": "RAG_STRUCTURED_LOOKUP_ENABLED",
         },
     }
 

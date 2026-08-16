@@ -81,5 +81,25 @@
       "KHONG_CO_GIAY_PHEP_LAI_XE_HOAC_SU_DUNG_GIAY_PHEP_LAI_XE_DA_BI_TRU_HET_DIEM_GIAY_PHEP_LAI_X"
     ],
     "behavior_contains": "khong co giay phep lai xe"
+  },
+  "PHONE_USAGE_WHILE_DRIVING": {
+    "canonical_text": "Dung tay cam va su dung dien thoai hoac thiet bi dien tu khi dang dieu khien phuong tien",
+    "aliases": [
+      "cam dien thoai",
+      "cam dt",
+      "cam đt",
+      "dung dien thoai",
+      "su dung dien thoai",
+      "nhan tin",
+      "cam dien thoai nhan tin",
+      "cam dt nhan tin",
+      "cam đt nhan tin",
+      "su dung thiet bi dien tu"
+    ],
+    "rule_behavior_codes": [
+      "DUNG_TAY_CAM_VA_SU_DUNG_DIEN_THOAI_HOAC_CAC_THIET_BI_DIEN_TU_KHAC_KHI_DIEU_KHIEN_PHUONG_TI",
+      "NGUOI_DANG_DIEU_KHIEN_XE_SU_DUNG_O_DU_THIET_BI_AM_THANH_TRU_THIET_BI_TRO_THINH_DUNG_TAY_CA"
+    ],
+    "behavior_contains": "điện thoại"
   }
 }

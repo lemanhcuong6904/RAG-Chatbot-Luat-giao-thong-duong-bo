@@ -16,6 +16,14 @@ def test_parse_query_detects_license_point_balance() -> None:
     assert parsed.requested_facets == ["LICENSE_POINT_TOTAL"]
 
 
+def test_parse_query_detects_gplx_license_point_balance() -> None:
+    parsed = parse_query(ChatRequest(query="GPLX co bao nhieu diem theo luat hien hanh?"))
+
+    assert parsed.intent == "LICENSE_POINT_BALANCE"
+    assert parsed.answer_mode == "FACTOID"
+    assert parsed.retrieval_mode == "FACTOID"
+
+
 def test_penalty_license_points_are_not_parsed_as_legal_point_ref() -> None:
     parsed = parse_query(
         ChatRequest(
@@ -54,3 +62,27 @@ def test_license_point_balance_answer_contains_12_points() -> None:
     assert not any("không đủ căn cứ" in warning.lower() for warning in response.warnings)
     assert response.citations[0].document_number == "36/2024/QH15"
     assert response.citations[0].article == "58"
+
+
+def test_license_point_balance_answer_works_when_structured_lookup_disabled() -> None:
+    root = Path(".").resolve()
+    build_index(root / "data" / "markdown", root, invalidate_dense=False)
+
+    response = RAGService().answer(
+        ChatRequest(
+            query="GPLX co bao nhieu diem theo luat hien hanh?",
+            top_k=8,
+            debug=True,
+            structured_lookup_enabled=False,
+        )
+    )
+
+    assert response.answerable
+    assert "12" in response.answer
+    assert response.citations[0].document_number == "36/2024/QH15"
+    assert response.citations[0].article == "58"
+    assert response.citations[0].clause == "1"
+    assert response.debug
+    routing = response.debug["routing"]
+    assert routing["structured_fact_enabled"] is False
+    assert routing["structured_sanction_enabled"] is False

@@ -44,16 +44,22 @@ def _detect_intent(query: str) -> str:
             "phat",
             "xu phat",
             "muc phat",
+            "bi xu ly",
+            "xu ly the nao",
+            "muc xu ly",
+            "ap dung muc xu ly",
             "tru diem",
             "bi tru",
             "tru may diem",
             "tru bao nhieu diem",
             "bi tru may diem",
             "bi tru bao nhieu diem",
+            "diem tru",
+            "cong diem tru",
         ]
     ):
         return "PENALTY_LOOKUP"
-    if "giay phep lai xe" in q_ascii and any(
+    if any(term in q_ascii for term in ["giay phep lai xe", "gplx", "bang lai"]) and any(
         term in q_ascii for term in ["bao nhieu diem", "co bao nhieu diem", "may diem", "so diem"]
     ):
         return "LICENSE_POINT_BALANCE"
@@ -110,19 +116,15 @@ def _is_enumeration_query(query: str) -> bool:
 def _detect_vehicle(query: str) -> str | None:
     q = normalize_text(query)
     q_ascii = strip_accents(q)
-    if "xe đạp máy" in q or "xe dap may" in q_ascii:
+    if _has_phrase(q_ascii, "xe dap may"):
         return "xe đạp máy"
-    if "xe máy chuyên dùng" in q or "xe may chuyen dung" in q_ascii:
+    if _has_phrase(q_ascii, "xe may chuyen dung"):
         return "xe máy chuyên dùng"
-    if any(term in q for term in ["ô tô", "xe hơi", "xe con", "xe tải", "xe khách"]) or any(
-        term in q_ascii for term in ["o to", "xe hoi", "xe con", "xe tai", "xe khach"]
-    ):
+    if any(_has_phrase(q_ascii, term) for term in ["o to", "oto", "xe hoi", "xe con", "xe tai", "xe khach"]):
         return "ô tô"
-    if any(term in q for term in ["xe máy", "mô tô", "gắn máy"]) or any(
-        term in q_ascii for term in ["xe may", "mo to", "gan may"]
-    ):
+    if any(_has_phrase(q_ascii, term) for term in ["xe may", "mo to", "gan may"]):
         return "xe máy"
-    if "xe đạp" in q or "xe dap" in q_ascii:
+    if _has_phrase(q_ascii, "xe dap"):
         return "xe đạp"
     return None
 
@@ -130,25 +132,26 @@ def _detect_vehicle(query: str) -> str | None:
 def _detect_vehicle_code(query: str) -> str | None:
     q = normalize_text(query)
     q_ascii = strip_accents(q)
-    if "xe máy chuyên dùng" in q or "xe may chuyen dung" in q_ascii:
+    if _has_phrase(q_ascii, "xe may chuyen dung"):
         return "SPECIALIZED_MOTOR_VEHICLE"
-    if any(term in q for term in ["ô tô", "xe hơi", "xe con"]) or any(
-        term in q_ascii for term in ["o to", "xe hoi", "xe con"]
-    ):
+    if any(_has_phrase(q_ascii, term) for term in ["o to", "oto", "xe hoi", "xe con"]):
         return "CAR"
-    if any(term in q for term in ["xe tải"]) or "xe tai" in q_ascii:
+    if _has_phrase(q_ascii, "xe tai"):
         return "TRUCK"
-    if any(term in q for term in ["xe khách", "xe buýt"]) or any(term in q_ascii for term in ["xe khach", "xe buyt"]):
+    if any(_has_phrase(q_ascii, term) for term in ["xe khach", "xe buyt"]):
         return "BUS"
-    if any(term in q for term in ["xe máy", "mô tô", "gắn máy"]) or any(
-        term in q_ascii for term in ["xe may", "mo to", "gan may"]
-    ):
+    if any(_has_phrase(q_ascii, term) for term in ["xe may", "mo to", "gan may"]):
         return "MOTORCYCLE"
-    if "xe đạp" in q or "xe dap" in q_ascii:
+    if _has_phrase(q_ascii, "xe dap"):
         return "BICYCLE"
-    if "người đi bộ" in q or "nguoi di bo" in q_ascii:
+    if _has_phrase(q_ascii, "nguoi di bo"):
         return "PEDESTRIAN"
     return None
+
+
+def _has_phrase(text: str, phrase: str) -> bool:
+    pattern = r"(?<![a-z0-9])" + re.escape(phrase) + r"(?![a-z0-9])"
+    return re.search(pattern, text) is not None
 
 
 def _detect_behavior_code(query: str) -> str | None:
@@ -272,6 +275,8 @@ def parse_query(request: ChatRequest) -> ParsedQuery:
     query_reference_date = request.as_of_date or date.today()
     legal_effective_date = event_date or query_reference_date
     intent = _detect_intent(query)
+    if intent == "LICENSE_POINT_BALANCE":
+        is_enumeration = False
     expanded_query = expand_query(_intent_query_expansion(query, intent))
     behavior_contains = behavior_contains_from_query(query)
     violations = _detect_violations(query)

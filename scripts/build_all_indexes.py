@@ -11,9 +11,9 @@ def build_all_indexes() -> dict:
     bm25_manifest = build_index(MARKDOWN_DIR.resolve(), ROOT_DIR.resolve())
     dense_manifest = None
     if RAG_DENSE_ENABLED:
-        from rag_luat_gt.ingestion.build_dense_index import build_dense_index
+        from rag_luat_gt.ingestion.build_dense_index import build_dense_indexes
 
-        dense_manifest = build_dense_index()
+        dense_manifest = build_dense_indexes()
 
     runtime_manifest = {
         "built_at": datetime.now(timezone.utc).isoformat(),
@@ -26,9 +26,7 @@ def build_all_indexes() -> dict:
         },
         "dense": {
             "ready": bool(dense_manifest),
-            "embedding_model": (dense_manifest or {}).get("embedding_model"),
-            "corpus_hash": (dense_manifest or {}).get("corpus_hash"),
-            "chunking_version": (dense_manifest or {}).get("chunking_version"),
+            "indexes": dense_manifest or {},
         },
         "sanction": {
             "ready": SANCTION_DB_PATH.exists(),

@@ -60,6 +60,7 @@ class ChatRequest(BaseModel):
     debug: bool = False
     pre_rag_enabled: bool = True
     pre_rag_mode: str | None = None
+    embedding_preset: str | None = None
     structured_lookup_enabled: bool | None = None
     structured_sanction_enabled: bool | None = None
 

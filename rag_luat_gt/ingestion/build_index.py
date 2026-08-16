@@ -15,7 +15,7 @@ from rag_luat_gt.config import (
     INDEX_DIR,
     MANIFEST_PATH,
     MARKDOWN_DIR,
-    QDRANT_READY_FILE,
+    QDRANT_COLLECTION,
     ROOT_DIR,
 )
 from rag_luat_gt.ingestion.legal_parser import parse_chunks
@@ -91,6 +91,7 @@ def build_index(
         "retriever": "BM25Okapi",
     }
     previous_dense = previous_manifest.get("dense")
+    previous_dense_indexes = previous_manifest.get("dense_indexes") if isinstance(previous_manifest.get("dense_indexes"), dict) else {}
     if (
         not invalidate_dense
         and isinstance(previous_dense, dict)
@@ -99,12 +100,24 @@ def build_index(
         and previous_dense.get("chunks") == manifest["chunks"]
     ):
         manifest["dense"] = previous_dense
+    if not invalidate_dense and previous_dense_indexes:
+        valid_dense_indexes = {
+            preset: dense
+            for preset, dense in previous_dense_indexes.items()
+            if isinstance(dense, dict)
+            and dense.get("corpus_hash") == manifest["corpus_hash"]
+            and dense.get("chunking_version") == manifest["chunking_version"]
+            and dense.get("chunks") == manifest["chunks"]
+        }
+        if valid_dense_indexes:
+            manifest["dense_indexes"] = valid_dense_indexes
     if not invalidate_dense and "runtime" in previous_manifest:
         manifest["runtime"] = previous_manifest["runtime"]
 
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    if invalidate_dense and index_dir.resolve() == INDEX_DIR.resolve() and QDRANT_READY_FILE.exists():
-        QDRANT_READY_FILE.unlink()
+    if invalidate_dense and index_dir.resolve() == INDEX_DIR.resolve():
+        for ready_file in INDEX_DIR.glob(f"{QDRANT_COLLECTION}*.ready"):
+            ready_file.unlink()
     return manifest
 
 

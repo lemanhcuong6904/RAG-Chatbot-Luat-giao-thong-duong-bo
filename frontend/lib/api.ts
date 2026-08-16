@@ -28,6 +28,7 @@ export type ChatResponse = {
 };
 
 export type PreRagMode = "rule" | "llm" | "optimized";
+export type EmbeddingPreset = "bge_m3" | "qwen3_0_6b";
 
 export type DocumentItem = {
   document_id: string;
@@ -92,6 +93,7 @@ export function sendChat(payload: {
   debug: boolean;
   pre_rag_enabled: boolean;
   pre_rag_mode?: PreRagMode;
+  embedding_preset?: EmbeddingPreset;
   structured_lookup_enabled?: boolean;
   structured_sanction_enabled?: boolean;
 }) {

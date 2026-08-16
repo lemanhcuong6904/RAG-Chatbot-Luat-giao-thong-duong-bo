@@ -5,7 +5,7 @@ import { AppShell, ConversationSummary } from "@/components/app-shell";
 import { ChatMessage, ChatView } from "@/components/chat";
 import { DeveloperView } from "@/components/developer";
 import { DocumentsView } from "@/components/documents";
-import { PreRagMode } from "@/lib/api";
+import { EmbeddingPreset, PreRagMode } from "@/lib/api";
 import { shortText } from "@/lib/utils";
 
 type View = "chat" | "documents" | "developer";
@@ -23,6 +23,7 @@ export default function Home() {
   const [topK, setTopK] = useState(8);
   const [debug, setDebug] = useState(false);
   const [preRagMode, setPreRagMode] = useState<PreRagMode>("optimized");
+  const [embeddingPreset, setEmbeddingPreset] = useState<EmbeddingPreset>("bge_m3");
   const [structuredLookupEnabled, setStructuredLookupEnabled] = useState(true);
 
   useEffect(() => {
@@ -106,6 +107,7 @@ export default function Home() {
           topK={topK}
           debug={debug}
           preRagMode={preRagMode}
+          embeddingPreset={embeddingPreset}
           structuredLookupEnabled={structuredLookupEnabled}
         />
       )}
@@ -115,10 +117,12 @@ export default function Home() {
           topK={topK}
           debug={debug}
           preRagMode={preRagMode}
+          embeddingPreset={embeddingPreset}
           structuredLookupEnabled={structuredLookupEnabled}
           onTopKChange={setTopK}
           onDebugChange={setDebug}
           onPreRagModeChange={setPreRagMode}
+          onEmbeddingPresetChange={setEmbeddingPreset}
           onStructuredLookupEnabledChange={setStructuredLookupEnabled}
         />
       )}

@@ -4,7 +4,7 @@ from datetime import date
 
 from qdrant_client.http import models
 
-from rag_luat_gt.config import QDRANT_COLLECTION
+from rag_luat_gt.config import embedding_settings_for_preset
 from rag_luat_gt.retrieval.qdrant_store import qdrant_client
 from rag_luat_gt.schemas import Chunk, ParsedQuery
 
@@ -84,13 +84,16 @@ def _query_filter(parsed: ParsedQuery) -> models.Filter | None:
 
 
 class DenseRetriever:
-    def __init__(self) -> None:
+    def __init__(self, preset: str | None = None, *, allow_model_override: bool = False) -> None:
+        self.settings = embedding_settings_for_preset(preset, allow_model_override=allow_model_override)
+        self.preset = self.settings.preset
+        self.collection_name = self.settings.collection
         self.client = qdrant_client()
         self.embedder = None
 
     def available(self) -> bool:
         collections = {item.name for item in self.client.get_collections().collections}
-        return QDRANT_COLLECTION in collections
+        return self.collection_name in collections
 
     def search(self, parsed: ParsedQuery, top_k: int = 8) -> list[tuple[Chunk, float]]:
         if not self.available():
@@ -99,12 +102,16 @@ class DenseRetriever:
         if self.embedder is None:
             from rag_luat_gt.embedding.bge_m3 import BGEM3Embedder
 
-            self.embedder = BGEM3Embedder()
+            self.embedder = BGEM3Embedder(
+                model_name=self.settings.model,
+                query_instruction=self.settings.query_instruction,
+                document_instruction=self.settings.document_instruction,
+            )
 
         vector = self.embedder.encode_query(parsed.normalized_query)
         try:
             hits = self.client.query_points(
-                collection_name=QDRANT_COLLECTION,
+                collection_name=self.collection_name,
                 query=vector,
                 query_filter=_query_filter(parsed),
                 limit=top_k * 3,
@@ -112,7 +119,7 @@ class DenseRetriever:
             ).points
         except Exception:
             hits = self.client.query_points(
-                collection_name=QDRANT_COLLECTION,
+                collection_name=self.collection_name,
                 query=vector,
                 limit=top_k * 6,
                 with_payload=True,

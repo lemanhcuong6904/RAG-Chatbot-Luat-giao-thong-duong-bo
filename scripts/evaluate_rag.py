@@ -22,8 +22,8 @@ sys.path.insert(0, str(ROOT_DIR))
 # CONFIG - edit here only
 # =========================
 DATASET_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "golden_v2_200.jsonl"
-REPORT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "EVALUATION_REPORT_V2_router.md"
-CACHE_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2_router.jsonl"
+REPORT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "EVALUATION_REPORT_V2_qwen3_0_6b.md"
+CACHE_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2_qwen3_0_6b.jsonl"
 
 # Smoke-test alternative:
 # DATASET_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "smoke_v2_50.jsonl"
@@ -38,6 +38,10 @@ LIMIT: int | None = None
 
 TOP_K = 8
 RESUME_FROM_CACHE = False
+
+# Dense embedding preset for this evaluation run.
+# Options: "bge_m3", "qwen3_0_6b"
+EVALUATION_EMBEDDING_PRESET = "qwen3_0_6b"
 
 # Pre-RAG controls.
 # Set ENABLE_PRE_RAG_STAGE=False to bypass Pre-RAG completely.
@@ -117,6 +121,8 @@ def _normalize_row(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _set_mode(mode: str) -> None:
+    os.environ["RAG_EMBEDDING_PRESET"] = EVALUATION_EMBEDDING_PRESET
+    os.environ.setdefault("RAG_EMBEDDING_MODEL", "")
     os.environ["RAG_EMBEDDING_PROGRESS"] = "false"
     if mode == "deterministic":
         os.environ["RAG_PRERAG_PROVIDER"] = "rule"
@@ -344,6 +350,7 @@ def _run_cases(dataset: list[dict[str, Any]], cache_path: Path, resume: bool, to
                 top_k=top_k,
                 debug=True,
                 pre_rag_enabled=ENABLE_PRE_RAG_STAGE,
+                embedding_preset=EVALUATION_EMBEDDING_PRESET,
             )
             response = service.answer(request).model_dump()
         except Exception as exc:
@@ -423,6 +430,7 @@ def _summarize(outputs: list[dict[str, Any]], mode: str, dataset_path: Path) -> 
         "",
         f"- Thời điểm chạy: `{datetime.now().isoformat(timespec='seconds')}`",
         f"- Dataset: `{dataset_path}`",
+        f"- Embedding preset: `{EVALUATION_EMBEDDING_PRESET}`",
         f"- Chế độ: `{mode}`",
         f"- Pre-RAG stage: `{ENABLE_PRE_RAG_STAGE}`",
         f"- Pre-RAG LLM transformer: `{ENABLE_PRE_RAG_LLM}`",

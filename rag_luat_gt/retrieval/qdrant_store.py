@@ -34,14 +34,18 @@ def point_id(chunk_id: str) -> str:
     return str(uuid5(NAMESPACE_URL, chunk_id))
 
 
-def recreate_collection(client: QdrantClient, collection_name: str = QDRANT_COLLECTION) -> None:
+def recreate_collection(
+    client: QdrantClient,
+    collection_name: str = QDRANT_COLLECTION,
+    vector_size: int = RAG_EMBEDDING_VECTOR_SIZE,
+) -> None:
     existing = {item.name for item in client.get_collections().collections}
     if collection_name in existing:
         client.delete_collection(collection_name=collection_name)
     client.create_collection(
         collection_name=collection_name,
         vectors_config=models.VectorParams(
-            size=RAG_EMBEDDING_VECTOR_SIZE,
+            size=vector_size,
             distance=models.Distance.COSINE,
         ),
     )

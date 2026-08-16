@@ -18,8 +18,8 @@ sys.path.insert(0, str(ROOT_DIR))
 # CONFIG - edit here only
 # =========================
 INPUT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2.jsonl"
-CACHE_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "llm_judge_scores_v2.jsonl"
-REPORT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "EVALUATION_REPORT_LLM_JUDGE_V2.md"
+CACHE_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "llm_judge_scores_v2_bge_m3.jsonl"
+REPORT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "EVALUATION_REPORT_LLM_JUDGE_V2_bge_m3.md"
 
 JUDGE_MODEL = "gpt-4o-mini"
 

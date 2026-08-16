@@ -5,25 +5,29 @@ import { Activity, Gavel, ListOrdered, Network, RefreshCw, Search, SlidersHorizo
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { HealthResponse, PreRagMode, getHealth } from "@/lib/api";
+import { EmbeddingPreset, HealthResponse, PreRagMode, getHealth } from "@/lib/api";
 
 export function DeveloperView({
   topK,
   debug,
   preRagMode,
+  embeddingPreset,
   structuredLookupEnabled,
   onTopKChange,
   onDebugChange,
   onPreRagModeChange,
+  onEmbeddingPresetChange,
   onStructuredLookupEnabledChange,
 }: {
   topK: number;
   debug: boolean;
   preRagMode: PreRagMode;
+  embeddingPreset: EmbeddingPreset;
   structuredLookupEnabled: boolean;
   onTopKChange: (value: number) => void;
   onDebugChange: (value: boolean) => void;
   onPreRagModeChange: (value: PreRagMode) => void;
+  onEmbeddingPresetChange: (value: EmbeddingPreset) => void;
   onStructuredLookupEnabledChange: (value: boolean) => void;
 }) {
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -159,6 +163,25 @@ export function DeveloperView({
                   />
                 </div>
               </div>
+              <div className="rounded-[24px] border-2 border-[#1a1c1c] bg-[#eafff6] p-4 text-sm font-extrabold shadow-[3px_3px_0_#1a1c1c]">
+                <div className="mb-3">Embedding model</div>
+                <div className="space-y-3">
+                  <EmbeddingOption
+                    value="bge_m3"
+                    checked={embeddingPreset === "bge_m3"}
+                    title="BGE-M3"
+                    description="DÃ¹ng collection dense build tá»« BAAI/bge-m3."
+                    onChange={onEmbeddingPresetChange}
+                  />
+                  <EmbeddingOption
+                    value="qwen3_0_6b"
+                    checked={embeddingPreset === "qwen3_0_6b"}
+                    title="Qwen3-Embedding-0.6B"
+                    description="DÃ¹ng collection dense build tá»« Qwen/Qwen3-Embedding-0.6B."
+                    onChange={onEmbeddingPresetChange}
+                  />
+                </div>
+              </div>
               <label className="block cursor-pointer rounded-[24px] border-2 border-[#1a1c1c] bg-[#eafff6] p-4 text-sm font-extrabold shadow-[3px_3px_0_#1a1c1c]">
                 <div className="flex items-center justify-between gap-3">
                   <span>Dùng Structured Fact/Sanction Lookup cho phiên này</span>
@@ -193,7 +216,7 @@ export function DeveloperView({
             </div>
             <CardContent className="p-0">
               <pre className="traffic-tile max-h-[520px] overflow-auto p-5 font-mono text-xs font-semibold leading-6 text-[#1a1c1c]">
-                {JSON.stringify({ status: health?.status, system: { pipeline, structured_lookup: structuredLookup, sanctions }, controls: { top_k: topK, debug, pre_rag_mode: preRagMode, structured_lookup_enabled: structuredLookupEnabled }, index: health?.index }, null, 2)}
+                {JSON.stringify({ status: health?.status, system: { pipeline, structured_lookup: structuredLookup, sanctions }, controls: { top_k: topK, debug, pre_rag_mode: preRagMode, embedding_preset: embeddingPreset, structured_lookup_enabled: structuredLookupEnabled }, index: health?.index }, null, 2)}
               </pre>
             </CardContent>
           </Card>
@@ -222,6 +245,36 @@ function PreRagOption({
         className="mt-1 h-5 w-5 cursor-pointer accent-[#ff6b00]"
         type="radio"
         name="pre-rag-mode"
+        checked={checked}
+        onChange={() => onChange(value)}
+      />
+      <span>
+        <span className="block font-extrabold text-[#1a1c1c]">{title}</span>
+        <span className="mt-1 block text-xs font-semibold leading-5 text-muted-foreground">{description}</span>
+      </span>
+    </label>
+  );
+}
+
+function EmbeddingOption({
+  value,
+  checked,
+  title,
+  description,
+  onChange,
+}: {
+  value: EmbeddingPreset;
+  checked: boolean;
+  title: string;
+  description: string;
+  onChange: (value: EmbeddingPreset) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-[18px] border-2 border-[#1a1c1c] bg-white/70 p-3">
+      <input
+        className="mt-1 h-5 w-5 cursor-pointer accent-[#ff6b00]"
+        type="radio"
+        name="embedding-preset"
         checked={checked}
         onChange={() => onChange(value)}
       />

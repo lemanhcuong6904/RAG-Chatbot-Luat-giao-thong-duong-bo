@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { TrafficLightIcon } from "@/components/traffic-light-icon";
-import { Citation, PreRagMode, sendChat } from "@/lib/api";
+import { Citation, EmbeddingPreset, PreRagMode, sendChat } from "@/lib/api";
 import { cn, todayISO } from "@/lib/utils";
 
 export type ChatMessage = {
@@ -47,6 +47,7 @@ export function ChatView({
   topK,
   debug,
   preRagMode,
+  embeddingPreset,
   structuredLookupEnabled,
 }: {
   messages: ChatMessage[];
@@ -54,6 +55,7 @@ export function ChatView({
   topK: number;
   debug: boolean;
   preRagMode: PreRagMode;
+  embeddingPreset: EmbeddingPreset;
   structuredLookupEnabled: boolean;
 }) {
   const [input, setInput] = useState("");
@@ -95,6 +97,7 @@ export function ChatView({
         debug,
         pre_rag_enabled: preRagMode !== "rule",
         pre_rag_mode: preRagMode,
+        embedding_preset: embeddingPreset,
         structured_lookup_enabled: structuredLookupEnabled,
       });
       const assistantMessage: ChatMessage = {

@@ -11,9 +11,9 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 # =========================
 # CONFIG - edit here only
 # =========================
-INPUT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2_router.jsonl"
-MARKDOWN_OUTPUT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2_router_table.md"
-CSV_OUTPUT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2_router_table.csv"
+INPUT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2_qwen3_0_6b.jsonl"
+MARKDOWN_OUTPUT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2_qwen3_0_6b_table.md"
+CSV_OUTPUT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2_qwen3_0_6b_table.csv"
 
 WRITE_MARKDOWN = True
 WRITE_CSV = True

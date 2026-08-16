@@ -39,7 +39,11 @@ class RAGService:
             if dense.embedder is None:
                 from rag_luat_gt.embedding.bge_m3 import BGEM3Embedder
 
-                dense.embedder = BGEM3Embedder()
+                dense.embedder = BGEM3Embedder(
+                    model_name=dense.settings.model,
+                    query_instruction=dense.settings.query_instruction,
+                    document_instruction=dense.settings.document_instruction,
+                )
             dense.embedder.encode_query("khởi động mô hình truy xuất")
             self.warmup_status = "READY"
             print("[RAG] Dense retrieval model warm-up complete.", flush=True)
@@ -179,7 +183,7 @@ class RAGService:
                 table_response.debug = None
             return _finalize_response(table_response)
 
-        results = self.retriever.search(parsed, top_k=request.top_k)
+        results = self.retriever.search(parsed, top_k=request.top_k, embedding_preset=request.embedding_preset)
         response = build_answer(parsed, results)
         self._attach_score_details(response)
         if request.debug:
@@ -187,8 +191,9 @@ class RAGService:
             debug["routing"] = routing_debug
             debug["retrieval"] = {
                 "bm25_active": self.retriever.bm25.bm25 is not None,
-                "dense_active": self.retriever.dense is not None,
+                "dense_active": self.retriever._dense_for_preset(request.embedding_preset) is not None,
                 "dense_error": self.retriever.dense_error,
+                "embedding_preset": self.retriever.active_embedding_preset,
                 "reranker_active": self.retriever.reranker is not None,
                 "reranker_error": self.retriever.reranker_error,
                 "final_candidates": len(results),

@@ -4,12 +4,13 @@ import json
 
 from rag_luat_gt.config import (
     MANIFEST_PATH,
-    QDRANT_COLLECTION,
-    QDRANT_READY_FILE,
     RAG_DENSE_ENABLED,
-    RAG_EMBEDDING_MODEL,
+    RAG_EMBEDDING_AVAILABLE_PRESETS,
+    RAG_EMBEDDING_PRESET,
     RAG_RERANKER_ENABLED,
     RAG_RERANKER_TOP_N,
+    embedding_settings_for_preset,
+    normalize_embedding_preset,
 )
 from rag_luat_gt.retrieval.bm25 import BM25Retriever
 from rag_luat_gt.rule_function import effective_rule_function
@@ -25,19 +26,16 @@ class HybridRetriever:
         self.bm25 = BM25Retriever()
         self.dense = None
         self.dense_error: str | None = None
+        self.active_embedding_preset = RAG_EMBEDDING_PRESET
+        self.dense_by_preset: dict[str, object] = {}
+        self.dense_errors_by_preset: dict[str, str | None] = {}
         self.reranker = None
         self.reranker_error: str | None = None
         self.last_context_trace: list[dict[str, object]] = []
         self.last_score_trace: dict[str, dict[str, object]] = {}
-        if RAG_DENSE_ENABLED and self._dense_ready_matches_manifest():
-            try:
-                from rag_luat_gt.retrieval.dense import DenseRetriever
-
-                self.dense = DenseRetriever()
-            except Exception as exc:
-                self.dense_error = str(exc)
-        elif RAG_DENSE_ENABLED and QDRANT_READY_FILE.exists():
-            self.dense_error = "Dense index marker does not match the current BM25 manifest."
+        if RAG_DENSE_ENABLED:
+            self.dense = self._dense_for_preset(RAG_EMBEDDING_PRESET)
+            self.dense_error = self.dense_errors_by_preset.get(RAG_EMBEDDING_PRESET)
         if RAG_RERANKER_ENABLED:
             try:
                 from rag_luat_gt.retrieval.reranker import BGEReranker
@@ -46,9 +44,13 @@ class HybridRetriever:
             except Exception as exc:
                 self.reranker_error = str(exc)
 
-    def search(self, parsed: ParsedQuery, top_k: int = 8) -> list[tuple[Chunk, float]]:
+    def search(self, parsed: ParsedQuery, top_k: int = 8, embedding_preset: str | None = None) -> list[tuple[Chunk, float]]:
         self.last_context_trace = []
         self.last_score_trace = {}
+        self.active_embedding_preset = normalize_embedding_preset(embedding_preset)
+        dense = self._dense_for_preset(self.active_embedding_preset)
+        self.dense = dense if self.active_embedding_preset == RAG_EMBEDDING_PRESET else self.dense
+        self.dense_error = self.dense_errors_by_preset.get(self.active_embedding_preset)
         exact_results = self._exact_reference_lookup(parsed, top_k=top_k)
         if exact_results:
             return self._expand_structural_context(parsed, exact_results, top_k)
@@ -58,13 +60,13 @@ class HybridRetriever:
             result_sets: list[list[tuple[Chunk, float]]] = []
             for query in query_variants:
                 variant = parsed.model_copy(update={"normalized_query": query, "retrieval_query": query})
-                result_sets.append(self._search_single_query(variant, top_k=top_k))
+                result_sets.append(self._search_single_query(variant, top_k=top_k, dense=dense))
             ranked = self._rrf(result_sets)
             ranked = self._apply_preferences(parsed, ranked)
             ranked = self._apply_reranker(parsed, ranked)
             return self._expand_structural_context(parsed, ranked, top_k)
 
-        ranked = self._search_single_query(parsed, top_k=top_k)
+        ranked = self._search_single_query(parsed, top_k=top_k, dense=dense)
         ranked = self._apply_preferences(parsed, ranked)
         ranked = self._apply_reranker(parsed, ranked)
         return self._expand_structural_context(parsed, ranked, top_k)
@@ -80,18 +82,19 @@ class HybridRetriever:
         self._record_stage_scores("preference_score", boosted)
         return boosted
 
-    def _search_single_query(self, parsed: ParsedQuery, top_k: int) -> list[tuple[Chunk, float]]:
+    def _search_single_query(self, parsed: ParsedQuery, top_k: int, dense: object | None = None) -> list[tuple[Chunk, float]]:
         bm25_results = self.bm25.search(parsed, top_k=top_k * 4)
         dense_results = []
-        if self.dense:
+        if dense:
             try:
                 valid_chunk_ids = {chunk.chunk_id for chunk in self.bm25.chunks}
                 dense_results = [
                     (chunk, score)
-                    for chunk, score in self.dense.search(parsed, top_k=top_k * 4)
+                    for chunk, score in dense.search(parsed, top_k=top_k * 4)
                     if chunk.chunk_id in valid_chunk_ids
                 ]
             except Exception as exc:
+                self.dense_errors_by_preset[self.active_embedding_preset] = str(exc)
                 self.dense_error = str(exc)
 
         self._record_source_scores("bm25", bm25_results)
@@ -144,27 +147,77 @@ class HybridRetriever:
             self.reranker_error = str(exc)
             return results
 
+    def _dense_for_preset(self, preset: str | None):
+        if not RAG_DENSE_ENABLED:
+            return None
+        normalized = normalize_embedding_preset(preset)
+        if normalized in self.dense_by_preset:
+            return self.dense_by_preset[normalized]
+        if not self._dense_ready_matches_manifest(normalized):
+            settings = embedding_settings_for_preset(normalized, allow_model_override=normalized == RAG_EMBEDDING_PRESET)
+            if settings.ready_file.exists():
+                self.dense_errors_by_preset[normalized] = "Dense index marker does not match the current BM25 manifest."
+            else:
+                self.dense_errors_by_preset[normalized] = "Dense index is not built for this embedding preset."
+            return None
+        try:
+            from rag_luat_gt.retrieval.dense import DenseRetriever
+
+            dense = DenseRetriever(normalized, allow_model_override=normalized == RAG_EMBEDDING_PRESET)
+            self.dense_by_preset[normalized] = dense
+            self.dense_errors_by_preset[normalized] = None
+            return dense
+        except Exception as exc:
+            self.dense_errors_by_preset[normalized] = str(exc)
+            return None
+
     @staticmethod
-    def _dense_ready_matches_manifest() -> bool:
-        if not QDRANT_READY_FILE.exists() or not MANIFEST_PATH.exists():
+    def _dense_ready_matches_manifest(preset: str | None = None) -> bool:
+        normalized = normalize_embedding_preset(preset)
+        settings = embedding_settings_for_preset(normalized, allow_model_override=normalized == RAG_EMBEDDING_PRESET)
+        if not settings.ready_file.exists() or not MANIFEST_PATH.exists():
             return False
         try:
-            ready = json.loads(QDRANT_READY_FILE.read_text(encoding="utf-8"))
+            ready = json.loads(settings.ready_file.read_text(encoding="utf-8"))
             manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return False
 
-        dense = manifest.get("dense") or {}
+        dense_indexes = manifest.get("dense_indexes") if isinstance(manifest.get("dense_indexes"), dict) else {}
+        dense = dense_indexes.get(normalized) or manifest.get("dense") or {}
+        ready_model = ready.get("embedding_model")
+        ready_preset = ready.get("embedding_preset") or ("bge_m3" if ready_model == "BAAI/bge-m3" else None)
+        ready_vector_size = ready.get("embedding_vector_size") or (1024 if ready_model == "BAAI/bge-m3" else None)
+        ready_query_instruction = ready.get("embedding_query_instruction") or ""
+        ready_document_instruction = ready.get("embedding_document_instruction") or ""
         return all(
             [
-                ready.get("collection") == QDRANT_COLLECTION,
-                ready.get("embedding_model") == RAG_EMBEDDING_MODEL,
+                ready.get("collection") == settings.collection,
+                ready_preset == normalized,
+                ready_model == settings.model,
+                ready_vector_size == settings.vector_size,
+                ready_query_instruction == settings.query_instruction,
+                ready_document_instruction == settings.document_instruction,
                 ready.get("corpus_hash") == manifest.get("corpus_hash"),
                 ready.get("chunking_version") == manifest.get("chunking_version"),
                 ready.get("chunks") == manifest.get("chunks"),
                 dense.get("corpus_hash") == manifest.get("corpus_hash"),
             ]
         )
+
+    def dense_status_by_preset(self) -> dict[str, dict[str, object]]:
+        status: dict[str, dict[str, object]] = {}
+        for preset in RAG_EMBEDDING_AVAILABLE_PRESETS:
+            settings = embedding_settings_for_preset(preset, allow_model_override=preset == RAG_EMBEDDING_PRESET)
+            status[preset] = {
+                "ready": self._dense_ready_matches_manifest(preset),
+                "collection": settings.collection,
+                "ready_file": str(settings.ready_file),
+                "model": settings.model,
+                "vector_size": settings.vector_size,
+                "error": self.dense_errors_by_preset.get(preset),
+            }
+        return status
 
     @staticmethod
     def _rrf(result_sets: list[list[tuple[Chunk, float]]]) -> list[tuple[Chunk, float]]:

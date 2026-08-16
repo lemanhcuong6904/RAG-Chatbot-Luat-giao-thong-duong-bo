@@ -3,10 +3,13 @@ from __future__ import annotations
 from rag_luat_gt.config import (
     OPENAI_API_KEY,
     OPENAI_MODEL,
+    RAG_LLM_MODEL,
+    RAG_LLM_PROVIDER,
     RAG_OPENAI_MAX_TOKENS,
     RAG_OPENAI_TEMPERATURE,
 )
 from rag_luat_gt.citation_format import normalize_inline_legal_refs, replace_source_markers, short_ref
+from rag_luat_gt.generation.llm_client import chat_completion, resolve_llm
 from rag_luat_gt.rule_function import effective_rule_function
 from rag_luat_gt.schemas import Chunk, ParsedQuery
 
@@ -269,10 +272,38 @@ def generate_with_openai(
 ) -> str:
     if not OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY is not configured")
+    return _generate_with_provider(
+        provider="openai",
+        model=OPENAI_MODEL,
+        parsed=parsed,
+        results=results,
+        legal_notes=legal_notes,
+    )
 
-    from openai import OpenAI
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
+def generate_with_llm(
+    parsed: ParsedQuery,
+    results: list[tuple[Chunk, float]],
+    legal_notes: list[str] | None = None,
+) -> str:
+    provider, model = resolve_llm(RAG_LLM_PROVIDER, RAG_LLM_MODEL)
+    return _generate_with_provider(
+        provider=provider,
+        model=model,
+        parsed=parsed,
+        results=results,
+        legal_notes=legal_notes,
+    )
+
+
+def _generate_with_provider(
+    *,
+    provider: str,
+    model: str,
+    parsed: ParsedQuery,
+    results: list[tuple[Chunk, float]],
+    legal_notes: list[str] | None = None,
+) -> str:
     notes_text = "\n".join(f"- {note}" for note in legal_notes or []) or "(không có)"
     user_prompt = (
         f"QUESTION:\n{parsed.query}\n\n"
@@ -285,8 +316,9 @@ def generate_with_openai(
         f"LEGAL_CONTEXT:\n{_context_from_chunks(parsed, results)}"
     )
 
-    response = client.chat.completions.create(
-        model=OPENAI_MODEL,
+    answer = chat_completion(
+        provider=provider,
+        model=model,
         temperature=RAG_OPENAI_TEMPERATURE,
         max_tokens=RAG_OPENAI_MAX_TOKENS,
         messages=[
@@ -294,6 +326,5 @@ def generate_with_openai(
             {"role": "user", "content": user_prompt},
         ],
     )
-    answer = response.choices[0].message.content or ""
     refs = [chunk for chunk, _score in results]
     return normalize_inline_legal_refs(replace_source_markers(answer, refs), refs)

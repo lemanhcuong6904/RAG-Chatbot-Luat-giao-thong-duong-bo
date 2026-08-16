@@ -11,6 +11,13 @@ from rag_luat_gt.config import (
     RAG_SANCTION_LLM_TEMPERATURE,
     RAG_REQUIRE_LLM,
 )
+from rag_luat_gt.generation.llm_client import (
+    chat_completion,
+    is_chat_provider_configured,
+    normalize_llm_provider,
+    provider_unconfigured_message,
+    resolve_llm,
+)
 from rag_luat_gt.schemas import ChatResponse, ParsedQuery
 
 
@@ -37,16 +44,26 @@ def maybe_render_structured_sanction_with_llm(
     if not response.debug:
         return response
 
-    if RAG_SANCTION_LLM_PROVIDER != "openai":
+    resolved_provider, resolved_model = resolve_llm(RAG_SANCTION_LLM_PROVIDER, RAG_SANCTION_LLM_MODEL)
+    provider = normalize_llm_provider(resolved_provider)
+    if provider in {"extractive", "rule", "off", "disabled"}:
         _mark_skip(response, f"provider={RAG_SANCTION_LLM_PROVIDER}")
         if RAG_REQUIRE_LLM and response.answerable:
-            _replace_with_required_error(response, "RAG_SANCTION_LLM_PROVIDER is not openai.")
+            _replace_with_required_error(response, "RAG_SANCTION_LLM_PROVIDER is not a chat LLM provider.")
         return response
 
-    if not OPENAI_API_KEY:
-        _mark_skip(response, "OPENAI_API_KEY is not configured")
+    if provider == "openai" and not OPENAI_API_KEY:
+        error = "OPENAI_API_KEY is not configured"
+        _mark_skip(response, error)
         if RAG_REQUIRE_LLM and response.answerable:
-            _replace_with_required_error(response, "OPENAI_API_KEY is not configured.")
+            _replace_with_required_error(response, error + ".")
+        return response
+
+    if provider != "openai" and not is_chat_provider_configured(provider):
+        error = provider_unconfigured_message(provider)
+        _mark_skip(response, error)
+        if RAG_REQUIRE_LLM and response.answerable:
+            _replace_with_required_error(response, error + ".")
         return response
 
     if not response.answerable:
@@ -65,13 +82,15 @@ def maybe_render_structured_sanction_with_llm(
         return response
 
     try:
-        response.answer = _normalize_rendered_answer(_render_with_openai(parsed, _sanction_render_prompt(response.answer), payload))
+        response.answer = _normalize_rendered_answer(
+            _render_with_provider(parsed, _sanction_render_prompt(response.answer), payload, provider=provider, model=resolved_model)
+        )
         render_debug = response.debug.setdefault("structured_sanction_llm", {})
         render_debug.update(
             {
                 "enabled": True,
-                "provider": "openai",
-                "model": RAG_SANCTION_LLM_MODEL,
+                "provider": provider,
+                "model": resolved_model,
                 "temperature": RAG_SANCTION_LLM_TEMPERATURE,
             }
         )
@@ -127,9 +146,30 @@ def _render_with_openai(
     deterministic_answer: str,
     payload: dict,
 ) -> str:
-    from openai import OpenAI
+    return _render_with_chat_provider(parsed, deterministic_answer, payload, provider="openai")
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
+
+def _render_with_provider(
+    parsed: ParsedQuery,
+    deterministic_answer: str,
+    payload: dict,
+    *,
+    provider: str,
+    model: str,
+) -> str:
+    if provider == "openai":
+        return _render_with_openai(parsed, deterministic_answer, payload)
+    return _render_with_chat_provider(parsed, deterministic_answer, payload, provider=provider, model=model)
+
+
+def _render_with_chat_provider(
+    parsed: ParsedQuery,
+    deterministic_answer: str,
+    payload: dict,
+    *,
+    provider: str,
+    model: str = RAG_SANCTION_LLM_MODEL,
+) -> str:
     user_prompt = json.dumps(
         {
             "QUESTION": parsed.query,
@@ -139,13 +179,13 @@ def _render_with_openai(
         },
         ensure_ascii=False,
     )
-    result = client.chat.completions.create(
-        model=RAG_SANCTION_LLM_MODEL,
+    return chat_completion(
+        provider=provider,
+        model=model,
         temperature=RAG_SANCTION_LLM_TEMPERATURE,
         max_tokens=RAG_SANCTION_LLM_MAX_TOKENS,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ],
-    )
-    return result.choices[0].message.content or deterministic_answer
+    ) or deterministic_answer

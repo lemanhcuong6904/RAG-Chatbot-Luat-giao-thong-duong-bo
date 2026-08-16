@@ -63,6 +63,8 @@ class ChatRequest(BaseModel):
     embedding_preset: str | None = None
     structured_lookup_enabled: bool | None = None
     structured_sanction_enabled: bool | None = None
+    llm_provider: str | None = None
+    llm_model: str | None = None
 
 
 class Citation(BaseModel):

@@ -123,7 +123,11 @@ def resolve_penalty_query(repository: SanctionRepository, parsed: ParsedQuery) -
         debug["exact_status"] = exact.status
         if not parsed.vehicle_code and parsed.behavior_code and exact.status == "FOUND" and _has_multiple_vehicle_groups(exact.rules):
             debug["sanction_vehicle_scope_split"] = True
-        return PenaltyResolution(lookup=exact, fallback_to_rag=False, debug=debug)
+        return PenaltyResolution(
+            lookup=exact,
+            fallback_to_rag=exact.status == "NEEDS_CLARIFICATION" and "vehicle_code" in exact.missing_fields,
+            debug=debug,
+        )
 
     if parsed.violations:
         resolutions = resolve_violations(repository, parsed)
@@ -135,7 +139,12 @@ def resolve_penalty_query(repository: SanctionRepository, parsed: ParsedQuery) -
             return PenaltyResolution(resolutions=resolutions, fallback_to_rag=False, debug=debug)
         if len(resolutions) == 1:
             lookup = _lookup_from_resolution(resolutions[0])
-            return PenaltyResolution(lookup=lookup, fallback_to_rag=lookup.status == "NOT_MAPPED", debug=debug)
+            return PenaltyResolution(
+                lookup=lookup,
+                fallback_to_rag=lookup.status == "NOT_MAPPED"
+                or (lookup.status == "NEEDS_CLARIFICATION" and "vehicle_code" in lookup.missing_fields),
+                debug=debug,
+            )
 
     semantic = semantic_lookup(repository, parsed, event_date=event_date)
     debug["semantic_status"] = semantic.status

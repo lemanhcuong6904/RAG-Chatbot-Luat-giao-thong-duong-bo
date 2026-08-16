@@ -7,11 +7,16 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, ValidationError
 
 from rag_luat_gt.config import (
-    OPENAI_API_KEY,
     RAG_QUERY_ROUTER_MAX_TOKENS,
     RAG_QUERY_ROUTER_MODEL,
     RAG_QUERY_ROUTER_PROVIDER,
     RAG_QUERY_ROUTER_TEMPERATURE,
+)
+from rag_luat_gt.generation.llm_client import (
+    chat_completion,
+    is_chat_provider_configured,
+    provider_unconfigured_message,
+    resolve_llm,
 )
 from rag_luat_gt.retrieval.query_planner import build_query_plan
 from rag_luat_gt.schemas import ChatResponse, ParsedQuery, QueryPlan
@@ -88,26 +93,26 @@ ALLOWED_INTENTS = {
 
 def route_query(parsed: ParsedQuery) -> tuple[ParsedQuery, QueryRouteDecision, dict[str, Any]]:
     fallback = _rule_route(parsed)
-    if RAG_QUERY_ROUTER_PROVIDER != "openai":
+    provider, model = resolve_llm(RAG_QUERY_ROUTER_PROVIDER, RAG_QUERY_ROUTER_MODEL)
+    if not is_chat_provider_configured(provider):
         routed = apply_route_decision(parsed, fallback)
-        return routed, fallback, {"enabled": False, "provider": RAG_QUERY_ROUTER_PROVIDER, "decision": fallback.model_dump()}
-    if not OPENAI_API_KEY:
-        routed = apply_route_decision(parsed, fallback)
+        if provider in {"rule", "extractive", "off", "disabled"}:
+            return routed, fallback, {"enabled": False, "provider": provider, "decision": fallback.model_dump()}
         return routed, fallback, {
             "enabled": True,
-            "provider": "openai",
-            "error": "OPENAI_API_KEY is not configured",
+            "provider": provider,
+            "error": provider_unconfigured_message(provider),
             "fallback_decision": fallback.model_dump(),
         }
 
     try:
-        payload = _call_openai(parsed)
+        payload = _call_llm(parsed, provider=provider, model=model)
         decision = QueryRouteDecision.model_validate(payload)
         routed = apply_route_decision(parsed, decision)
         return routed, decision, {
             "enabled": True,
-            "provider": "openai",
-            "model": RAG_QUERY_ROUTER_MODEL,
+            "provider": provider,
+            "model": model,
             "decision": decision.model_dump(),
             "raw_payload": payload,
         }
@@ -115,8 +120,8 @@ def route_query(parsed: ParsedQuery) -> tuple[ParsedQuery, QueryRouteDecision, d
         routed = apply_route_decision(parsed, fallback)
         return routed, fallback, {
             "enabled": True,
-            "provider": "openai",
-            "model": RAG_QUERY_ROUTER_MODEL,
+            "provider": provider,
+            "model": model,
             "error": str(exc),
             "fallback_decision": fallback.model_dump(),
         }
@@ -246,7 +251,16 @@ def _out_of_scope_answer(query_ascii: str) -> str | None:
             "Không có căn cứ về bản quyền phần mềm trong các văn bản giao thông đường bộ đang được cung cấp, "
             "nên không thể xác định mức phạt từ bộ tài liệu này."
         )
-    if any(term in query_ascii for term in ["phat tu", "tu bao nhieu", "bao nhieu nam tu", "trach nhiem hinh su"]):
+    if any(
+        term in query_ascii
+        for term in [
+            "phat tu",
+            "phat tu bao nhieu",
+            "tu bao nhieu nam",
+            "bao nhieu nam tu",
+            "trach nhiem hinh su",
+        ]
+    ):
         return (
             "Bộ tài liệu hiện có tập trung vào quy tắc và xử phạt hành chính về giao thông đường bộ. "
             "Câu hỏi về phạt tù hoặc trách nhiệm hình sự cần căn cứ pháp luật hình sự ngoài bộ nguồn này."
@@ -255,11 +269,13 @@ def _out_of_scope_answer(query_ascii: str) -> str | None:
 
 
 def _call_openai(parsed: ParsedQuery) -> dict[str, Any]:
-    from openai import OpenAI
+    return _call_llm(parsed, provider="openai", model=RAG_QUERY_ROUTER_MODEL)
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
-    response = client.chat.completions.create(
-        model=RAG_QUERY_ROUTER_MODEL,
+
+def _call_llm(parsed: ParsedQuery, *, provider: str, model: str) -> dict[str, Any]:
+    content = chat_completion(
+        provider=provider,
+        model=model,
         temperature=RAG_QUERY_ROUTER_TEMPERATURE,
         max_tokens=RAG_QUERY_ROUTER_MAX_TOKENS,
         messages=[
@@ -267,7 +283,6 @@ def _call_openai(parsed: ParsedQuery) -> dict[str, Any]:
             {"role": "user", "content": _user_prompt(parsed)},
         ],
     )
-    content = response.choices[0].message.content or "{}"
     return json.loads(_strip_code_fence(content))
 
 

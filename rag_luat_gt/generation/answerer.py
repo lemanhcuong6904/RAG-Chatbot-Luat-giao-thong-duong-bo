@@ -3,13 +3,14 @@ from __future__ import annotations
 from datetime import date
 import re
 
-from rag_luat_gt.config import OPENAI_API_KEY, RAG_LLM_PROVIDER, RAG_REQUIRE_LLM
+from rag_luat_gt.config import RAG_LLM_PROVIDER, RAG_REQUIRE_LLM
 from rag_luat_gt.citation_format import (
     normalize_inline_legal_refs,
     replace_source_markers,
     short_ref as format_short_ref,
 )
-from rag_luat_gt.generation.openai_provider import generate_with_openai
+from rag_luat_gt.generation.llm_client import is_chat_provider_configured, provider_unconfigured_message, resolve_llm
+from rag_luat_gt.generation.openai_provider import generate_with_llm
 from rag_luat_gt.legal_notes import legal_notes
 from rag_luat_gt.rule_function import effective_rule_function
 from rag_luat_gt.schemas import ChatResponse, Citation, Chunk, ParsedQuery
@@ -705,7 +706,8 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
     citations = [_citation_from_result(chunk, score) for chunk, score in results]
     notes = legal_notes(parsed, results)
     warnings = []
-    llm_configured = RAG_LLM_PROVIDER == "openai" and bool(OPENAI_API_KEY)
+    llm_provider, _llm_model = resolve_llm(RAG_LLM_PROVIDER, "")
+    llm_configured = is_chat_provider_configured(llm_provider)
 
     exact_answer = _build_exact_reference_answer(parsed, citations)
     if exact_answer and not llm_configured:
@@ -778,13 +780,13 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
             debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "capacity_age_reasoning": True},
         )
 
-    if RAG_LLM_PROVIDER == "openai" and OPENAI_API_KEY:
+    if llm_configured:
         try:
             llm_limit = 30 if parsed.retrieval_mode == "EXHAUSTIVE" or parsed.answer_mode == "ENUMERATION" else 6
-            answer = generate_with_openai(parsed, results[:llm_limit], notes)
+            answer = generate_with_llm(parsed, results[:llm_limit], notes)
         except Exception as exc:
             if RAG_REQUIRE_LLM:
-                error = f"OpenAI generation failed and RAG_REQUIRE_LLM=true: {exc}"
+                error = f"{llm_provider} generation failed and RAG_REQUIRE_LLM=true: {exc}"
                 return ChatResponse(
                     answer=_normalize_answer_style(_build_llm_required_error_answer(parsed, citations, error), citations),
                     citations=citations,
@@ -792,24 +794,25 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
                     answerable=False,
                     debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "llm_error": str(exc)},
             )
-            warnings.append(f"OpenAI generation failed, used extractive fallback: {exc}")
+            warnings.append(f"{llm_provider} generation failed, used extractive fallback: {exc}")
             answer = exact_answer or _build_extractive_answer(parsed, results, citations, notes)
     else:
-        if RAG_LLM_PROVIDER == "openai":
-            warning = "OPENAI_API_KEY is empty, used extractive fallback."
+        if llm_provider != "extractive":
+            llm_error = provider_unconfigured_message(llm_provider)
+            warning = f"{llm_error}, used extractive fallback."
             if RAG_REQUIRE_LLM:
                 return ChatResponse(
                     answer=_normalize_answer_style(
-                        _build_llm_required_error_answer(parsed, citations, "OPENAI_API_KEY is not configured."),
+                        _build_llm_required_error_answer(parsed, citations, llm_error + "."),
                         citations,
                     ),
                     citations=citations,
-                    warnings=[*notes, "OPENAI_API_KEY is not configured."],
+                    warnings=[*notes, llm_error + "."],
                     answerable=False,
                     debug={
                         "parsed_query": parsed.model_dump(),
                         "legal_notes": notes,
-                        "llm_error": "OPENAI_API_KEY is not configured.",
+                        "llm_error": llm_error + ".",
                     },
                 )
             warnings.append(warning)

@@ -33,18 +33,40 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 RAG_LLM_PROVIDER = os.getenv("RAG_LLM_PROVIDER", "extractive").lower()
 RAG_REQUIRE_LLM = os.getenv("RAG_REQUIRE_LLM", "false").lower() == "true"
+RAG_LOCAL_LLM_BASE_URL = os.getenv("RAG_LOCAL_LLM_BASE_URL", "http://127.0.0.1:8080/v1").rstrip("/")
+RAG_LOCAL_LLM_API_KEY = os.getenv("RAG_LOCAL_LLM_API_KEY", "local")
+RAG_LOCAL_LLM_MODEL = os.getenv("RAG_LOCAL_LLM_MODEL", "qwen3.5-4b-q4_k_m")
+
+
+def _is_local_llm_provider(provider: str) -> bool:
+    return provider.strip().lower().replace("-", "_") in {"local", "local_openai", "qwen", "qwen_local"}
+
+
+RAG_LLM_MODEL = os.getenv(
+    "RAG_LLM_MODEL",
+    RAG_LOCAL_LLM_MODEL if _is_local_llm_provider(RAG_LLM_PROVIDER) else OPENAI_MODEL,
+)
 RAG_OPENAI_TEMPERATURE = float(os.getenv("RAG_OPENAI_TEMPERATURE", "0"))
 RAG_OPENAI_MAX_TOKENS = int(os.getenv("RAG_OPENAI_MAX_TOKENS", "1200"))
 RAG_PRERAG_PROVIDER = os.getenv("RAG_PRERAG_PROVIDER", "rule").lower()
-RAG_PRERAG_MODEL = os.getenv("RAG_PRERAG_MODEL", OPENAI_MODEL)
+RAG_PRERAG_MODEL = os.getenv(
+    "RAG_PRERAG_MODEL",
+    RAG_LOCAL_LLM_MODEL if _is_local_llm_provider(RAG_PRERAG_PROVIDER) else OPENAI_MODEL,
+)
 RAG_PRERAG_TEMPERATURE = float(os.getenv("RAG_PRERAG_TEMPERATURE", "0"))
 RAG_PRERAG_MAX_TOKENS = int(os.getenv("RAG_PRERAG_MAX_TOKENS", "900"))
 RAG_QUERY_ROUTER_PROVIDER = os.getenv("RAG_QUERY_ROUTER_PROVIDER", RAG_PRERAG_PROVIDER).lower()
-RAG_QUERY_ROUTER_MODEL = os.getenv("RAG_QUERY_ROUTER_MODEL", OPENAI_MODEL)
+RAG_QUERY_ROUTER_MODEL = os.getenv(
+    "RAG_QUERY_ROUTER_MODEL",
+    RAG_LOCAL_LLM_MODEL if _is_local_llm_provider(RAG_QUERY_ROUTER_PROVIDER) else OPENAI_MODEL,
+)
 RAG_QUERY_ROUTER_TEMPERATURE = float(os.getenv("RAG_QUERY_ROUTER_TEMPERATURE", "0"))
 RAG_QUERY_ROUTER_MAX_TOKENS = int(os.getenv("RAG_QUERY_ROUTER_MAX_TOKENS", "700"))
 RAG_SANCTION_LLM_PROVIDER = os.getenv("RAG_SANCTION_LLM_PROVIDER", RAG_LLM_PROVIDER).lower()
-RAG_SANCTION_LLM_MODEL = os.getenv("RAG_SANCTION_LLM_MODEL", OPENAI_MODEL)
+RAG_SANCTION_LLM_MODEL = os.getenv(
+    "RAG_SANCTION_LLM_MODEL",
+    RAG_LOCAL_LLM_MODEL if _is_local_llm_provider(RAG_SANCTION_LLM_PROVIDER) else OPENAI_MODEL,
+)
 RAG_SANCTION_LLM_TEMPERATURE = float(os.getenv("RAG_SANCTION_LLM_TEMPERATURE", "0.2"))
 RAG_SANCTION_LLM_MAX_TOKENS = int(os.getenv("RAG_SANCTION_LLM_MAX_TOKENS", "900"))
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from rag_luat_gt.config import RAG_STRUCTURED_FACT_ENABLED, RAG_STRUCTURED_LOOKUP_ENABLED, SANCTION_ENABLED
 from rag_luat_gt.citation_format import ensure_claim_citations, normalize_inline_legal_refs
 from rag_luat_gt.generation.answerer import build_answer
+from rag_luat_gt.generation.llm_client import set_request_llm
 from rag_luat_gt.generation.multi_sanction_answerer import build_multi_sanction_response
 from rag_luat_gt.generation.sanction_answerer import build_sanction_response
 from rag_luat_gt.generation.structured_sanction_llm import maybe_render_structured_sanction_with_llm
@@ -53,6 +54,7 @@ class RAGService:
             print(f"[RAG] Dense retrieval model warm-up failed: {exc}", flush=True)
 
     def answer(self, request: ChatRequest) -> ChatResponse:
+        set_request_llm(request.llm_provider, request.llm_model)
         parsed = parse_query(request)
         parsed, route_decision, router_debug = route_query(parsed)
         if (
@@ -161,7 +163,9 @@ class RAGService:
                     }
                 )
                 explicit_ref = any([parsed.document_number, parsed.article, parsed.clause, parsed.point])
-                if lookup.status in {"FOUND", "AMBIGUOUS", "NEEDS_CLARIFICATION"} or (
+                if lookup.status in {"FOUND", "AMBIGUOUS"} or (
+                    lookup.status == "NEEDS_CLARIFICATION" and not penalty.fallback_to_rag
+                ) or (
                     lookup.status in {"NOT_FOUND", "TEMPORAL_AMBIGUOUS"} and explicit_ref
                 ):
                     response = build_sanction_response(parsed, lookup)
@@ -226,7 +230,7 @@ class RAGService:
                 "query_plan": parsed.query_plan.model_dump() if parsed.query_plan else None,
             }
         if normalized_mode == "llm":
-            transformed, debug = transform_query_with_llm(parsed, force_openai=explicit_mode)
+            transformed, debug = transform_query_with_llm(parsed, force_llm=explicit_mode)
             return transformed, {**debug, "mode": "llm"}
         if _router_has_sufficient_rag_plan(route_decision):
             return parsed, {
@@ -236,7 +240,7 @@ class RAGService:
                 "skip_reason": "router_plan_sufficient",
                 "router_confidence": route_decision.confidence,
             }
-        transformed, debug = transform_query_with_llm(parsed, force_openai=explicit_mode)
+        transformed, debug = transform_query_with_llm(parsed, force_llm=explicit_mode)
         return transformed, {**debug, "mode": "optimized"}
 
     def _attach_score_details(self, response: ChatResponse) -> None:
@@ -354,7 +358,8 @@ def _requires_external_law(parsed: ParsedQuery) -> bool:
         term in query
         for term in [
             "phat tu",
-            "tu bao nhieu",
+            "phat tu bao nhieu",
+            "tu bao nhieu nam",
             "bao nhieu nam tu",
             "trach nhiem hinh su",
             "sao chep phan mem",

@@ -5,11 +5,17 @@ import re
 from typing import Any
 
 from rag_luat_gt.config import (
-    OPENAI_API_KEY,
     RAG_PRERAG_MAX_TOKENS,
     RAG_PRERAG_MODEL,
     RAG_PRERAG_PROVIDER,
     RAG_PRERAG_TEMPERATURE,
+)
+from rag_luat_gt.generation.llm_client import (
+    chat_completion,
+    is_chat_llm_provider,
+    is_chat_provider_configured,
+    provider_unconfigured_message,
+    resolve_llm,
 )
 from rag_luat_gt.retrieval.query_planner import build_query_plan
 from rag_luat_gt.sanction.behavior_catalog import match_behaviors
@@ -48,28 +54,37 @@ ALLOWED_INTENTS = {
 }
 
 
-def transform_query_with_llm(parsed: ParsedQuery, *, force_openai: bool = False) -> tuple[ParsedQuery, dict[str, Any]]:
-    if not force_openai and RAG_PRERAG_PROVIDER != "openai":
+def transform_query_with_llm(
+    parsed: ParsedQuery,
+    *,
+    force_openai: bool = False,
+    force_llm: bool | None = None,
+) -> tuple[ParsedQuery, dict[str, Any]]:
+    force_llm = force_openai if force_llm is None else force_llm
+    provider, model = resolve_llm(RAG_PRERAG_PROVIDER, RAG_PRERAG_MODEL)
+    if force_llm and not is_chat_llm_provider(provider):
+        provider = "openai"
+    if not force_llm and not is_chat_llm_provider(provider):
         return parsed, {"enabled": False, "provider": RAG_PRERAG_PROVIDER}
-    if not OPENAI_API_KEY:
-        return parsed, {"enabled": True, "provider": "openai", "error": "OPENAI_API_KEY is not configured"}
+    if not is_chat_provider_configured(provider):
+        return parsed, {"enabled": True, "provider": provider, "error": provider_unconfigured_message(provider)}
 
     try:
-        payload = _call_openai(parsed)
+        payload = _call_llm(parsed, provider=provider, model=model)
         transformed = merge_llm_transform(parsed, payload)
         return transformed, {
             "enabled": True,
-            "provider": "openai",
-            "model": RAG_PRERAG_MODEL,
-            "forced": force_openai,
+            "provider": provider,
+            "model": model,
+            "forced": force_llm,
             "payload": payload,
         }
     except Exception as exc:
         return parsed, {
             "enabled": True,
-            "provider": "openai",
-            "model": RAG_PRERAG_MODEL,
-            "forced": force_openai,
+            "provider": provider,
+            "model": model,
+            "forced": force_llm,
             "error": str(exc),
         }
 
@@ -272,11 +287,13 @@ def _plan_from_payload(parsed: ParsedQuery, value: Any) -> QueryPlan:
 
 
 def _call_openai(parsed: ParsedQuery) -> dict[str, Any]:
-    from openai import OpenAI
+    return _call_llm(parsed, provider="openai", model=RAG_PRERAG_MODEL)
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
-    response = client.chat.completions.create(
-        model=RAG_PRERAG_MODEL,
+
+def _call_llm(parsed: ParsedQuery, *, provider: str, model: str) -> dict[str, Any]:
+    content = chat_completion(
+        provider=provider,
+        model=model,
         temperature=RAG_PRERAG_TEMPERATURE,
         max_tokens=RAG_PRERAG_MAX_TOKENS,
         messages=[
@@ -284,7 +301,6 @@ def _call_openai(parsed: ParsedQuery) -> dict[str, Any]:
             {"role": "user", "content": _user_prompt(parsed)},
         ],
     )
-    content = response.choices[0].message.content or "{}"
     return json.loads(_strip_code_fence(content))
 
 

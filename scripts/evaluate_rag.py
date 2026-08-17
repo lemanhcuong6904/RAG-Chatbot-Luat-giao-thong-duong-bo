@@ -22,8 +22,8 @@ sys.path.insert(0, str(ROOT_DIR))
 # CONFIG - edit here only
 # =========================
 DATASET_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "golden_v2_200.jsonl"
-REPORT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "EVALUATION_REPORT_V2_qwen3_0_6b.md"
-CACHE_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_v2_qwen3_0_6b.jsonl"
+REPORT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "EVALUATION_REPORT_bge_m3.md"
+CACHE_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_bge_m3.jsonl"
 
 # Smoke-test alternative:
 # DATASET_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "smoke_v2_50.jsonl"
@@ -41,7 +41,7 @@ RESUME_FROM_CACHE = False
 
 # Dense embedding preset for this evaluation run.
 # Options: "bge_m3", "qwen3_0_6b"
-EVALUATION_EMBEDDING_PRESET = "qwen3_0_6b"
+EVALUATION_EMBEDDING_PRESET = "bge_m3"
 
 # Pre-RAG controls.
 # Set ENABLE_PRE_RAG_STAGE=False to bypass Pre-RAG completely.
@@ -49,7 +49,7 @@ EVALUATION_EMBEDDING_PRESET = "qwen3_0_6b"
 # Keep ENABLE_QUERY_ROUTER_LLM=False when you want the Pre-RAG transformer to run
 # consistently; an OpenAI router can make the transformer skip when its plan is sufficient.
 ENABLE_PRE_RAG_STAGE = True
-ENABLE_PRE_RAG_LLM = True
+ENABLE_PRE_RAG_LLM = False
 ENABLE_QUERY_ROUTER_LLM = True
 
 
@@ -374,8 +374,24 @@ def _mean(values: list[float | bool | None]) -> float | None:
     return None if not filtered else sum(filtered) / len(filtered)
 
 
+def _percentile(values: list[float], percentile: float) -> float:
+    if not values:
+        return 0.0
+    if len(values) == 1:
+        return values[0]
+    ordered = sorted(values)
+    rank = (len(ordered) - 1) * percentile
+    lower = math.floor(rank)
+    upper = math.ceil(rank)
+    if lower == upper:
+        return ordered[int(rank)]
+    fraction = rank - lower
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * fraction
+
+
 def _summarize(outputs: list[dict[str, Any]], mode: str, dataset_path: Path) -> tuple[str, dict[str, Any]]:
     cases = [CaseMetrics(row=o["row"], response=o["response"], latency_s=o["latency_s"], error=o.get("error")) for o in outputs]
+    latencies = [case.latency_s for case in cases]
     retrieval = [_retrieval_metrics(case) for case in cases]
     generation = [_generation_metrics(case) for case in cases]
     structured = [_structured_metrics(case) for case in cases]
@@ -391,8 +407,9 @@ def _summarize(outputs: list[dict[str, Any]], mode: str, dataset_path: Path) -> 
     summary = {
         "n": len(cases),
         "errors": sum(1 for case in cases if case.error),
-        "latency_mean_s": statistics.mean([case.latency_s for case in cases]) if cases else 0,
-        "latency_p50_s": statistics.median([case.latency_s for case in cases]) if cases else 0,
+        "latency_mean_s": statistics.mean(latencies) if latencies else 0,
+        "latency_p50_s": statistics.median(latencies) if latencies else 0,
+        "latency_p95_s": _percentile(latencies, 0.95),
         "retrieval": {
             key: _mean([item.get(key) for item in retrieval if item.get("applicable")])
             for key in ["recall@1", "recall@3", "recall@5", "recall@10", "completeness@10", "mrr", "ndcg@10"]
@@ -437,7 +454,7 @@ def _summarize(outputs: list[dict[str, Any]], mode: str, dataset_path: Path) -> 
         f"- Query router LLM: `{ENABLE_QUERY_ROUTER_LLM}`",
         f"- Số câu: `{summary['n']}`",
         f"- Số lỗi runtime: `{summary['errors']}`",
-        f"- Latency trung bình: `{summary['latency_mean_s']:.2f}s`; p50: `{summary['latency_p50_s']:.2f}s`",
+        f"- Latency trung bình: `{summary['latency_mean_s']:.2f}s`; p50: `{summary['latency_p50_s']:.2f}s`; p95: `{summary['latency_p95_s']:.2f}s`",
         "",
         "## Retrieval",
         "",

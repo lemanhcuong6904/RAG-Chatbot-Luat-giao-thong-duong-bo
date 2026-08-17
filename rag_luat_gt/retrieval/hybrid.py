@@ -125,6 +125,8 @@ class HybridRetriever:
                 queries.append(plan.step_back_query)
             if plan.hyde_text:
                 queries.append(plan.hyde_text)
+        if parsed.must_include_terms:
+            queries.append(" ".join(parsed.must_include_terms))
 
         seen: set[str] = set()
         result: list[str] = []
@@ -246,6 +248,7 @@ class HybridRetriever:
             return []
 
         reranked = self._apply_rule_function_preferences(parsed, results)
+        reranked = self._apply_semantic_focus_preferences(parsed, reranked)
         reranked = self._apply_accident_responsibility_preferences(parsed, reranked)
         reranked = self._apply_license_point_preferences(parsed, reranked)
         reranked = self._apply_license_class_preferences(parsed, reranked)
@@ -274,6 +277,32 @@ class HybridRetriever:
             item = self.last_score_trace.setdefault(chunk.chunk_id, {})
             item[stage] = score
             item[rank_key] = rank
+
+    @staticmethod
+    def _apply_semantic_focus_preferences(
+        parsed: ParsedQuery,
+        results: list[tuple[Chunk, float]],
+    ) -> list[tuple[Chunk, float]]:
+        include_terms = [strip_accents(normalize_text(term)) for term in parsed.must_include_terms if term]
+        confuse_terms = [strip_accents(normalize_text(term)) for term in parsed.must_not_confuse_with if term]
+        if not include_terms and not confuse_terms:
+            return results
+
+        reranked: list[tuple[Chunk, float]] = []
+        for chunk, score in results:
+            text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:1400]}"))
+            adjusted = score
+            base = max(abs(score), 1.0)
+            include_hits = sum(1 for term in include_terms if term and term in text)
+            confuse_hits = sum(1 for term in confuse_terms if term and term in text)
+            if include_hits:
+                adjusted += base * min(4.0, include_hits * 1.25)
+            if include_terms and not include_hits:
+                adjusted -= base * 0.35
+            if confuse_hits:
+                adjusted -= base * min(3.0, confuse_hits * 1.0)
+            reranked.append((chunk, adjusted))
+        return reranked
 
     @staticmethod
     def _apply_rule_function_preferences(
@@ -707,6 +736,7 @@ class HybridRetriever:
         focus_terms = [
             *self._behavior_focus_terms(query_ascii),
             *self._condition_focus_terms(query_ascii),
+            *[strip_accents(normalize_text(term)) for term in parsed.must_include_terms if term],
         ]
 
         expanded: list[tuple[Chunk, float]] = []

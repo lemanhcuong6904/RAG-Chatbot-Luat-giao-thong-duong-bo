@@ -19,6 +19,7 @@ from rag_luat_gt.generation.llm_client import (
     resolve_llm,
 )
 from rag_luat_gt.retrieval.query_planner import build_query_plan
+from rag_luat_gt.retrieval.semantic_parse import validated_semantic_updates
 from rag_luat_gt.schemas import ChatResponse, ParsedQuery, QueryPlan
 from rag_luat_gt.text import normalize_text, strip_accents
 
@@ -43,6 +44,10 @@ class QueryRouteDecision(BaseModel):
     needs_children: bool = False
     use_structured_sanction: bool = False
     question_rewrite: str | None = None
+    license_classes: list[str] = Field(default_factory=list)
+    requested_facets: list[str] = Field(default_factory=list)
+    must_include_terms: list[str] = Field(default_factory=list)
+    must_not_confuse_with: list[str] = Field(default_factory=list)
     direct_answer: str | None = None
     reason: str | None = None
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
@@ -66,6 +71,12 @@ Retrieval strategy:
 - EXPAND_PARENT_SIBLINGS: cần parent và các sibling cùng khoản/nhóm.
 - EXHAUSTIVE_ARTICLE: câu hỏi liệt kê/toàn bộ nghĩa vụ/trách nhiệm/quyền/thủ tục/bao gồm những gì.
 
+Semantic parse:
+- Nếu route là RAG, có thể bổ sung license_classes, requested_facets, must_include_terms và must_not_confuse_with.
+- "Bằng/hạng X được lái/điều khiển loại xe nào" là DRIVER_LICENSE, không phải DRIVER_AGE_REQUIREMENT.
+- "Bao nhiêu tuổi/từ bao nhiêu tuổi/đủ tuổi" là DRIVER_AGE_REQUIREMENT.
+- "CSGT dừng xe" kèm quyền/lý do/căn cứ phải ưu tiên quyền được thông báo căn cứ dừng phương tiện; không nhầm với quy tắc dừng, đỗ xe.
+
 Ràng buộc:
 - Trả JSON hợp lệ duy nhất, không markdown.
 - legal_domain phải là traffic_law nếu câu hỏi thuộc luật giao thông đường bộ.
@@ -74,21 +85,6 @@ Ràng buộc:
   về pháp luật giao thông đường bộ Việt Nam. Không trả lời chung chung kiểu "Tôi có thể giúp gì cho bạn hôm nay?".
   Ví dụ: "Chào bạn. Bạn có thể đặt câu hỏi liên quan đến pháp luật giao thông đường bộ Việt Nam; mình sẽ hỗ trợ tra cứu quy định, mức phạt, điểm GPLX và căn cứ pháp lý."
 """
-
-
-ALLOWED_INTENTS = {
-    "GENERAL_LEGAL_QA",
-    "PENALTY_LOOKUP",
-    "LICENSE_POINT_BALANCE",
-    "DRIVER_AGE_REQUIREMENT",
-    "ENUMERATION",
-    "DRIVER_LICENSE",
-    "REGISTRATION",
-    "SPEED_RULE",
-    "FEE_LOOKUP",
-    "AMENDMENT_COMPARE",
-    "ARTICLE_LOOKUP",
-}
 
 
 def route_query(parsed: ParsedQuery) -> tuple[ParsedQuery, QueryRouteDecision, dict[str, Any]]:
@@ -131,13 +127,11 @@ def apply_route_decision(parsed: ParsedQuery, decision: QueryRouteDecision) -> P
     if decision.route != "RAG":
         return parsed
 
-    updates: dict[str, Any] = {}
-    if decision.intent in ALLOWED_INTENTS:
-        updates["intent"] = decision.intent
-        updates["primary_intent"] = decision.intent
+    payload = decision.model_dump()
     if decision.question_rewrite:
-        updates["retrieval_query"] = decision.question_rewrite
-        updates["normalized_query"] = decision.question_rewrite
+        payload.setdefault("retrieval_query", decision.question_rewrite)
+        payload.setdefault("normalized_query", decision.question_rewrite)
+    updates, validation_notes = validated_semantic_updates(parsed, payload)
 
     if decision.retrieval_strategy == "EXHAUSTIVE_ARTICLE":
         updates.setdefault("intent", "ENUMERATION")
@@ -152,6 +146,8 @@ def apply_route_decision(parsed: ParsedQuery, decision: QueryRouteDecision) -> P
             updates["answer_mode"] = "ENUMERATION"
 
     routed = parsed.model_copy(update=updates)
+    if validation_notes:
+        routed.keywords = [*routed.keywords, *[f"router_validation:{note}" for note in validation_notes]]
     plan = build_query_plan(routed)
     if decision.use_structured_sanction:
         plan.use_structured_sanction = True

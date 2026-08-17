@@ -148,4 +148,6 @@ class ParsedQuery(BaseModel):
     answer_scope: str | None = None
     keywords: list[str] = Field(default_factory=list)
     license_classes: list[str] = Field(default_factory=list)
+    must_include_terms: list[str] = Field(default_factory=list)
+    must_not_confuse_with: list[str] = Field(default_factory=list)
     query_plan: QueryPlan | None = None

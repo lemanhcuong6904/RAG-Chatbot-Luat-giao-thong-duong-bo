@@ -18,40 +18,36 @@ from rag_luat_gt.generation.llm_client import (
     resolve_llm,
 )
 from rag_luat_gt.retrieval.query_planner import build_query_plan
+from rag_luat_gt.retrieval.semantic_parse import (
+    ALLOWED_INTENTS,
+    filtered_plan_strategies,
+    validated_semantic_updates,
+)
 from rag_luat_gt.sanction.behavior_catalog import match_behaviors
 from rag_luat_gt.schemas import ParsedQuery, QueryPlan, ViolationFact
 from rag_luat_gt.text import normalize_text, strip_accents
 
 
-SYSTEM_PROMPT = """Bạn là bộ biến đổi truy vấn Pre-RAG cho chatbot pháp luật giao thông đường bộ Việt Nam.
+SYSTEM_PROMPT = """Bạn là bộ semantic parser Pre-RAG cho chatbot pháp luật giao thông đường bộ Việt Nam.
 
 Nhiệm vụ:
-- Chuẩn hóa ý định truy vấn.
+- Chuẩn hóa ý định truy vấn và sửa các nhầm lẫn ngữ nghĩa của rule parser.
 - Tách nhiều hành vi vi phạm nếu có.
+- Trích xuất hạng giấy phép lái xe được hỏi.
+- Sinh retrieval_query, must_include_terms, must_not_confuse_with để retrieval bám đúng nguồn.
 - Lập query plan: EXPANSION, DECOMPOSITION, STRUCTURED_LOOKUP, LEGAL_COMPOSITION, MULTI_QUERY, STEP_BACK, HYDE, HYBRID_RETRIEVAL.
 - Sinh multi_queries, step_back_query, hyde_text chỉ để truy xuất nguồn, không dùng làm câu trả lời pháp lý.
 
 Ràng buộc:
 - Không bịa mức phạt, điểm GPLX, điều khoản hoặc kết luận pháp lý.
 - Nếu người dùng nêu Điều/Khoản/Điểm/số văn bản rõ ràng, không được làm loãng bằng multi-query/hyde.
+- Giữ các dữ kiện chắc chắn trong current_parse; chỉ sửa intent/query khi có căn cứ ngữ nghĩa rõ.
+- Câu hỏi "bằng/hạng X được lái/điều khiển loại xe nào" là DRIVER_LICENSE, không phải DRIVER_AGE_REQUIREMENT.
+- Câu hỏi "bao nhiêu tuổi/từ bao nhiêu tuổi/đủ tuổi" là DRIVER_AGE_REQUIREMENT.
+- Câu hỏi CSGT dừng xe + quyền/lý do/căn cứ phải ưu tiên quyền được thông báo căn cứ dừng phương tiện, không nhầm với dừng/đỗ xe.
 - Penalty query đã map được structured sanction thì ưu tiên STRUCTURED_LOOKUP.
 - Trả về JSON hợp lệ duy nhất, không markdown.
 """
-
-
-ALLOWED_INTENTS = {
-    "GENERAL_LEGAL_QA",
-    "PENALTY_LOOKUP",
-    "LICENSE_POINT_BALANCE",
-    "DRIVER_AGE_REQUIREMENT",
-    "ENUMERATION",
-    "DRIVER_LICENSE",
-    "REGISTRATION",
-    "SPEED_RULE",
-    "FEE_LOOKUP",
-    "AMENDMENT_COMPARE",
-    "ARTICLE_LOOKUP",
-}
 
 
 def transform_query_with_llm(
@@ -91,25 +87,7 @@ def transform_query_with_llm(
 
 def merge_llm_transform(parsed: ParsedQuery, payload: dict[str, Any]) -> ParsedQuery:
     explicit_reference = any([parsed.document_number, parsed.article, parsed.clause, parsed.point])
-    updates: dict[str, Any] = {}
-
-    intent = payload.get("intent")
-    if isinstance(intent, str) and intent in ALLOWED_INTENTS:
-        updates["intent"] = intent
-        updates["primary_intent"] = intent
-
-    for field in [
-        "normalized_query",
-        "retrieval_query",
-        "evidence_validation_query",
-        "vehicle_type",
-        "vehicle_code",
-        "behavior_text_query",
-        "desired_rule_function",
-    ]:
-        value = payload.get(field)
-        if isinstance(value, str) and value.strip():
-            updates[field] = value.strip()
+    updates, validation_notes = validated_semantic_updates(parsed, payload)
     behavior_code = payload.get("behavior_code")
     if (
         transformed_intent(payload, parsed) != "PENALTY_LOOKUP"
@@ -138,6 +116,8 @@ def merge_llm_transform(parsed: ParsedQuery, payload: dict[str, Any]) -> ParsedQ
         plan.hyde_text = None
         plan.strategy = ["DIRECT", "EXPANSION", "HYBRID_RETRIEVAL"]
     transformed.query_plan = plan
+    if validation_notes:
+        transformed.keywords = [*transformed.keywords, *[f"semantic_validation:{note}" for note in validation_notes]]
     return transformed
 
 
@@ -273,8 +253,7 @@ def _plan_from_payload(parsed: ParsedQuery, value: Any) -> QueryPlan:
         return fallback
 
     plan_data = fallback.model_dump()
-    if isinstance(value.get("strategy"), list):
-        plan_data["strategy"] = [str(item) for item in value["strategy"] if item]
+    plan_data["strategy"] = filtered_plan_strategies(value.get("strategy"), fallback.strategy)
     if isinstance(value.get("use_structured_sanction"), bool):
         plan_data["use_structured_sanction"] = value["use_structured_sanction"]
     for field in ["expanded_query", "step_back_query", "hyde_text"]:
@@ -318,6 +297,9 @@ def _user_prompt(parsed: ParsedQuery) -> str:
                 "behavior_code": "string|null",
                 "behavior_text_query": "string|null",
                 "requested_facets": ["string"],
+                "license_classes": ["A1|A|B1|B|C1|C|D1|D2|D|BE|C1E|CE|D1E|D2E|DE"],
+                "must_include_terms": ["phrases that relevant legal chunks should contain"],
+                "must_not_confuse_with": ["nearby but wrong legal topics to down-rank"],
                 "violations": [
                     {
                         "behavior_code": "string",

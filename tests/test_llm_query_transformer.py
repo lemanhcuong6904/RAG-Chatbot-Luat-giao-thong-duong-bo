@@ -29,10 +29,14 @@ def test_llm_transform_merges_multi_query_plan() -> None:
 
 def test_llm_transform_does_not_loosen_explicit_legal_reference() -> None:
     parsed = parse_query(ChatRequest(query="Khoản 4 Điều 7 Nghị định 168/2024/NĐ-CP quy định gì?"))
+    original_query = parsed.normalized_query
 
     transformed = merge_llm_transform(
         parsed,
         {
+            "intent": "PENALTY_LOOKUP",
+            "retrieval_query": "quy định xử phạt xe máy",
+            "normalized_query": "quy định xử phạt xe máy",
             "query_plan": {
                 "strategy": ["MULTI_QUERY", "HYDE", "HYBRID_RETRIEVAL"],
                 "multi_queries": ["quy định xử phạt xe máy"],
@@ -45,6 +49,8 @@ def test_llm_transform_does_not_loosen_explicit_legal_reference() -> None:
     assert transformed.query_plan.strategy == ["DIRECT", "EXPANSION", "HYBRID_RETRIEVAL"]
     assert transformed.query_plan.multi_queries == []
     assert transformed.query_plan.hyde_text is None
+    assert transformed.intent == parsed.intent
+    assert transformed.normalized_query == original_query
 
 
 def test_llm_transform_can_replace_violation_facts() -> None:
@@ -140,3 +146,43 @@ def test_llm_transform_does_not_use_unmapped_penalty_behavior_code_for_structure
     assert transformed.behavior_code is None
     assert transformed.violations[0].behavior_code == "HANH_VI_LLM_TU_SINH"
     assert transformed.violations[0].catalog_code is None
+
+
+def test_llm_transform_accepts_valid_semantic_focus_fields() -> None:
+    parsed = parse_query(ChatRequest(query="Khi bị CSGT dừng xe, người lái có quyền được biết lý do không?"))
+
+    transformed = merge_llm_transform(
+        parsed,
+        {
+            "intent": "GENERAL_LEGAL_QA",
+            "retrieval_query": "quyền người điều khiển được thông báo căn cứ dừng phương tiện kiểm tra kiểm soát Điều 72",
+            "must_include_terms": ["được thông báo", "căn cứ dừng phương tiện", "kiểm tra, kiểm soát"],
+            "must_not_confuse_with": ["dừng xe, đỗ xe", "Điều 18"],
+            "query_plan": {
+                "strategy": ["EXPANSION", "MULTI_QUERY", "HYBRID_RETRIEVAL", "UNSAFE_UNKNOWN"],
+                "multi_queries": ["quyền được thông báo căn cứ dừng phương tiện"],
+            },
+        },
+    )
+
+    assert transformed.retrieval_query.startswith("quyền người điều khiển")
+    assert transformed.must_include_terms == ["được thông báo", "căn cứ dừng phương tiện", "kiểm tra, kiểm soát"]
+    assert transformed.must_not_confuse_with == ["dừng xe, đỗ xe", "Điều 18"]
+    assert transformed.query_plan
+    assert "UNSAFE_UNKNOWN" not in transformed.query_plan.strategy
+
+
+def test_llm_transform_cannot_add_unmentioned_license_classes() -> None:
+    parsed = parse_query(ChatRequest(query="Bằng B được lái những loại ô tô nào?"))
+
+    transformed = merge_llm_transform(
+        parsed,
+        {
+            "intent": "DRIVER_LICENSE",
+            "license_classes": ["BE", "C1"],
+            "must_include_terms": ["Hạng B cấp cho người lái xe"],
+        },
+    )
+
+    assert transformed.license_classes == ["B"]
+    assert transformed.must_include_terms == ["Hạng B cấp cho người lái xe"]

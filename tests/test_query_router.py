@@ -174,6 +174,26 @@ def test_router_decision_can_force_exhaustive_article_strategy() -> None:
     assert "EXHAUSTIVE_ARTICLE" in routed.query_plan.strategy
 
 
+def test_router_decision_merges_semantic_parse_fields() -> None:
+    parsed = parse_query(ChatRequest(query="Khi bị CSGT dừng xe, người lái có quyền được biết lý do không?"))
+    decision = QueryRouteDecision(
+        route="RAG",
+        legal_domain="traffic_law",
+        intent="GENERAL_LEGAL_QA",
+        retrieval_strategy="FACTOID",
+        question_rewrite="quyền được thông báo căn cứ dừng phương tiện kiểm tra kiểm soát",
+        must_include_terms=["được thông báo", "căn cứ dừng phương tiện"],
+        must_not_confuse_with=["dừng xe, đỗ xe"],
+        confidence=0.9,
+    )
+
+    routed = apply_route_decision(parsed, decision)
+
+    assert routed.retrieval_query == "quyền được thông báo căn cứ dừng phương tiện kiểm tra kiểm soát"
+    assert routed.must_include_terms == ["được thông báo", "căn cứ dừng phương tiện"]
+    assert routed.must_not_confuse_with == ["dừng xe, đỗ xe"]
+
+
 @pytest.mark.parametrize(
     "query",
     [

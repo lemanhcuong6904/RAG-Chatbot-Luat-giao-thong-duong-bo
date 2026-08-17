@@ -173,6 +173,9 @@ def semantic_lookup(
 
     query_text = behavior_text or parsed.behavior_text_query or parsed.query
     query_profile = _profile(query_text)
+    ambiguous = _ambiguous_penalty_lookup(parsed, query_profile)
+    if ambiguous:
+        return ambiguous
     if not parsed.vehicle_code and _looks_like_vehicle_required_penalty(query_profile):
         scored_all = _score_candidates(query_profile, candidates.rules)
         if scored_all and scored_all[0][0] >= 0.24:
@@ -202,9 +205,165 @@ def semantic_lookup(
         )
 
     selected = scored[0][1].model_copy(update={"confidence": round(top_score, 3)})
+    condition_lookup = _material_condition_lookup(parsed, query_profile, selected)
+    if condition_lookup:
+        return condition_lookup
     if selected.temporal_status in {"DEFERRED", "CONDITIONAL", "UNRESOLVED"} and selected.temporal_warning:
         return SanctionLookup(status="TEMPORAL_AMBIGUOUS", rules=[selected], warnings=[selected.temporal_warning])
     return SanctionLookup(status="FOUND", rules=[selected])
+
+
+def _material_condition_lookup(
+    parsed: ParsedQuery,
+    profile: QueryProfile,
+    rule: SanctionRule,
+) -> SanctionLookup | None:
+    rule_text = _ascii(" ".join([rule.behavior_text or "", rule.source_text or "", rule.parent_clause_text or ""]))
+    if not _child_safety_rule(rule_text):
+        return None
+    if not any(term in profile.text for term in ["tre", "tre em", "con", "chau"]):
+        return None
+
+    missing: list[str] = []
+    asks_missing_safety_device = _query_asks_missing_child_safety_device(profile.text)
+    if not asks_missing_safety_device and not _query_mentions_child_age_height(profile.text):
+        missing.append("child_age_height")
+    if (
+        not asks_missing_safety_device
+        and "cung hang ghe voi nguoi lai" in rule_text
+        and not _query_mentions_exact_child_seat_position(profile.text)
+    ):
+        missing.append("seat_position")
+    if parsed.event_date is None:
+        missing.append("event_date")
+
+    if not missing:
+        return None
+    warnings = [
+        (
+            "Can lam ro cac dieu kien vat chat cua quy dinh duoc truy hoi: tuoi/chieu cao cua tre, "
+            "vi tri ngoi co dung la cung hang ghe voi nguoi lai hay khong, va thoi diem xay ra hanh vi."
+        )
+    ]
+    return SanctionLookup(status="NEEDS_CLARIFICATION", rules=[rule], missing_fields=missing, warnings=warnings)
+
+
+def _ambiguous_penalty_lookup(parsed: ParsedQuery, profile: QueryProfile) -> SanctionLookup | None:
+    missing: list[str] = []
+    warning: str | None = None
+
+    if _speed_query(profile) and "qua toc do" in profile.text and _query_speed_interval(profile.text) is None:
+        missing.append("speed_excess_kmh")
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        warning = "Can lam ro loai phuong tien va muc vuot qua toc do tinh bang km/h."
+    elif _alcohol_query(profile) and _query_alcohol_interval(profile.text) is None:
+        missing.append("alcohol_concentration")
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        warning = "Can lam ro loai phuong tien va nong do con do duoc trong mau hoac khi tho."
+    elif _overloaded_passenger_query(profile):
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        if not _query_mentions_passenger_count(profile.text):
+            missing.append("passenger_count")
+        warning = "Can lam ro loai phuong tien, so nguoi thuc te cho va so nguoi vuot qua quy dinh."
+    elif _paperwork_query(profile):
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        if not _query_mentions_paper_type(profile.text):
+            missing.append("paper_type")
+        warning = "Can lam ro loai phuong tien va loai giay to khong mang/khong co."
+    elif _parking_query(profile):
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        if not _query_mentions_parking_location(profile.text):
+            missing.append("parking_location")
+        warning = "Can lam ro loai phuong tien va vi tri/tinh huong dung, do xe cu the."
+    elif _highway_wrong_lane_query(profile):
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        missing.append("lane_behavior")
+        warning = "Can lam ro loai phuong tien va hanh vi sai lan cu the tren duong cao toc."
+
+    if not missing:
+        return None
+    return SanctionLookup(
+        status="NEEDS_CLARIFICATION",
+        missing_fields=list(dict.fromkeys(missing)),
+        warnings=[warning or "Can bo sung dieu kien bat buoc de xac dinh che tai."],
+    )
+
+
+def _overloaded_passenger_query(profile: QueryProfile) -> bool:
+    return any(term in profile.text for term in ["cho qua nguoi", "cho qua so nguoi", "qua nguoi"])
+
+
+def _query_mentions_passenger_count(text: str) -> bool:
+    return re.search(r"\b\d+\s*(?:nguoi|khach|cho)\b", text) is not None or any(
+        term in text for term in ["vuot qua", "qua may nguoi", "qua bao nhieu"]
+    )
+
+
+def _paperwork_query(profile: QueryProfile) -> bool:
+    return any(term in profile.text for term in ["giay to xe", "khong mang giay to", "khong co giay to"])
+
+
+def _query_mentions_paper_type(text: str) -> bool:
+    return any(term in text for term in ["gplx", "giay phep lai xe", "bang lai", "dang ky", "kiem dinh", "bao hiem"])
+
+
+def _parking_query(profile: QueryProfile) -> bool:
+    return any(term in profile.text for term in ["do xe sai cho", "dung do sai cho", "do sai cho", "dung xe sai cho"])
+
+
+def _query_mentions_parking_location(text: str) -> bool:
+    return any(
+        term in text
+        for term in [
+            "tren cau",
+            "gam cau",
+            "trong ham",
+            "cao toc",
+            "giao lo",
+            "nga ba",
+            "nga tu",
+            "via he",
+            "long duong",
+            "bien cam",
+            "noi cam",
+            "duong sat",
+            "diem dung don",
+        ]
+    )
+
+
+def _child_safety_rule(rule_text: str) -> bool:
+    return "tre em" in rule_text and (
+        "1,35" in rule_text
+        or "1.35" in rule_text
+        or "135" in rule_text
+        or "thiet bi an toan" in rule_text
+        or "cung hang ghe voi nguoi lai" in rule_text
+    )
+
+
+def _query_mentions_child_age_height(text: str) -> bool:
+    has_age = any(term in text for term in ["duoi 10", "10 tuoi", "tre em duoi"])
+    has_height = any(term in text for term in ["1,35", "1.35", "1m35", "135"])
+    return has_age and has_height
+
+
+def _query_mentions_exact_child_seat_position(text: str) -> bool:
+    return "cung hang ghe voi nguoi lai" in text or "hang ghe voi nguoi lai" in text
+
+
+def _query_asks_missing_child_safety_device(text: str) -> bool:
+    return any(term in text for term in ["khong dung thiet bi an toan", "khong su dung thiet bi an toan", "khong co thiet bi an toan"])
+
+
+def _highway_wrong_lane_query(profile: QueryProfile) -> bool:
+    return "cao toc" in profile.text and any(term in profile.text for term in ["sai lan", "di sai lan", "chay sai lan"])
 
 
 def _exact_lookup(repository: SanctionRepository, parsed: ParsedQuery, event_date: str) -> SanctionLookup | None:
@@ -220,9 +379,22 @@ def _exact_lookup(repository: SanctionRepository, parsed: ParsedQuery, event_dat
         clause=parsed.clause,
         point=parsed.point,
     )
+    if lookup.status == "NOT_FOUND" and parsed.vehicle_code and parsed.behavior_code:
+        scoped = repository.lookup_behavior_codes(
+            event_date=event_date,
+            behavior_codes=_behavior_codes_for_scope_lookup(parsed),
+            limit=50,
+        )
+        filtered = _filter_rules_for_vehicle(scoped.rules, parsed.vehicle_code) if scoped.status == "FOUND" else []
+        if filtered:
+            return SanctionLookup(status="FOUND", rules=filtered)
     if lookup.status == "NEEDS_CLARIFICATION" and parsed.behavior_code:
         behavior_codes = _behavior_codes_for_scope_lookup(parsed)
         scoped = repository.lookup_behavior_codes(event_date=event_date, behavior_codes=behavior_codes, limit=50)
+        if scoped.status == "FOUND" and parsed.vehicle_code:
+            filtered = _filter_rules_for_vehicle(scoped.rules, parsed.vehicle_code)
+            if filtered:
+                return SanctionLookup(status="FOUND", rules=filtered)
         if scoped.status == "FOUND" and any(violation.catalog_code == "NO_DRIVER_LICENSE" for violation in parsed.violations):
             return scoped
         if scoped.status == "FOUND" and _has_multiple_vehicle_groups(scoped.rules):
@@ -469,7 +641,7 @@ def _speed_rule(rule_text: str) -> bool:
 
 
 def _alcohol_query(profile: QueryProfile) -> bool:
-    return "nong do con" in profile.text or "mg/l" in profile.text or "miligam" in profile.text
+    return any(term in profile.text for term in ["nong do con", "ruou", "bia", "mg/l", "miligam"])
 
 
 def _phone_query(profile: QueryProfile) -> bool:
@@ -547,6 +719,9 @@ def _vehicle_branch_rules(scored: list[tuple[float, SanctionRule]]) -> list[Sanc
 
 
 def _primary_vehicle_group(rule: SanctionRule) -> str:
+    inferred = _inferred_vehicle_group(rule)
+    if inferred:
+        return inferred
     for code in rule.vehicle_codes:
         group = _vehicle_group(code)
         if group in {"CAR", "MOTORCYCLE", "BICYCLE", "SPECIALIZED_MOTOR_VEHICLE", "PEDESTRIAN"}:
@@ -557,9 +732,39 @@ def _primary_vehicle_group(rule: SanctionRule) -> str:
 def _has_multiple_vehicle_groups(rules: list[SanctionRule]) -> bool:
     groups: set[str] = set()
     for rule in rules:
+        inferred = _inferred_vehicle_group(rule)
+        if inferred:
+            groups.add(inferred)
+            continue
         for code in rule.vehicle_codes:
             groups.add(_vehicle_group(code))
     return len(groups) >= 2
+
+
+def _filter_rules_for_vehicle(rules: list[SanctionRule], vehicle_code: str) -> list[SanctionRule]:
+    target = _vehicle_group(vehicle_code)
+    return [rule for rule in rules if _rule_vehicle_group(rule) == target]
+
+
+def _rule_vehicle_group(rule: SanctionRule) -> str | None:
+    for code in rule.vehicle_codes:
+        group = _vehicle_group(code)
+        if group:
+            return group
+    return _inferred_vehicle_group(rule)
+
+
+def _inferred_vehicle_group(rule: SanctionRule) -> str | None:
+    text = _ascii(" ".join([rule.parent_clause_text or "", rule.source_text or "", rule.behavior_text or ""]))
+    if any(term in text for term in ["xe o to", "tuong tu xe o to", "xe cho nguoi bon banh", "xe cho hang bon banh"]):
+        return "CAR"
+    if any(term in text for term in ["xe mo to", "xe gan may", "tuong tu xe mo to", "tuong tu xe gan may"]):
+        return "MOTORCYCLE"
+    if "xe may chuyen dung" in text:
+        return "SPECIALIZED_MOTOR_VEHICLE"
+    if "xe dap" in text:
+        return "BICYCLE"
+    return None
 
 
 def _vehicle_group(code: str) -> str:

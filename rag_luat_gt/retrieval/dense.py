@@ -34,7 +34,28 @@ def _effective_at(chunk: Chunk, event_date: str | None) -> bool:
 
 
 def _should_filter_effective(parsed: ParsedQuery) -> bool:
+    if _transition_source_query(parsed):
+        return False
     return parsed.temporal_intent in {"APPLICABLE_RULE", "HISTORICAL_RULE", "FUTURE_RULE", "CURRENT_RULE"}
+
+
+def _transition_source_query(parsed: ParsedQuery) -> bool:
+    query = (parsed.query or "").casefold()
+    return any(
+        term in query
+        for term in [
+            "chuyển tiếp",
+            "chuyen tiep",
+            "xảy ra và kết thúc",
+            "xay ra va ket thuc",
+            "mới bị phát hiện",
+            "moi bi phat hien",
+            "đang xem xét giải quyết",
+            "dang xem xet giai quyet",
+            "thời điểm thực hiện hành vi",
+            "thoi diem thuc hien hanh vi",
+        ]
+    )
 
 
 def _matches_metadata(chunk: Chunk, parsed: ParsedQuery) -> bool:

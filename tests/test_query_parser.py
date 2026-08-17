@@ -69,6 +69,26 @@ def test_parse_query_detects_driver_age_requirement() -> None:
     assert "MINIMUM_AGE" in parsed.requested_facets
 
 
+def test_article_content_about_transition_is_not_effective_date_lookup() -> None:
+    parsed = parse_query(
+        ChatRequest(
+            query="Điều 21 Nghị định 238/2026/NĐ-CP quy định gì về hành vi xảy ra trước ngày nghị định có hiệu lực?"
+        )
+    )
+
+    assert parsed.intent == "ARTICLE_LOOKUP"
+    assert parsed.temporal_intent == "DOCUMENT_CONTENT"
+
+
+def test_behavior_catalog_expands_common_helmet_abbreviations() -> None:
+    parsed = parse_query(ChatRequest(query="Ko đội mbh khi đi xe máy bị phạt bao nhiêu?"))
+
+    assert parsed.intent == "PENALTY_LOOKUP"
+    assert parsed.vehicle_code == "MOTORCYCLE"
+    assert parsed.behavior_code is not None
+    assert "MU_BAO_HIEM" in parsed.behavior_code
+
+
 def test_parse_query_detects_license_class_scope_before_age_intent() -> None:
     parsed = parse_query(ChatRequest(query="Bằng B được lái những loại ô tô nào?"))
 
@@ -111,3 +131,44 @@ def test_parse_query_does_not_detect_car_inside_highway() -> None:
     assert parsed.intent == "PENALTY_LOOKUP"
     assert parsed.vehicle_type is None
     assert parsed.vehicle_code is None
+
+
+def test_transition_question_is_not_routed_as_penalty_lookup() -> None:
+    parsed = parse_query(
+        ChatRequest(
+            query=(
+                "Một vi phạm xảy ra và kết thúc ngày 14/08/2026 nhưng đến 16/08/2026 mới bị phát hiện "
+                "thì áp dụng Nghị định 168 hay Nghị định 238?"
+            )
+        )
+    )
+
+    assert parsed.intent != "PENALTY_LOOKUP"
+    assert parsed.temporal_intent == "APPLICABLE_RULE"
+    assert parsed.event_date == "2026-08-14"
+    assert parsed.query_plan is not None
+    assert "TEMPORAL_SOURCE_LOOKUP" in parsed.query_plan.strategy
+
+
+def test_before_date_temporal_cue_uses_previous_day() -> None:
+    parsed = parse_query(
+        ChatRequest(
+            query="Hành vi vi phạm đã kết thúc trước ngày 01/01/2025 nhưng sau đó mới bị phát hiện thì áp dụng gì?"
+        )
+    )
+
+    assert parsed.event_date == "2024-12-31"
+    assert parsed.legal_effective_date == "2024-12-31"
+
+
+def test_urban_speed_question_does_not_treat_dong_dan_cu_as_money() -> None:
+    parsed = parse_query(ChatRequest(query="Trong khu đông dân cư, ô tô trên đường đôi được chạy tối đa bao nhiêu?"))
+
+    assert parsed.intent == "SPEED_RULE"
+    assert "FINE" not in parsed.requested_facets
+
+
+def test_short_age_capacity_query_detects_driver_age_requirement() -> None:
+    parsed = parse_query(ChatRequest(query="16t chạy xe 50cc được chưa?"))
+
+    assert parsed.intent == "DRIVER_AGE_REQUIREMENT"

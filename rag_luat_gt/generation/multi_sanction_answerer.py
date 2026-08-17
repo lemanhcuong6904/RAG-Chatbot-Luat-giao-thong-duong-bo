@@ -32,13 +32,13 @@ def _summary(composition: SanctionComposition, parsed: ParsedQuery) -> str:
     if any(term in query for term in ["cộng điểm", "cộng điểm trừ", "thành 8", "cong diem", "cong diem tru"]):
         return (
             "Không. Khi nhiều hành vi bị xử phạt trong cùng một lần, điểm GPLX không cộng cơ học; "
-            "áp dụng mức trừ cao nhất trong các hành vi đã resolve."
+            "áp dụng mức trừ cao nhất trong các hành vi đã resolve [Nghị định 168/2024/NĐ-CP, Điều 50, khoản 1, điểm b]."
         )
     if composition.status == "RESOLVED":
         return (
             "Có. Khi một người thực hiện nhiều hành vi vi phạm, tiền phạt được xác định theo từng hành vi; "
             "có thể cộng các khung tiền phạt của những hành vi độc lập. Điểm GPLX không cộng cơ học, mà áp dụng "
-            "quy tắc composition riêng."
+            "mức trừ cao nhất [Nghị định 168/2024/NĐ-CP, Điều 50, khoản 1, điểm b]."
         )
     return (
         "Có thể xác định theo từng hành vi, nhưng tình huống này chưa đủ dữ kiện để chốt một tổng tiền duy nhất. "
@@ -51,9 +51,9 @@ def _violation_lines(resolutions: list[ViolationResolution]) -> str:
     for index, resolution in enumerate(resolutions, start=1):
         if resolution.selected_rule:
             rule = resolution.selected_rule
-            label = rule.behavior_text or resolution.raw_span or resolution.behavior_text
+            label = resolution.raw_span or resolution.behavior_text or rule.behavior_text
             points = (
-                f", trừ {rule.license_points_deducted} điểm GPLX"
+                f", trừ {rule.license_points_deducted} điểm GPLX{_inline_point_ref(rule)}"
                 if rule.license_points_deducted is not None
                 else ""
             )
@@ -76,10 +76,13 @@ def _violation_lines(resolutions: list[ViolationResolution]) -> str:
 
 def _money_lines(composition: SanctionComposition) -> str:
     if composition.money.status == "RESOLVED":
-        return (
+        line = (
             f"- Tổng khung tiền phạt: từ {_money(composition.money.min_total)} "
             f"đến {_money(composition.money.max_total)}."
         )
+        if composition.money.default_total is not None:
+            line += f" Mức tham chiếu giữa khung: {_money(composition.money.default_total)}."
+        return line
     if composition.money_branches:
         lines = ["- Chưa có một tổng duy nhất vì còn thiếu điều kiện về dung tích/công suất xe:"]
         for branch in composition.money_branches:
@@ -98,7 +101,7 @@ def _point_line(composition: SanctionComposition) -> str:
         return "- Điểm GPLX: các rule đã resolve không có trừ điểm."
     return (
         f"- Điểm GPLX: mức trừ áp dụng theo quy tắc lấy hành vi có số điểm trừ cao nhất, hiện là {points} điểm; "
-        "không cộng số điểm trừ của từng hành vi."
+        "không cộng số điểm trừ của từng hành vi [Nghị định 168/2024/NĐ-CP, Điều 50, khoản 1, điểm b]."
     )
 
 
@@ -114,6 +117,11 @@ def _reference_lines(composition: SanctionComposition) -> str:
 
 def _inline_rule_ref(rule: SanctionRule) -> str:
     return f"[{short_ref(rule)}]"
+
+
+def _inline_point_ref(rule: SanctionRule) -> str:
+    point_ref = _point_citation(rule)
+    return f" [{short_ref(point_ref)}]" if point_ref else ""
 
 
 def _notes(composition: SanctionComposition) -> str:

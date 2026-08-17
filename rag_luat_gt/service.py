@@ -56,6 +56,33 @@ class RAGService:
     def answer(self, request: ChatRequest) -> ChatResponse:
         set_request_llm(request.llm_provider, request.llm_model)
         parsed = parse_query(request)
+        initial_parsed = parsed
+        if _requires_external_law(parsed):
+            route_decision = QueryRouteDecision(
+                route="OUT_OF_SCOPE",
+                legal_domain="other_law",
+                retrieval_strategy="NONE",
+                direct_answer=(
+                    "Bộ tài liệu hiện có tập trung vào quy tắc và xử phạt hành chính về giao thông đường bộ. "
+                    "Câu hỏi về phạt tù hoặc trách nhiệm hình sự cần căn cứ pháp luật hình sự ngoài bộ nguồn này."
+                ),
+                reason="outside supported traffic-law administrative corpus",
+                confidence=0.95,
+            )
+            direct_response = direct_route_response(route_decision)
+            if direct_response:
+                if request.debug:
+                    direct_response.debug = {
+                        **(direct_response.debug or {}),
+                        "routing": {
+                            "query_router": {"enabled": False, "decision": route_decision.model_dump()},
+                            "sanction_attempted": False,
+                            "fallback_to_rag": False,
+                        },
+                    }
+                else:
+                    direct_response.debug = None
+                return _finalize_response(direct_response)
         parsed, route_decision, router_debug = route_query(parsed)
         if (
             route_decision.route == "OUT_OF_SCOPE"
@@ -94,6 +121,7 @@ class RAGService:
             request.pre_rag_enabled,
         )
         parsed = apply_route_decision(parsed, route_decision)
+        parsed = _preserve_initial_parse(initial_parsed, parsed)
         structured_lookup_request_enabled = request.structured_lookup_enabled
         structured_fact_enabled = (
             RAG_STRUCTURED_FACT_ENABLED
@@ -318,6 +346,15 @@ def _normalize_pre_rag_mode(mode: str | None, legacy_enabled: bool) -> str:
 
 
 def _looks_like_traffic_law_query(parsed: ParsedQuery) -> bool:
+    if parsed.document_number in {
+        "35/2024/QH15",
+        "36/2024/QH15",
+        "165/2024/NĐ-CP",
+        "168/2024/NĐ-CP",
+        "238/2026/NĐ-CP",
+        "38/2024/TT-BGTVT",
+    }:
+        return True
     if parsed.intent != "GENERAL_LEGAL_QA":
         return True
     if parsed.vehicle_code or parsed.behavior_code or parsed.violations:
@@ -367,6 +404,18 @@ def _requires_external_law(parsed: ParsedQuery) -> bool:
             "phan mem trai phep",
         ]
     )
+
+
+def _preserve_initial_parse(initial: ParsedQuery, parsed: ParsedQuery) -> ParsedQuery:
+    updates: dict[str, object] = {}
+    for field in ["vehicle_type", "vehicle_code", "behavior_code", "behavior_text_query"]:
+        if getattr(parsed, field) is None and getattr(initial, field) is not None:
+            updates[field] = getattr(initial, field)
+    if not parsed.violations and initial.violations:
+        updates["violations"] = initial.violations
+    if not updates:
+        return parsed
+    return parsed.model_copy(update=updates)
 
 
 def _finalize_response(response: ChatResponse) -> ChatResponse:

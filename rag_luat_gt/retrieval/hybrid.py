@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from rag_luat_gt.config import (
     MANIFEST_PATH,
@@ -24,6 +25,18 @@ from rag_luat_gt.text import normalize_text, strip_accents
 
 
 RRF_K = 60
+
+
+def _is_transition_chunk(chunk: Chunk) -> bool:
+    text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:600]}"))
+    return "dieu khoan chuyen tiep" in text or (
+        "xay ra va ket thuc" in text and "thoi diem thuc hien hanh vi" in text
+    )
+
+
+def _is_effective_date_chunk(chunk: Chunk) -> bool:
+    text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:600]}"))
+    return "hieu luc thi hanh" in text or "co hieu luc thi hanh tu" in text
 
 
 class HybridRetriever:
@@ -256,11 +269,59 @@ class HybridRetriever:
         reranked = self._apply_vehicle_preferences(parsed, reranked)
         reranked = self._apply_penalty_focus(parsed, reranked)
         reranked = self._apply_behavior_text_focus(parsed, reranked)
+        reranked = self._apply_temporal_source_preferences(parsed, reranked)
         reranked = self._filter_vehicle_penalty_scope(parsed, reranked)
         reranked = self._filter_primary_penalty_scope(parsed, reranked)
         reranked = self._apply_amount_focus(parsed, reranked)
         reranked = sorted(reranked, key=lambda item: item[1], reverse=True)
         self._record_stage_scores("preference_score", reranked)
+        return reranked
+
+    @staticmethod
+    def _apply_temporal_source_preferences(
+        parsed: ParsedQuery,
+        results: list[tuple[Chunk, float]],
+    ) -> list[tuple[Chunk, float]]:
+        if parsed.temporal_intent not in {"EFFECTIVE_DATE_LOOKUP", "APPLICABLE_RULE"}:
+            return results
+
+        query = strip_accents(normalize_text(parsed.query))
+        transition_query = any(
+            term in query
+            for term in ["chuyen tiep", "phat hien", "xay ra va ket thuc", "thoi diem thuc hien", "truoc ngay"]
+        )
+        effective_query = parsed.temporal_intent == "EFFECTIVE_DATE_LOOKUP" or "hieu luc" in query
+
+        reranked: list[tuple[Chunk, float]] = []
+        for chunk, score in results:
+            text = strip_accents(normalize_text(f"{chunk.article_title or ''}\n{chunk.text[:1400]}"))
+            adjusted = score
+            base = max(abs(score), 1.0)
+
+            if effective_query and any(term in text for term in ["hieu luc thi hanh", "co hieu luc"]):
+                adjusted += base * 5.0
+            if transition_query and any(
+                term in text
+                for term in [
+                    "dieu khoan chuyen tiep",
+                    "xay ra va ket thuc truoc ngay",
+                    "thoi diem thuc hien hanh vi",
+                    "sau do moi bi phat hien",
+                    "dang xem xet giai quyet",
+                ]
+            ):
+                adjusted += base * 8.0
+
+            if chunk.document_number == "238/2026/NĐ-CP" and "238" in query and chunk.article in {"20", "21"}:
+                adjusted += base * 4.0
+            if chunk.document_number == "168/2024/NĐ-CP" and "168" in query and chunk.article in {"53", "54"}:
+                adjusted += base * 4.0
+            if parsed.temporal_intent == "EFFECTIVE_DATE_LOOKUP" and chunk.valid_from:
+                adjusted += base * 2.0
+            if transition_query and effective_rule_function(chunk.rule_function, chunk.text, chunk.article_title) == "SANCTION":
+                adjusted -= base * 1.5
+
+            reranked.append((chunk, adjusted))
         return reranked
 
     def _record_source_scores(self, source: str, results: list[tuple[Chunk, float]]) -> None:
@@ -313,7 +374,7 @@ class HybridRetriever:
             return results
 
         query = strip_accents(normalize_text(parsed.query))
-        asks_capacity = any(term in query for term in ["cm3", "cm³", "xi lanh", "dung tich", "kw", "cong suat"])
+        asks_capacity = any(term in query for term in ["cm3", "cm³", "cc", "xi lanh", "dung tich", "kw", "cong suat"])
         reranked: list[tuple[Chunk, float]] = []
         for chunk, score in results:
             rule_function = effective_rule_function(chunk.rule_function, chunk.text, chunk.article_title)
@@ -732,6 +793,7 @@ class HybridRetriever:
             for chunk in self.bm25.chunks
         }
         by_id = {chunk.chunk_id: chunk for chunk in self.bm25.chunks}
+        temporal_companions = self._temporal_companion_chunks()
         query_ascii = strip_accents(normalize_text(parsed.query))
         focus_terms = [
             *self._behavior_focus_terms(query_ascii),
@@ -760,6 +822,19 @@ class HybridRetriever:
                 expanded.append((chunk, score))
                 seen.add(chunk.chunk_id)
                 trace.append(self._context_trace_item(chunk, score, reason="retrieved"))
+            companion = temporal_companions.get(chunk.chunk_id)
+            if companion and companion.chunk_id not in seen:
+                companion_score = score + 0.0012
+                expanded.append((companion, companion_score))
+                seen.add(companion.chunk_id)
+                trace.append(
+                    self._context_trace_item(
+                        companion,
+                        companion_score,
+                        reason="temporal_companion_expansion",
+                        anchor_chunk_id=chunk.chunk_id,
+                    )
+                )
             if chunk.children_ids:
                 matching_children = self._matching_children(chunk, by_id, focus_terms)
                 for child in matching_children:
@@ -777,8 +852,62 @@ class HybridRetriever:
                         )
                     )
 
+        if parsed.intent == "DRIVER_AGE_REQUIREMENT":
+            for companion in self._capacity_age_companion_chunks(parsed, by_location):
+                if companion.chunk_id in seen:
+                    continue
+                companion_score = (results[0][1] if results else 0.0) + 0.0018
+                expanded.append((companion, companion_score))
+                seen.add(companion.chunk_id)
+                trace.append(
+                    self._context_trace_item(
+                        companion,
+                        companion_score,
+                        reason="capacity_age_companion",
+                        anchor_chunk_id=None,
+                    )
+                )
+
         self.last_context_trace = trace
         return expanded
+
+    @staticmethod
+    def _capacity_age_companion_chunks(
+        parsed: ParsedQuery,
+        by_location: dict[tuple[str, str | None, str | None, str | None], Chunk],
+    ) -> list[Chunk]:
+        query = strip_accents(normalize_text(parsed.query)).replace("cm³", "cm3")
+        match = re.search(r"\b(\d+(?:[,.]\d+)?)\s*(?:cm3|cc)\b", query)
+        if not match:
+            return []
+        capacity = float(match.group(1).replace(",", "."))
+        if capacity > 50:
+            return []
+        targets = [
+            ("QH15_36_2024", "34", "1", "g"),
+            ("QH15_36_2024", "59", "1", "a"),
+        ]
+        return [chunk for target in targets if (chunk := by_location.get(target)) is not None]
+
+    def _temporal_companion_chunks(self) -> dict[str, Chunk]:
+        by_document_article: dict[tuple[str, str], list[Chunk]] = {}
+        for chunk in self.bm25.chunks:
+            if chunk.document_id and chunk.article:
+                by_document_article.setdefault((chunk.document_id, chunk.article), []).append(chunk)
+
+        companions: dict[str, Chunk] = {}
+        for chunk in self.bm25.chunks:
+            if not chunk.document_id or not chunk.article or not _is_transition_chunk(chunk):
+                continue
+            try:
+                previous_article = str(int(chunk.article) - 1)
+            except ValueError:
+                continue
+            candidates = by_document_article.get((chunk.document_id, previous_article), [])
+            effective = next((item for item in candidates if _is_effective_date_chunk(item)), None)
+            if effective:
+                companions[chunk.chunk_id] = effective
+        return companions
 
     def _expand_structural_context(
         self,

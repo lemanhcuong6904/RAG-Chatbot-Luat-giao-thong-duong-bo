@@ -81,6 +81,8 @@ class Citation(BaseModel):
     sibling_group_id: str | None = None
     source_file: str
     text: str
+    valid_from: str | None = None
+    valid_to: str | None = None
     rule_function: str = "UNKNOWN"
     coverage_status: str = "UNKNOWN"
     source_quality: str = "UNKNOWN"

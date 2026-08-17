@@ -54,6 +54,8 @@ def _citation(rule: SanctionRule) -> Citation:
         point=rule.point,
         source_file=rule.source_file or "",
         text="\n\n".join(text_parts),
+        valid_from=rule.valid_from,
+        valid_to=rule.valid_to,
         coverage_status="COMPLETE",
         source_quality=f"STRUCTURED_SANCTION:{rule.validation_status or 'UNKNOWN'}",
         score=rule.confidence,
@@ -79,10 +81,37 @@ def _point_citation(rule: SanctionRule) -> Citation | None:
         point=point,
         source_file=rule.source_file or "",
         text=text,
+        valid_from=rule.valid_from,
+        valid_to=rule.valid_to,
         coverage_status="COMPLETE",
         source_quality="STRUCTURED_SANCTION:POINT_CLOSURE",
         score=rule.confidence,
     )
+
+
+def _temporal_effective_citation(rule: SanctionRule) -> Citation | None:
+    if rule.document_number == "168/2024/NĐ-CP" and rule.valid_from == "2026-01-01":
+        return Citation(
+            chunk_id=f"ND168_A53_K2_EFFECTIVE_FOR_{rule.rule_id}",
+            chunk_type="TEMPORAL_RULE",
+            rule_id=rule.rule_id,
+            document_number=rule.document_number,
+            document_title="Nghị định số 168/2024/NĐ-CP",
+            article="53",
+            article_title="Hiệu lực thi hành",
+            clause="2",
+            source_file=rule.source_file or "",
+            text=(
+                "2. Điểm m khoản 3 Điều 6, điểm e khoản 4 Điều 26 và điểm b khoản 1 Điều 27 "
+                "của Nghị định này có hiệu lực thi hành từ ngày 01 tháng 01 năm 2026."
+            ),
+            valid_from=rule.valid_from,
+            valid_to=rule.valid_to,
+            coverage_status="COMPLETE",
+            source_quality="STRUCTURED_SANCTION:TEMPORAL_RULE",
+            score=rule.confidence,
+        )
+    return None
 
 
 def _point_reference(rule: SanctionRule) -> tuple[str, str, str] | None:
@@ -164,7 +193,12 @@ def build_sanction_response(parsed: ParsedQuery, lookup: SanctionLookup) -> Chat
 
     rules = lookup.rules
     citations = _dedupe_citations(
-        [item for rule in rules for item in [_citation(rule), _point_citation(rule)] if item is not None]
+        [
+            item
+            for rule in rules
+            for item in [_citation(rule), _point_citation(rule), _temporal_effective_citation(rule)]
+            if item is not None
+        ]
     )
     warnings = list(lookup.warnings)
     for rule in rules:
@@ -182,11 +216,11 @@ def build_sanction_response(parsed: ParsedQuery, lookup: SanctionLookup) -> Chat
 
 
 def _rule_answer_base(rule: SanctionRule, parsed: ParsedQuery) -> str:
-    points = (
-        f" Đồng thời bị trừ {rule.license_points_deducted} điểm giấy phép lái xe."
-        if rule.license_points_deducted is not None
-        else ""
-    )
+    points = ""
+    if rule.license_points_deducted is not None:
+        point_ref = _point_citation(rule)
+        point_inline = f" [{short_ref(point_ref)}]" if point_ref else ""
+        points = f" Đồng thời bị trừ {rule.license_points_deducted} điểm giấy phép lái xe{point_inline}."
     suspension = ""
     if rule.license_suspension_min_months is not None or rule.license_suspension_max_months is not None:
         suspension = (
@@ -195,10 +229,17 @@ def _rule_answer_base(rule: SanctionRule, parsed: ParsedQuery) -> str:
             f" đến {rule.license_suspension_max_months or '?'} tháng."
         )
     liable = _liable_text(rule)
+    temporal = ""
+    temporal_citation = _temporal_effective_citation(rule)
+    if temporal_citation:
+        temporal = f" Quy định này có hiệu lực từ ngày 01/01/2026 [{short_ref(temporal_citation)}]."
+    intro = f"Với hành vi “{_behavior_label(rule, parsed)}”"
+    if _child_safety_rule(rule) and not _query_mentions_child_age_height(parsed.query):
+        intro = f"Nếu trẻ dưới 10 tuổi và chiều cao dưới 1,35 mét, thì với hành vi “{_behavior_label(rule, parsed)}”"
     return (
-        f"Với hành vi “{_behavior_label(rule, parsed)}”"
+        f"{intro}"
         f" đối với {_vehicle_label(parsed, rule)}, "
-        f"mức xử phạt là {_fine_text(rule)}.{points}{suspension}{liable}"
+        f"mức xử phạt là {_fine_text(rule)}.{points}{suspension}{liable}{temporal}"
     )
 
 
@@ -235,6 +276,18 @@ def _is_specific_behavior_label(value: str) -> bool:
             "gay tai nan",
         ]
     )
+
+
+def _child_safety_rule(rule: SanctionRule) -> bool:
+    text = strip_accents(normalize_text(" ".join([rule.behavior_text or "", rule.source_text or ""])))
+    return "tre em" in text and "thiet bi an toan" in text
+
+
+def _query_mentions_child_age_height(query: str) -> bool:
+    text = strip_accents(normalize_text(query))
+    has_age = any(term in text for term in ["duoi 10", "10 tuoi", "tre duoi", "tre em duoi"])
+    has_height = any(term in text for term in ["1,35", "1.35", "1m35", "135"])
+    return has_age and has_height
 
 
 def _vehicle_label(parsed: ParsedQuery, rule: SanctionRule) -> str:
@@ -358,7 +411,10 @@ def _looks_like_license_suspension(text: str) -> bool:
 
 
 def _build_unanswered(parsed: ParsedQuery, lookup: SanctionLookup) -> str:
-    missing = ", ".join(lookup.missing_fields)
+    clarification = _clarification_prompt(parsed, lookup)
+    if clarification:
+        return clarification
+    missing = ", ".join(_missing_field_label(field) for field in lookup.missing_fields)
     reason = "; ".join(lookup.warnings) or "không tìm thấy rule phù hợp"
     if missing:
         reason = f"thiếu thông tin bắt buộc: {missing}. {reason}"
@@ -367,3 +423,56 @@ def _build_unanswered(parsed: ParsedQuery, lookup: SanctionLookup) -> str:
         f"Đang xét theo ngày {parsed.legal_effective_date or parsed.event_date or 'hiện tại'}.\n\n"
         f"Lý do: {reason}"
     )
+
+
+def _clarification_prompt(parsed: ParsedQuery, lookup: SanctionLookup) -> str | None:
+    missing = set(lookup.missing_fields)
+    date_line = f"Đang xét theo ngày {parsed.legal_effective_date or parsed.event_date or 'hiện tại'}."
+    if {"speed_excess_kmh", "vehicle_code"}.issubset(missing):
+        return (
+            "Mức phạt phụ thuộc vào loại phương tiện và số km/h vượt quá tốc độ cho phép. "
+            "Bạn đang điều khiển ô tô, xe máy hay loại xe khác, và vượt quá bao nhiêu km/h?\n\n"
+            f"{date_line}"
+        )
+    if "speed_excess_kmh" in missing:
+        return f"Mức phạt phụ thuộc vào số km/h vượt quá tốc độ cho phép. Bạn vượt quá bao nhiêu km/h?\n\n{date_line}"
+    if {"alcohol_concentration", "vehicle_code"}.issubset(missing):
+        return (
+            "Mức phạt nồng độ cồn phụ thuộc vào loại phương tiện và kết quả đo trong máu hoặc khí thở. "
+            "Bạn đang điều khiển loại xe nào và nồng độ đo được là bao nhiêu?\n\n"
+            f"{date_line}"
+        )
+    if "lane_behavior" in missing:
+        if "vehicle_code" in missing:
+            return (
+                "Bạn đang điều khiển loại xe nào và hành vi sai làn cụ thể trên đường cao tốc là gì? "
+                "Ví dụ: đi vào làn dừng khẩn cấp, không đi đúng làn theo biển báo/vạch kẻ đường, "
+                f"hay chuyển làn không đúng quy định.\n\n{date_line}"
+            )
+        return (
+            "Hành vi sai làn cụ thể trên đường cao tốc là gì? Ví dụ: đi vào làn dừng khẩn cấp, "
+            f"không đi đúng làn theo biển báo/vạch kẻ đường, hay chuyển làn không đúng quy định.\n\n{date_line}"
+        )
+    if {"child_age_height", "seat_position"}.issubset(missing):
+        return (
+            "Cần làm rõ tuổi, chiều cao của trẻ và vị trí ngồi trên xe để xác định đúng chế tài. "
+            "Trẻ có dưới 10 tuổi, thấp dưới 1,35 m và ngồi cùng hàng ghế với người lái không?\n\n"
+            f"{date_line}"
+        )
+    return None
+
+
+def _missing_field_label(field: str) -> str:
+    labels = {
+        "speed_excess_kmh": "số km/h vượt quá tốc độ cho phép",
+        "vehicle_code": "loại phương tiện",
+        "alcohol_concentration": "nồng độ cồn",
+        "lane_behavior": "hành vi sai làn cụ thể",
+        "child_age_height": "tuổi và chiều cao của trẻ",
+        "seat_position": "vị trí ngồi của trẻ",
+        "event_date": "ngày xảy ra hành vi",
+        "paper_type": "loại giấy tờ",
+        "parking_location": "vị trí dừng, đỗ",
+        "passenger_count": "số người chở vượt",
+    }
+    return labels.get(field, field)

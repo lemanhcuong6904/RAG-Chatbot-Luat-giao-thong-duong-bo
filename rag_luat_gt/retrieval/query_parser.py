@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, timedelta
 
 from rag_luat_gt.license_classes import extract_license_classes
 from rag_luat_gt.schemas import ChatRequest, ParsedQuery, ViolationFact
@@ -39,6 +39,8 @@ def _detect_intent(query: str) -> str:
     q_ascii = strip_accents(q)
     license_classes = extract_license_classes(query)
     explicit_age_question = _is_explicit_age_question(q_ascii)
+    if _is_temporal_legal_question(q_ascii):
+        return "ARTICLE_LOOKUP" if ARTICLE_RE.search(q) or ARTICLE_RE.search(q_ascii) else "GENERAL_LEGAL_QA"
     if not explicit_age_question and _is_license_scope_query(q_ascii, license_classes):
         return "DRIVER_LICENSE"
     if any(term in q_ascii for term in ["phi", "le phi"]):
@@ -81,7 +83,7 @@ def _detect_intent(query: str) -> str:
     ):
         return "REGISTRATION"
     if any(term in q for term in ["tốc độ", "khoảng cách"]) or any(
-        term in q_ascii for term in ["toc do", "khoang cach"]
+        term in q_ascii for term in ["toc do", "khoang cach", "chay toi da", "toc do toi da", "max"]
     ):
         return "SPEED_RULE"
     if any(term in q for term in ["phí", "lệ phí"]) or any(
@@ -97,6 +99,25 @@ def _detect_intent(query: str) -> str:
     return "GENERAL_LEGAL_QA"
 
 
+def _is_temporal_legal_question(q_ascii: str) -> bool:
+    if any(term in q_ascii for term in ["hieu luc", "ngay ap dung", "bat dau ap dung"]):
+        return True
+    transition_terms = [
+        "dieu khoan chuyen tiep",
+        "xay ra va ket thuc",
+        "sau do moi bi phat hien",
+        "moi bi phat hien",
+        "dang xem xet giai quyet",
+        "thoi diem thuc hien hanh vi",
+    ]
+    if any(term in q_ascii for term in transition_terms):
+        return True
+    has_temporal_apply = any(term in q_ascii for term in ["ap dung", "co ap dung", "dung nghi dinh"])
+    has_version_cue = any(term in q_ascii for term in ["nghi dinh", "van ban", "quy dinh", "168", "238"])
+    has_time_cue = any(term in q_ascii for term in ["truoc ngay", "sau ngay", "tai ngay", "ngay "])
+    return has_temporal_apply and has_version_cue and has_time_cue
+
+
 def _is_explicit_age_question(q_ascii: str) -> bool:
     return any(
         term in q_ascii
@@ -109,7 +130,7 @@ def _is_explicit_age_question(q_ascii: str) -> bool:
             "du tuoi",
             "tu bao nhieu tuoi",
         ]
-    ) or re.search(r"\b\d+\s*tuoi\b", q_ascii) is not None
+    ) or re.search(r"\b\d+\s*(?:tuoi|t)\b", q_ascii) is not None
 
 
 def _is_license_scope_query(q_ascii: str, license_classes: list[str]) -> bool:
@@ -221,7 +242,7 @@ def _requested_facets(query: str) -> list[str]:
         facets.append("LICENSE_POINT_TOTAL")
     if any(term in q for term in ["bao nhieu tuoi", "may tuoi", "do tuoi", "tuoi toi thieu", "du tuoi"]):
         facets.append("MINIMUM_AGE")
-    if any(term in q for term in ["phat bao nhieu", "muc phat", "phat tien", "bao nhieu tien", "dong"]):
+    if any(term in q for term in ["phat bao nhieu", "muc phat", "phat tien", "bao nhieu tien"]):
         facets.append("FINE")
     if asks_deduction or any(term in q for term in ["diem gplx", "mat may diem"]):
         facets.append("LICENSE_POINTS")
@@ -264,7 +285,7 @@ def _intent_query_expansion(query: str, intent: str) -> str:
         return query
     return (
         f"{query} tuổi sức khỏe người điều khiển phương tiện được cấp giấy phép lái xe "
-        "hạng B hạng C1 đủ 18 tuổi điều kiện người lái xe"
+        "hạng B hạng C1 đủ 18 tuổi điều kiện người lái xe xe gắn máy 50 cm3 đủ 16 tuổi"
     )
 
 
@@ -278,8 +299,32 @@ def _is_csgt_stop_reason_rights_query(query: str) -> bool:
 
 def _detect_temporal_intent(query: str, intent: str, has_request_event_date: bool) -> str:
     q = strip_accents(normalize_text(query))
+    if intent == "ARTICLE_LOOKUP" and any(
+        term in q
+        for term in [
+            "quy dinh gi",
+            "noi dung",
+            "ve hanh vi",
+            "dieu khoan chuyen tiep",
+            "xay ra truoc ngay",
+            "truoc ngay nghi dinh co hieu luc",
+        ]
+    ):
+        return "DOCUMENT_CONTENT"
     if any(term in q for term in ["hieu luc", "ngay ap dung", "bat dau ap dung"]):
         return "EFFECTIVE_DATE_LOOKUP"
+    if any(
+        term in q
+        for term in [
+            "dieu khoan chuyen tiep",
+            "xay ra va ket thuc",
+            "sau do moi bi phat hien",
+            "moi bi phat hien",
+            "dang xem xet giai quyet",
+            "thoi diem thuc hien hanh vi",
+        ]
+    ):
+        return "APPLICABLE_RULE"
     if any(term in q for term in ["sua doi", "bo sung", "thay the", "bai bo", "sua nhung gi", "noi dung gi"]):
         return "AMENDMENT_COMPARE" if intent == "AMENDMENT_COMPARE" else "DOCUMENT_CONTENT"
     if intent == "PENALTY_LOOKUP":
@@ -297,21 +342,33 @@ def _document_number(query: str) -> str | None:
 
 
 def _explicit_date(query: str) -> date | None:
+    query_ascii = strip_accents(normalize_text(query))
     dmy = DMY_DATE_RE.search(query)
     if dmy:
         day, month, year = map(int, dmy.groups())
         try:
-            return date(year, month, day)
+            value = date(year, month, day)
+            if _date_has_before_cue(query_ascii, dmy.start()):
+                return value - timedelta(days=1)
+            return value
         except ValueError:
             return None
     ymd = YMD_DATE_RE.search(query)
     if ymd:
         year, month, day = map(int, ymd.groups())
         try:
-            return date(year, month, day)
+            value = date(year, month, day)
+            if _date_has_before_cue(query_ascii, ymd.start()):
+                return value - timedelta(days=1)
+            return value
         except ValueError:
             return None
     return None
+
+
+def _date_has_before_cue(query_ascii: str, match_start: int) -> bool:
+    prefix = query_ascii[max(0, match_start - 24) : match_start]
+    return any(term in prefix for term in ["truoc ngay", "truoc luc", "truoc thoi diem"])
 
 
 def parse_query(request: ChatRequest) -> ParsedQuery:

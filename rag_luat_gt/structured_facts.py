@@ -20,7 +20,10 @@ ND238_SOURCE = MARKDOWN_DIR / "238-2026-ND-CP_Sua-doi-ND-168-2024.md"
 def build_structured_fact_answer(parsed: ParsedQuery) -> ChatResponse | None:
     query = strip_accents(normalize_text(parsed.query))
     builders = [
+        _invalid_explicit_provision_answer,
         _multi_reference_exact_answer,
+        _temporal_source_fact_answer,
+        _source_traffic_fact_answer,
         _common_traffic_direct_answer,
         _traffic_rule_catalog_answer,
         _child_safety_amendment_answer,
@@ -39,6 +42,504 @@ def build_structured_fact_answer(parsed: ParsedQuery) -> ChatResponse | None:
         if response:
             return response
     return None
+
+
+def _invalid_explicit_provision_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
+    if not parsed.document_number or not parsed.article:
+        return None
+    if parsed.temporal_intent == "EFFECTIVE_DATE_LOOKUP":
+        return None
+    if not any(term in query for term in ["quy dinh", "noi dung", "liet ke", "la gi", "nhung gi"]):
+        return None
+    source_file = _source_file_for_reference(parsed.document_number, parsed.article)
+    if source_file is None:
+        return None
+    article_data = _extract_article(source_file, parsed.article)
+    if article_data is None:
+        return _unanswerable_response(
+            parsed,
+            f"Không có Điều {parsed.article} trong {parsed.document_number} theo bộ nguồn hiện có. Cần kiểm tra lại căn cứ.",
+            {"invalid_provision": "article"},
+        )
+    if parsed.clause and _clause_bounds(article_data[1], parsed.clause) is None:
+        return _unanswerable_response(
+            parsed,
+            (
+                f"Không có khoản {parsed.clause} Điều {parsed.article} {parsed.document_number} theo bộ nguồn hiện có. "
+                "Cần kiểm tra lại căn cứ."
+            ),
+            {"invalid_provision": "clause"},
+        )
+    if parsed.clause and parsed.point and _extract_point_from_article(article_data[1], parsed.clause, parsed.point) is None:
+        return _unanswerable_response(
+            parsed,
+            (
+                f"Không có điểm {parsed.point} khoản {parsed.clause} Điều {parsed.article} {parsed.document_number} "
+                "theo bộ nguồn hiện có. Cần kiểm tra lại căn cứ."
+            ),
+            {"invalid_provision": "point"},
+        )
+    return None
+
+
+def _temporal_source_fact_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
+    child_effective = _nd168_child_safety_sanction_effective_date_answer(parsed, query)
+    if child_effective:
+        return child_effective
+    law36_child_effective = _law36_child_safety_effective_date_answer(parsed, query)
+    if law36_child_effective:
+        return law36_child_effective
+    transition = _nd238_transition_applicable_rule_answer(parsed, query)
+    if transition:
+        return transition
+    return None
+
+
+def _nd168_child_safety_sanction_effective_date_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
+    if parsed.temporal_intent != "EFFECTIVE_DATE_LOOKUP":
+        return None
+    mentions_nd168 = parsed.document_number == "168/2024/NĐ-CP" or "nghi dinh 168" in query or "nd168" in query
+    is_target_ref = mentions_nd168 and parsed.article == "6" and parsed.clause == "3"
+    is_child_safety_query = "thiet bi an toan" in query and any(term in query for term in ["tre em", "tre ", "1,35", "1.35"])
+    if not (is_target_ref and (parsed.point in {None, "m"} or is_child_safety_query)):
+        return None
+
+    temporal_citation = _citation(
+        "ND168_A53_K2_CHILD_SAFETY_EFFECTIVE",
+        "168/2024/NĐ-CP",
+        "Nghị định số 168/2024/NĐ-CP",
+        "53",
+        "Hiệu lực thi hành",
+        "2",
+        None,
+        ND168_SOURCE,
+        (
+            "2. Điểm m khoản 3 Điều 6, điểm e khoản 4 Điều 26 và điểm b khoản 1 Điều 27 "
+            "của Nghị định này có hiệu lực thi hành từ ngày 01 tháng 01 năm 2026."
+        ),
+        "TEMPORAL_RULE",
+    )
+    citations = [temporal_citation]
+    article_data = _extract_article(ND168_SOURCE, "6")
+    if article_data:
+        article_title, article_lines = article_data
+        point = _extract_point_from_article(article_lines, "3", "m")
+        if point:
+            clause_intro, point_text = point
+            citations.append(
+                _citation(
+                    "ND168_A06_K3_Pm_CHILD_SAFETY_SOURCE",
+                    "168/2024/NĐ-CP",
+                    "Nghị định số 168/2024/NĐ-CP",
+                    "6",
+                    article_title,
+                    "3",
+                    "m",
+                    ND168_SOURCE,
+                    f"3. {clause_intro} m) {point_text}",
+                    "SANCTION",
+                )
+            )
+    conclusion = (
+        "Quy định tại điểm m khoản 3 Điều 6 Nghị định 168/2024/NĐ-CP có hiệu lực từ ngày **01/01/2026** "
+        f"[{short_ref(temporal_citation)}]."
+    )
+    if len(citations) > 1:
+        conclusion += f" Nội dung hành vi được quy định tại điểm m khoản 3 Điều 6 [{short_ref(citations[1])}]."
+    return _response(parsed, conclusion, citations, {"provision": "ND168_A53_K2_A06_K3_Pm"})
+
+
+def _nd238_transition_applicable_rule_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
+    if parsed.temporal_intent != "APPLICABLE_RULE":
+        return None
+    if "238" not in query:
+        return None
+    transition_terms = [
+        "xay ra va ket thuc",
+        "truoc ngay",
+        "moi bi phat hien",
+        "dang xem xet",
+        "thoi diem thuc hien hanh vi",
+        "ap dung nghi dinh 168 hay nghi dinh 238",
+    ]
+    if not any(term in query for term in transition_terms):
+        return None
+
+    article_data = _extract_article(ND238_SOURCE, "21")
+    if not article_data:
+        return None
+    article_title, article_lines = article_data
+    article21_text = " ".join(line.strip() for line in article_lines if line.strip())
+    transition_citation = _citation(
+        "ND238_A21_TRANSITION_STRUCTURED",
+        "238/2026/NĐ-CP",
+        "Sửa đổi, bổ sung một số điều của Nghị định 168/2024/NĐ-CP",
+        "21",
+        article_title,
+        None,
+        None,
+        ND238_SOURCE,
+        article21_text,
+        "TEMPORAL_RULE",
+    )
+    effective_citation = _citation(
+        "ND238_A20_K1_EFFECTIVE_STRUCTURED",
+        "238/2026/NĐ-CP",
+        "Sửa đổi, bổ sung một số điều của Nghị định 168/2024/NĐ-CP",
+        "20",
+        "Hiệu lực thi hành",
+        "1",
+        None,
+        ND238_SOURCE,
+        "1. Nghị định này có hiệu lực thi hành từ ngày 15 tháng 8 năm 2026.",
+        "TEMPORAL_RULE",
+    )
+    event_date = _query_date(parsed)
+    if event_date and event_date < date(2026, 8, 15):
+        conclusion = (
+            f"Hành vi xảy ra và kết thúc ngày {_format_date_vi(event_date)} là trước ngày Nghị định 238/2026/NĐ-CP có hiệu lực "
+            f"(15/08/2026), nên nếu sau đó mới bị phát hiện hoặc đang xem xét giải quyết thì áp dụng nghị định đang có hiệu lực "
+            f"tại thời điểm thực hiện hành vi; trong tình huống này là Nghị định 168/2024/NĐ-CP, không áp dụng Nghị định 238 "
+            f"[{short_ref(transition_citation)}; {short_ref(effective_citation)}]."
+        )
+    else:
+        conclusion = (
+            "Điều 21 Nghị định 238/2026/NĐ-CP quy định hành vi vi phạm xảy ra và kết thúc trước ngày Nghị định 238 có hiệu lực, "
+            "sau đó mới bị phát hiện hoặc đang xem xét giải quyết, thì áp dụng nghị định đang có hiệu lực tại thời điểm thực hiện hành vi "
+            f"[{short_ref(transition_citation)}]."
+        )
+    return _response(parsed, conclusion, [transition_citation, effective_citation], {"provision": "ND238_A21_A20_K1"})
+
+
+def _source_traffic_fact_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
+    explicit_clause = _explicit_law36_clause_fact_answer(parsed, query)
+    if explicit_clause:
+        return explicit_clause
+
+    stop_parking = _stopping_parking_definition_answer(parsed, query)
+    if stop_parking:
+        return stop_parking
+
+    clause_fact = _source_clause_fact(parsed, query)
+    if clause_fact:
+        return clause_fact
+
+    point_fact = _source_point_fact(parsed, query)
+    if point_fact:
+        return point_fact
+
+    article_fact = _source_article_fact(parsed, query)
+    if article_fact:
+        return article_fact
+    return None
+
+
+def _explicit_law36_clause_fact_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
+    if parsed.document_number != "36/2024/QH15" or not parsed.article or not parsed.clause:
+        return None
+    if parsed.point or not any(term in query for term in ["quy dinh", "nhung", "nao", "gi"]):
+        return None
+    source_file = LAW36_PART1_SOURCE if parsed.article.isdigit() and int(parsed.article) <= 23 else LAW36_SOURCE
+    extracted = _extract_clause_provision(source_file, parsed.article, parsed.clause)
+    if extracted is None:
+        return None
+    article_title, clause_intro, points, source_text = extracted
+    citation = _citation(
+        f"L36_A{parsed.article}_K{parsed.clause}_EXACT_STRUCTURED",
+        "36/2024/QH15",
+        "Luật Trật tự, an toàn giao thông đường bộ",
+        parsed.article,
+        article_title,
+        parsed.clause,
+        None,
+        source_file,
+        source_text,
+        "TRAFFIC_RULE",
+    )
+    conclusion = _format_clause_answer(clause_intro, points)
+    return _response(
+        parsed,
+        f"{conclusion} [{short_ref(citation)}].",
+        [citation],
+        {"provision": f"L36_A{parsed.article}_K{parsed.clause}"},
+    )
+
+
+def _stopping_parking_definition_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
+    if "csgt" in query or "canh sat giao thong" in query:
+        return None
+    if not ("dung xe" in query and "do xe" in query):
+        return None
+    if not any(term in query for term in ["khac nhau", "phan biet", "la gi", "the nao"]):
+        return None
+
+    extracted_stop = _extract_clause_provision(LAW36_PART1_SOURCE, "18", "1")
+    extracted_parking = _extract_clause_provision(LAW36_PART1_SOURCE, "18", "2")
+    if not extracted_stop or not extracted_parking:
+        return None
+    stop_title, stop_intro, _stop_points, stop_source = extracted_stop
+    parking_title, parking_intro, _parking_points, parking_source = extracted_parking
+    citations = [
+        _citation(
+            "L36_A18_K1_STRUCTURED",
+            "36/2024/QH15",
+            "Luật Trật tự, an toàn giao thông đường bộ",
+            "18",
+            stop_title,
+            "1",
+            None,
+            LAW36_PART1_SOURCE,
+            stop_source,
+            "TRAFFIC_RULE",
+        ),
+        _citation(
+            "L36_A18_K2_STRUCTURED",
+            "36/2024/QH15",
+            "Luật Trật tự, an toàn giao thông đường bộ",
+            "18",
+            parking_title,
+            "2",
+            None,
+            LAW36_PART1_SOURCE,
+            parking_source,
+            "TRAFFIC_RULE",
+        ),
+    ]
+    conclusion = (
+        f"Dừng xe: {stop_intro} [{short_ref(citations[0])}].\n"
+        f"Đỗ xe: {parking_intro} [{short_ref(citations[1])}]."
+    )
+    return _response(parsed, conclusion, citations, {"provision": "L36_A18_K1_K2"})
+
+
+def _source_clause_fact(parsed: ParsedQuery, query: str) -> ChatResponse | None:
+    provision: tuple[str, str, str, str, object, str] | None = None
+    if _truck_bed_allowed_query(query):
+        provision = ("36/2024/QH15", "Luật Trật tự, an toàn giao thông đường bộ", "28", "1", LAW36_SOURCE, "TRAFFIC_RULE")
+    elif _lane_change_rule_query(query):
+        provision = ("36/2024/QH15", "Luật Trật tự, an toàn giao thông đường bộ", "13", "2", LAW36_PART1_SOURCE, "TRAFFIC_RULE")
+    elif _turnaround_forbidden_places_query(query):
+        provision = ("36/2024/QH15", "Luật Trật tự, an toàn giao thông đường bộ", "15", "4", LAW36_PART1_SOURCE, "TRAFFIC_RULE")
+    elif _reverse_forbidden_places_query(query):
+        provision = ("36/2024/QH15", "Luật Trật tự, an toàn giao thông đường bộ", "16", "2", LAW36_PART1_SOURCE, "TRAFFIC_RULE")
+    elif _night_horn_forbidden_query(query):
+        provision = ("36/2024/QH15", "Luật Trật tự, an toàn giao thông đường bộ", "21", "2", LAW36_PART1_SOURCE, "TRAFFIC_RULE")
+    elif _tunnel_light_query(query):
+        provision = ("36/2024/QH15", "Luật Trật tự, an toàn giao thông đường bộ", "26", "1", LAW36_SOURCE, "TRAFFIC_RULE")
+    elif _tunnel_stop_parking_query(query):
+        provision = ("36/2024/QH15", "Luật Trật tự, an toàn giao thông đường bộ", "26", "2", LAW36_SOURCE, "TRAFFIC_RULE")
+    elif _child_pedestrian_crossing_query(query):
+        provision = ("36/2024/QH15", "Luật Trật tự, an toàn giao thông đường bộ", "30", "2", LAW36_SOURCE, "TRAFFIC_RULE")
+    elif _motorcycle_prohibited_while_running_query(query):
+        provision = ("36/2024/QH15", "Luật Trật tự, an toàn giao thông đường bộ", "33", "3", LAW36_SOURCE, "TRAFFIC_RULE")
+    elif _driver_papers_query(query):
+        provision = ("36/2024/QH15", "Luật Trật tự, an toàn giao thông đường bộ", "56", "1", LAW36_SOURCE, "TRAFFIC_RULE")
+    elif _highway_breakdown_warning_query(query):
+        provision = ("36/2024/QH15", "Luật Trật tự, an toàn giao thông đường bộ", "25", "2", LAW36_SOURCE, "TRAFFIC_RULE")
+    if provision is None:
+        return None
+
+    document_number, document_title, article, clause, source_file, rule_function = provision
+    extracted = _extract_clause_provision(source_file, article, clause)
+    if extracted is None:
+        return None
+    article_title, clause_intro, points, source_text = extracted
+    citation = _citation(
+        f"{document_number.replace('/', '_').replace('-', '_')}_A{article}_K{clause}_STRUCTURED",
+        document_number,
+        document_title,
+        article,
+        article_title,
+        clause,
+        None,
+        source_file,
+        source_text,
+        rule_function,
+    )
+    conclusion = _format_clause_answer(clause_intro, points)
+    if _night_horn_forbidden_query(query) or _tunnel_stop_parking_query(query):
+        conclusion = f"Không. {conclusion}"
+    elif _child_pedestrian_crossing_query(query):
+        conclusion = f"Không được tự qua đường. {conclusion}"
+    elif _tunnel_light_query(query):
+        conclusion = f"Phải bật đèn chiếu gần. {conclusion}"
+    conclusion = f"{conclusion} [{short_ref(citation)}]."
+    return _response(parsed, conclusion, [citation], {"provision": f"{document_number}_A{article}_K{clause}"})
+
+
+def _source_point_fact(parsed: ParsedQuery, query: str) -> ChatResponse | None:
+    provision: tuple[str, str, str, str, str, object, str] | None = None
+    if _self_drive_rental_vehicle_query(query):
+        provision = ("35/2024/QH15", "Luật Đường bộ", "78", "1", "a", LAW35_SOURCE, "TRAFFIC_RULE")
+    elif _self_drive_rental_license_query(query):
+        provision = ("35/2024/QH15", "Luật Đường bộ", "78", "2", "a", LAW35_SOURCE, "TRAFFIC_RULE")
+    elif _fixed_route_passenger_transport_query(query):
+        provision = ("35/2024/QH15", "Luật Đường bộ", "56", "7", None, LAW35_SOURCE, "TRAFFIC_RULE")
+    elif _road_protection_land_width_query(query):
+        provision = ("165/2024/NĐ-CP", "Nghị định số 165/2024/NĐ-CP", "10", "1", "a", ND165_SOURCE, "TRAFFIC_RULE")
+    if provision is None:
+        return None
+    document_number, document_title, article, clause, point, source_file, rule_function = provision
+    article_data = _extract_article(source_file, article)
+    if not article_data:
+        return None
+    article_title, article_lines = article_data
+    if point is None:
+        extracted_clause = _extract_clause_provision(source_file, article, clause)
+        if extracted_clause is None:
+            return None
+        article_title, clause_intro, points, source_text = extracted_clause
+        citation = _citation(
+            f"{document_number.replace('/', '_').replace('-', '_')}_A{article}_K{clause}_STRUCTURED",
+            document_number,
+            document_title,
+            article,
+            article_title,
+            clause,
+            None,
+            source_file,
+            source_text,
+            rule_function,
+        )
+        conclusion = _format_clause_answer(clause_intro, points)
+        return _response(parsed, f"{conclusion} [{short_ref(citation)}].", [citation], {"provision": f"{document_number}_A{article}_K{clause}"})
+    extracted = _extract_point_from_article(article_lines, clause, point)
+    if extracted is None:
+        return None
+    clause_intro, point_text = extracted
+    source_text = f"{clause}. {clause_intro} {point}) {point_text}".strip()
+    citation = _citation(
+        f"{document_number.replace('/', '_').replace('-', '_')}_A{article}_K{clause}_P{point}_STRUCTURED",
+        document_number,
+        document_title,
+        article,
+        article_title,
+        clause,
+        point,
+        source_file,
+        source_text,
+        rule_function,
+    )
+    conclusion = f"{point_text} [{short_ref(citation)}]."
+    return _response(parsed, conclusion, [citation], {"provision": f"{document_number}_A{article}_K{clause}_P{point}"})
+
+
+def _source_article_fact(parsed: ParsedQuery, query: str) -> ChatResponse | None:
+    if not (
+        parsed.document_number == "238/2026/NĐ-CP"
+        and parsed.article == "21"
+        and any(term in query for term in ["quy dinh gi", "dieu khoan chuyen tiep", "hanh vi"])
+    ):
+        return None
+    article_data = _extract_article(ND238_SOURCE, "21")
+    if not article_data:
+        return None
+    article_title, article_lines = article_data
+    source_text = " ".join(line.strip() for line in article_lines if line.strip())
+    citation = _citation(
+        "ND238_A21_STRUCTURED",
+        "238/2026/NĐ-CP",
+        "Sửa đổi, bổ sung một số điều của Nghị định 168/2024/NĐ-CP",
+        "21",
+        article_title,
+        None,
+        None,
+        ND238_SOURCE,
+        source_text,
+        "TEMPORAL_RULE",
+    )
+    return _response(parsed, f"{source_text} [{short_ref(citation)}].", [citation], {"provision": "ND238_A21"})
+
+
+def _truck_bed_allowed_query(query: str) -> bool:
+    return "thung xe" in query and any(term in query for term in ["o to cho hang", "xe tai", "cho nguoi"])
+
+
+def _lane_change_rule_query(query: str) -> bool:
+    return "chuyen lan" in query and any(term in query for term in ["can lam", "dung quy dinh", "phai", "nhu the nao"])
+
+
+def _turnaround_forbidden_places_query(query: str) -> bool:
+    return "quay dau" in query and any(term in query for term in ["noi nao", "nhung noi", "khong duoc", "cam"])
+
+
+def _reverse_forbidden_places_query(query: str) -> bool:
+    return "lui xe" in query and any(term in query for term in ["cho nao", "nhung cho", "noi nao", "khong duoc", "cam"])
+
+
+def _night_horn_forbidden_query(query: str) -> bool:
+    return "coi" in query and "khu dong dan cu" in query and any(term in query for term in ["ban dem", "22 gio", "05 gio", "5 gio"])
+
+
+def _tunnel_light_query(query: str) -> bool:
+    return "ham duong bo" in query and any(term in query for term in ["bat loai den", "den nao", "bat den", "chieu gan"])
+
+
+def _tunnel_stop_parking_query(query: str) -> bool:
+    return "ham duong bo" in query and any(term in query for term in ["dung", "do xe", "dung xe", "dung hoac do"])
+
+
+def _child_pedestrian_crossing_query(query: str) -> bool:
+    return any(term in query for term in ["tre duoi 7", "tre em duoi 7", "duoi 7 tuoi"]) and any(
+        term in query for term in ["qua duong", "sang duong"]
+    )
+
+
+def _motorcycle_prohibited_while_running_query(query: str) -> bool:
+    if any(term in query for term in ["phat", "muc phat", "xu phat", "tru diem"]):
+        return False
+    has_vehicle = any(term in query for term in ["xe may", "mo to", "gan may"])
+    asks_prohibited = any(term in query for term in ["khong duoc", "bi cam", "cam nhung", "hanh vi nao"])
+    return has_vehicle and asks_prohibited and any(term in query for term in ["khi dang chay", "dang chay", "dang dieu khien", "nguoi lai"])
+
+
+def _driver_papers_query(query: str) -> bool:
+    if any(term in query for term in ["phat", "muc phat", "xu phat"]):
+        return False
+    has_driver = any(term in query for term in ["nguoi lai", "lai xe", "dieu khien"])
+    has_paper = "giay to" in query and any(term in query for term in ["mang theo", "phai mang", "can mang", "nhung gi"])
+    return has_driver and has_paper
+
+
+def _self_drive_rental_vehicle_query(query: str) -> bool:
+    if "tu lai" not in query:
+        return False
+    if not any(term in query for term in ["cho thue", "thue xe", "thue phuong tien"]):
+        return False
+    return any(term in query for term in ["xe nao", "loai xe", "phuong tien nao", "bao gom", "gom"])
+
+
+def _self_drive_rental_license_query(query: str) -> bool:
+    return "tu lai" in query and any(
+        term in query for term in ["khong co bang", "khong co giay phep", "bang phu hop", "gplx phu hop"]
+    )
+
+
+def _fixed_route_passenger_transport_query(query: str) -> bool:
+    return any(term in query for term in ["xe khach tuyen co dinh", "tuyen co dinh"]) and any(
+        term in query for term in ["hieu nhu the nao", "duoc hieu", "la gi"]
+    )
+
+
+def _road_protection_land_width_query(query: str) -> bool:
+    return any(term in query for term in ["phan dat de bao ve", "bao ve bao tri duong bo", "khong nho hon 3,0", "khong nho hon 3m"]) and (
+        "cao toc" in query or "duong cap i" in query or "ngoai do thi" in query
+    )
+
+
+def _highway_breakdown_warning_query(query: str) -> bool:
+    return "cao toc" in query and any(
+        term in query
+        for term in [
+            "no lop",
+            "hong xe",
+            "su co",
+            "bat kha khang",
+            "dung khan cap",
+            "canh bao",
+            "khong the di chuyen",
+        ]
+    )
 
 
 def _common_traffic_direct_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
@@ -165,13 +666,15 @@ def _law36_part1_citation(
 
 
 def _alcohol_zero_tolerance_query(query: str) -> bool:
+    if any(term in query for term in ["phat", "muc phat", "xu phat", "tru diem"]):
+        return False
     return any(term in query for term in ["ruou", "bia", "nong do con"]) and any(
         term in query for term in ["lai xe", "dieu khien", "duoc phep", "muc"]
     )
 
 
 def _phone_while_driving_query(query: str) -> bool:
-    if any(term in query for term in ["phat", "muc phat", "tru diem", "xu phat"]):
+    if any(term in query for term in ["phat", "muc phat", "tru diem", "diem tru", "cong diem", "thanh 8", "xu phat"]):
         return False
     return any(term in query for term in ["dien thoai", "thiet bi dien tu"]) and any(
         term in query for term in ["dang lai", "lai xe", "dieu khien", "cam"]
@@ -297,7 +800,7 @@ def _multi_reference_exact_answer(parsed: ParsedQuery, query: str) -> ChatRespon
             )
         )
         lines.append(
-            f"- Điểm {point} khoản {clause} Điều {parsed.article}: {clause_intro} {point}) {point_text}"
+            f"- Điểm {point} khoản {clause} Điều {parsed.article}: {clause_intro} {point}) {point_text} [{short_ref(citations[-1])}]"
         )
 
     conclusion = "\n".join(lines)
@@ -488,6 +991,8 @@ def _child_safety_amendment_answer(parsed: ParsedQuery, query: str) -> ChatRespo
 def _law36_child_safety_effective_date_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
     if parsed.temporal_intent != "EFFECTIVE_DATE_LOOKUP":
         return None
+    if parsed.document_number and parsed.document_number != "36/2024/QH15":
+        return None
     if parsed.article != "10" or parsed.clause != "3":
         return None
     if not any(term in query for term in ["thiet bi an toan", "tre em", "tre nho", "o to"]):
@@ -504,8 +1009,13 @@ def _law36_child_safety_effective_date_answer(parsed: ParsedQuery, query: str) -
         "2. Khoản 3 Điều 10 của Luật này có hiệu lực thi hành từ ngày 01 tháng 01 năm 2026.",
         "TEMPORAL_RULE",
     )
+    asked_date = _query_date(parsed)
+    prefix = ""
+    if asked_date:
+        prefix = "Có. " if asked_date >= date(2026, 1, 1) else "Chưa. "
     conclusion = (
-        "Quy định tại **khoản 3 Điều 10** Luật Trật tự, an toàn giao thông đường bộ có hiệu lực từ **ngày 01/01/2026** [36/2024/QH15: Điều 88, khoản 2]."
+        f"{prefix}Quy định tại **khoản 3 Điều 10** Luật Trật tự, an toàn giao thông đường bộ "
+        "có hiệu lực từ **ngày 01/01/2026** [36/2024/QH15: Điều 88, khoản 2]."
     )
     return _response(parsed, conclusion, [citation], {"provision": "L36_A88_K2"})
 
@@ -650,22 +1160,23 @@ def _priority_vehicle_order_answer(parsed: ParsedQuery, query: str) -> ChatRespo
         return None
     if not any(term in query for term in ["thu tu", "di truoc", "qua duong giao nhau", "uu tien tu"]):
         return None
+    extracted = _extract_clause_provision(LAW36_SOURCE, "27", "2")
+    if extracted is None:
+        return None
+    article_title, clause_intro, points, source_text = extracted
     citation = _citation(
         "L36_A27_K2_STRUCTURED",
         "36/2024/QH15",
         "Luật Trật tự, an toàn giao thông đường bộ",
         "27",
-        "Xe ưu tiên",
+        article_title,
         "2",
         None,
         LAW36_SOURCE,
-        "2. Xe ưu tiên được quyền đi trước xe khác khi qua đường giao nhau từ bất kỳ hướng nào tới theo thứ tự ưu tiên từ trên xuống dưới: a) xe chữa cháy; b) xe quân sự, công an, kiểm sát làm nhiệm vụ khẩn cấp; đoàn xe có Cảnh sát giao thông dẫn đường; c) xe cứu thương; d) xe hộ đê, xe cứu nạn, cứu hộ, khắc phục sự cố thiên tai, dịch bệnh hoặc tình trạng khẩn cấp.",
+        source_text,
         "TRAFFIC_RULE",
     )
-    conclusion = (
-        "Thứ tự xe ưu tiên được quyền đi trước khi qua đường giao nhau là: **xe chữa cháy**; **xe quân sự, công an, kiểm sát làm nhiệm vụ khẩn cấp và đoàn xe có CSGT dẫn đường**; **xe cứu thương**; "
-        "**xe hộ đê, xe cứu nạn/cứu hộ/khắc phục sự cố thiên tai, dịch bệnh hoặc tình trạng khẩn cấp** [36/2024/QH15: Điều 27, khoản 2]."
-    )
+    conclusion = f"{_format_clause_answer(clause_intro, points)} [{short_ref(citation)}]."
     return _response(parsed, conclusion, [citation], {"provision": "L36_A27_K2"})
 
 
@@ -773,6 +1284,10 @@ def _query_date(parsed: ParsedQuery) -> date | None:
         return None
 
 
+def _format_date_vi(value: date) -> str:
+    return f"{value.day:02d}/{value.month:02d}/{value.year}"
+
+
 def _citation(
     chunk_id: str,
     document_number: str,
@@ -814,6 +1329,29 @@ def _response(
         answerable=True,
         debug={"parsed_query": parsed.model_dump(), "structured_fact": debug_fact},
     )
+
+
+def _unanswerable_response(parsed: ParsedQuery, answer: str, debug_fact: dict[str, str]) -> ChatResponse:
+    return ChatResponse(
+        answer=answer,
+        citations=[],
+        answerable=False,
+        debug={"parsed_query": parsed.model_dump(), "structured_fact": debug_fact},
+    )
+
+
+def _source_file_for_reference(document_number: str, article: str) -> object | None:
+    if document_number == "35/2024/QH15":
+        return LAW35_SOURCE
+    if document_number == "36/2024/QH15":
+        return LAW36_PART1_SOURCE if article.isdigit() and int(article) <= 23 else LAW36_SOURCE
+    if document_number == "165/2024/NĐ-CP":
+        return ND165_SOURCE
+    if document_number == "168/2024/NĐ-CP":
+        return ND168_SOURCE
+    if document_number == "238/2026/NĐ-CP":
+        return ND238_SOURCE
+    return None
 
 
 def _ref(citation: Citation) -> str:

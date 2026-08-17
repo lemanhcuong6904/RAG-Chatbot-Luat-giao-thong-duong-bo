@@ -49,6 +49,8 @@ def _citation_from_result(chunk: Chunk, score: float) -> Citation:
         sibling_group_id=chunk.sibling_group_id,
         source_file=chunk.source_file,
         text=chunk.text,
+        valid_from=chunk.valid_from,
+        valid_to=chunk.valid_to,
         rule_function=effective_rule_function(chunk.rule_function, chunk.text, chunk.article_title),
         coverage_status=chunk.coverage_status,
         source_quality=chunk.source_quality,
@@ -318,11 +320,14 @@ def _build_effective_date_extractive_answer(parsed: ParsedQuery, citations: list
     query = strip_accents(normalize_text(parsed.query))
     if "hieu luc" not in query:
         return None
+    metadata_answer = _build_effective_date_metadata_answer(parsed, citations)
+    if metadata_answer:
+        return metadata_answer
     citation = next((item for item in citations if "hiệu lực" in normalize_text(item.text)), None)
     if not citation:
         return None
     effective_date = _effective_date_from_text(citation.text)
-    asked_date = _question_date(parsed)
+    asked_date = _question_date(parsed) if _asks_effective_status(parsed.query) else None
     effective_text = _effective_text(citation.text)
     document = _short_ref(citation).split(", Điều", maxsplit=1)[0]
 
@@ -332,6 +337,180 @@ def _build_effective_date_extractive_answer(parsed: ParsedQuery, citations: list
     if effective_text:
         return f"{document} có hiệu lực từ {effective_text} [{_short_ref(citation)}]."
     return None
+
+
+def _build_effective_date_metadata_answer(parsed: ParsedQuery, citations: list[Citation]) -> str | None:
+    citation = _effective_date_metadata_citation(parsed, citations)
+    if not citation or not citation.valid_from:
+        return None
+    effective_date = _date_or_none(citation.valid_from)
+    if not effective_date:
+        return None
+    asked_date = _question_date(parsed) if _asks_effective_status(parsed.query) else None
+    effective_text = _format_date_vi(effective_date)
+    subject = _effective_subject(citation)
+    document_detail = _document_effective_date_detail(parsed, citations, effective_date, citation)
+    if document_detail:
+        return document_detail
+    if asked_date:
+        prefix = "Có." if asked_date >= effective_date else "Chưa."
+        return f"{prefix} {subject} có hiệu lực từ ngày {effective_text} [{_short_ref(citation)}]."
+    return f"{subject} có hiệu lực từ ngày {effective_text} [{_short_ref(citation)}]."
+
+
+def _effective_date_metadata_citation(parsed: ParsedQuery, citations: list[Citation]) -> Citation | None:
+    document_effective = _document_effective_date_citation(parsed, citations)
+    if document_effective and document_effective.valid_from:
+        return document_effective
+    exact = _exact_reference_target(parsed, citations)
+    if exact and exact.valid_from:
+        return exact
+    matched = [
+        item
+        for item in citations
+        if item.valid_from and _citation_matches_requested_location(parsed, item)
+    ]
+    if matched:
+        return sorted(matched, key=_citation_specificity, reverse=True)[0]
+    return next((item for item in citations if item.valid_from), None)
+
+
+def _document_effective_date_citation(parsed: ParsedQuery, citations: list[Citation]) -> Citation | None:
+    if not _is_document_level_effective_date_query(parsed):
+        return None
+    expected_article = {
+        "35/2024/QH15": "85",
+        "168/2024/NĐ-CP": "53",
+        "238/2026/NĐ-CP": "20",
+    }.get(parsed.document_number or "")
+    candidates = [
+        citation
+        for citation in citations
+        if citation.valid_from and (not parsed.document_number or citation.document_number == parsed.document_number)
+    ]
+    if expected_article:
+        exact = [citation for citation in candidates if citation.article == expected_article]
+        if exact:
+            return sorted(exact, key=lambda item: (item.clause != "1", _citation_specificity(item)))[0]
+    effective = [citation for citation in candidates if _is_effective_source_citation(citation)]
+    if effective:
+        return sorted(effective, key=_citation_specificity)[0]
+    return None
+
+
+def _is_document_level_effective_date_query(parsed: ParsedQuery) -> bool:
+    return (
+        parsed.temporal_intent == "EFFECTIVE_DATE_LOOKUP"
+        and bool(parsed.document_number)
+        and not any([parsed.article, parsed.clause, parsed.point])
+    )
+
+
+def _is_effective_source_citation(citation: Citation) -> bool:
+    text = strip_accents(normalize_text(f"{citation.article_title or ''} {citation.text}"))
+    return "hieu luc thi hanh" in text or "co hieu luc" in text
+
+
+def _asks_effective_status(query: str) -> bool:
+    normalized = strip_accents(normalize_text(query))
+    if any(term in normalized for term in ["tu ngay nao", "ngay nao", "bat dau", "thoi diem nao"]):
+        return False
+    return any(
+        term in normalized
+        for term in [
+            "da co hieu luc chua",
+            "co hieu luc chua",
+            "da hieu luc chua",
+            "dang co hieu luc",
+            "hien nay",
+            "da ap dung chua",
+        ]
+    )
+
+
+def _document_effective_date_detail(
+    parsed: ParsedQuery,
+    citations: list[Citation],
+    effective_date: date,
+    citation: Citation,
+) -> str | None:
+    if not _is_document_level_effective_date_query(parsed):
+        return None
+    asked_date = _question_date(parsed) if _asks_effective_status(parsed.query) else None
+    prefix = f"{'Có.' if asked_date >= effective_date else 'Chưa.'} " if asked_date else ""
+    ref = f"[{_short_ref(citation)}]"
+    if parsed.document_number == "168/2024/NĐ-CP":
+        return (
+            f"{prefix}Nghị định 168/2024/NĐ-CP có hiệu lực thi hành từ ngày 01/01/2025, "
+            f"trừ các quy định có thời điểm hiệu lực riêng tại khoản 2 Điều 53 {ref}."
+        )
+    if parsed.document_number == "35/2024/QH15":
+        early_ref = next(
+            (
+                item
+                for item in citations
+                if item.document_number == "35/2024/QH15" and item.article == "85" and item.clause == "2"
+            ),
+            None,
+        )
+        early_suffix = (
+            f"; một số quy định tại khoản 2 Điều 85 có hiệu lực từ ngày 01/10/2024 [{_short_ref(early_ref)}]"
+            if early_ref
+            else ""
+        )
+        return f"{prefix}Luật Đường bộ 35/2024/QH15 có hiệu lực thi hành từ ngày 01/01/2025 {ref}{early_suffix}."
+    if parsed.document_number == "238/2026/NĐ-CP":
+        return f"{prefix}Nghị định 238/2026/NĐ-CP có hiệu lực thi hành từ ngày 15/08/2026 {ref}."
+    return None
+
+
+def _citation_matches_requested_location(parsed: ParsedQuery, citation: Citation) -> bool:
+    if parsed.document_number and citation.document_number != parsed.document_number:
+        return False
+    if parsed.article and citation.article != parsed.article:
+        return False
+    if parsed.clause and citation.clause != parsed.clause:
+        return False
+    if parsed.point and citation.point != parsed.point:
+        return False
+    return any([parsed.document_number, parsed.article, parsed.clause, parsed.point])
+
+
+def _citation_specificity(citation: Citation) -> int:
+    return sum(
+        [
+            1 if citation.document_number else 0,
+            1 if citation.article else 0,
+            1 if citation.clause else 0,
+            1 if citation.point else 0,
+        ]
+    )
+
+
+def _date_or_none(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
+def _format_date_vi(value: date) -> str:
+    return f"{value.day:02d}/{value.month:02d}/{value.year}"
+
+
+def _effective_subject(citation: Citation) -> str:
+    parts = []
+    if citation.point:
+        parts.append(f"điểm {citation.point}")
+    if citation.clause:
+        parts.append(f"khoản {citation.clause}")
+    if citation.article:
+        parts.append(f"Điều {citation.article}")
+    if citation.document_number:
+        parts.append(citation.document_number)
+    return " ".join(parts) if parts else "Quy định được hỏi"
 
 
 def _effective_text(text: str) -> str:
@@ -733,6 +912,17 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
     llm_provider, _llm_model = resolve_llm(RAG_LLM_PROVIDER, "")
     llm_configured = is_chat_provider_configured(llm_provider)
 
+    if parsed.temporal_intent == "EFFECTIVE_DATE_LOOKUP":
+        effective_answer = _build_effective_date_extractive_answer(parsed, citations)
+        if effective_answer:
+            return ChatResponse(
+                answer=_normalize_answer_style(effective_answer, citations),
+                citations=citations,
+                warnings=warnings,
+                answerable=True,
+                debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "effective_date_lookup": True},
+            )
+
     exact_answer = _build_exact_reference_answer(parsed, citations)
     if exact_answer and not llm_configured:
         return ChatResponse(
@@ -860,6 +1050,28 @@ def _build_capacity_age_answer(parsed: ParsedQuery, citations: list[Citation]) -
     if age is None or capacity is None:
         return None
 
+    if capacity <= 50:
+        moped_evidence = _moped_capacity_evidence(citations)
+        moped_age_evidence = _moped_age_evidence(citations)
+        if moped_evidence and moped_age_evidence:
+            minimum_age, age_citation = moped_age_evidence
+            selected = _dedupe_citations([moped_evidence, age_citation])
+            refs = "\n".join(
+                f"{index + 1}. {citation.document_number or citation.document_title}: {_legal_ref(citation)}"
+                for index, citation in enumerate(selected)
+            )
+            allowed = age >= minimum_age
+            conclusion = "được phép" if allowed else "chưa được phép"
+            return (
+                "### Trả lời\n"
+                f"Người {age:g} tuổi **{conclusion}** điều khiển xe 50 cm3 nếu phương tiện đúng là xe gắn máy theo luật.\n\n"
+                f"Xe gắn máy dùng động cơ nhiệt có dung tích không lớn hơn 50 cm3; người đủ {minimum_age} tuổi trở lên được điều khiển xe gắn máy "
+                f"[{_short_ref(moped_evidence)}; {_short_ref(age_citation)}].\n\n"
+                "### Căn cứ pháp lý\n"
+                f"{refs}",
+                selected,
+            )
+
     license_evidence = _motorcycle_license_class_for_capacity(capacity, citations)
     age_evidence = _license_age_evidence(citations)
     if not license_evidence or not age_evidence:
@@ -891,7 +1103,7 @@ def _build_capacity_age_answer(parsed: ParsedQuery, citations: list[Citation]) -
 
 def _age_from_query(query: str) -> float | None:
     q = strip_accents(normalize_text(query))
-    match = re.search(r"\b(\d+(?:[,.]\d+)?)\s*tuoi\b", q)
+    match = re.search(r"\b(\d+(?:[,.]\d+)?)\s*(?:tuoi|t)\b", q)
     return float(match.group(1).replace(",", ".")) if match else None
 
 
@@ -912,6 +1124,27 @@ def _motorcycle_license_class_for_capacity(capacity: float, citations: list[Cita
         if re.search(r"\bhang a\b", text) and _covers_lower_bound_capacity(text, capacity):
             candidates.append(("A", citation))
     return candidates[0] if candidates else None
+
+
+def _moped_capacity_evidence(citations: list[Citation]) -> Citation | None:
+    for citation in citations:
+        if citation.document_number != "36/2024/QH15" or citation.article != "34":
+            continue
+        text = strip_accents(normalize_text(citation.text))
+        if "xe gan may" in text and any(term in text for term in ["khong lon hon 50 cm3", "50 cm3"]):
+            return citation
+    return None
+
+
+def _moped_age_evidence(citations: list[Citation]) -> tuple[int, Citation] | None:
+    for citation in citations:
+        if citation.document_number != "36/2024/QH15" or citation.article != "59":
+            continue
+        text = strip_accents(normalize_text(citation.text))
+        match = re.search(r"nguoi du\s+(\d+)\s+tuoi tro len duoc dieu khien xe gan may", text)
+        if match:
+            return int(match.group(1)), citation
+    return None
 
 
 def _covers_upper_bound_capacity(text: str, capacity: float) -> bool:

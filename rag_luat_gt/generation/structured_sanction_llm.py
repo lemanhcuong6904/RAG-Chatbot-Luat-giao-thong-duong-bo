@@ -19,6 +19,7 @@ from rag_luat_gt.generation.llm_client import (
     resolve_llm,
 )
 from rag_luat_gt.schemas import ChatResponse, ParsedQuery
+from rag_luat_gt.text import normalize_text, strip_accents
 
 
 SYSTEM_PROMPT = """Bạn là trợ lý diễn đạt kết quả xử phạt giao thông đường bộ Việt Nam.
@@ -82,9 +83,15 @@ def maybe_render_structured_sanction_with_llm(
         return response
 
     try:
-        response.answer = _normalize_rendered_answer(
-            _render_with_provider(parsed, _sanction_render_prompt(response.answer), payload, provider=provider, model=resolved_model)
+        deterministic_answer = response.answer
+        rendered = _normalize_rendered_answer(
+            _render_with_provider(parsed, _sanction_render_prompt(deterministic_answer), payload, provider=provider, model=resolved_model)
         )
+        if _render_preserves_required_claims(deterministic_answer, rendered):
+            response.answer = rendered
+        else:
+            response.answer = deterministic_answer
+            response.warnings.append("Structured sanction LLM render was discarded because it omitted required claims or added unsupported amounts.")
         render_debug = response.debug.setdefault("structured_sanction_llm", {})
         render_debug.update(
             {
@@ -124,6 +131,25 @@ def _normalize_rendered_answer(answer: str) -> str:
     answer = re.sub(r"^\s*###\s*Trả lời\s*", "", answer, flags=re.IGNORECASE)
     answer = re.split(r"\n\s*###\s*Căn cứ pháp lý\b", answer, maxsplit=1, flags=re.IGNORECASE)[0]
     return answer.strip()
+
+
+def _render_preserves_required_claims(deterministic: str, rendered: str) -> bool:
+    deterministic_norm = _claim_key(deterministic)
+    rendered_norm = _claim_key(rendered)
+    for points in re.findall(r"tru\s+(\d+)\s+diem", deterministic_norm):
+        if f"tru {points} diem" not in rendered_norm:
+            return False
+    deterministic_amounts = set(re.findall(r"\b\d{1,3}(?:\.\d{3})+\b", deterministic_norm))
+    rendered_amounts = set(re.findall(r"\b\d{1,3}(?:\.\d{3})+\b", rendered_norm))
+    if not rendered_amounts.issubset(deterministic_amounts):
+        return False
+    return True
+
+
+def _claim_key(value: str) -> str:
+    normalized = value.replace(",", ".")
+    normalized = re.sub(r"\s+", " ", normalized)
+    return strip_accents(normalize_text(normalized)).casefold()
 
 
 def _mark_skip(response: ChatResponse, reason: str) -> None:

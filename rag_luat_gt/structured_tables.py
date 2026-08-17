@@ -41,7 +41,7 @@ def build_structured_table_answer(parsed: ParsedQuery) -> ChatResponse | None:
     if speed_rule:
         return speed_rule
 
-    if "khoang cach" not in query or "toc do" not in query:
+    if "khoang cach" not in query or ("toc do" not in query and "km/h" not in query and "kmh" not in query):
         return None
     speed = _speed_kmh(query)
     if speed is None:
@@ -80,8 +80,50 @@ def build_structured_table_answer(parsed: ParsedQuery) -> ChatResponse | None:
 
 
 def _speed_rule_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
-    if "toc do" not in query and not any(term in query for term in ["km/h", "kmh", "chay toi da", "chay toi thieu"]):
+    if not _has_speed_rule_context(query) or _highway_incident_query(query):
         return None
+    if _urban_dual_lane_speed_query(parsed, query):
+        citation = _speed_rule_citation(
+            chunk_id="TT38_A06_K1_TABLE_1_STRUCTURED",
+            article="6",
+            article_title="Tốc độ khai thác tối đa cho phép xe cơ giới tham gia giao thông trên đường bộ (trừ đường cao tốc)",
+            clause="1",
+            text=(
+                "Điều 6. Tốc độ khai thác tối đa cho phép xe cơ giới tham gia giao thông trên đường bộ (trừ đường cao tốc)\n\n"
+                "1. Tốc độ khai thác tối đa trong khu vực đông dân cư đối với các loại xe cơ giới, trừ các xe được quy định tại Điều 7 và Điều 8 "
+                "Thông tư này: đường đôi; đường một chiều có từ hai làn xe cơ giới trở lên là 60 km/h; đường hai chiều; đường một chiều có một làn xe cơ giới là 50 km/h."
+            ),
+        )
+        return _table_response(
+            parsed,
+            (
+                "Trong khu vực đông dân cư, ô tô trên đường đôi hoặc đường một chiều có từ hai làn xe cơ giới trở lên "
+                "được chạy tối đa **60 km/h**, trừ các xe thuộc nhóm có quy định riêng tại Điều 7 và Điều 8 [38/2024/TT-BGTVT, Điều 6, khoản 1]."
+            ),
+            citation,
+            {"provision": "TT38_A06_K1_TABLE_1"},
+        )
+    if _outside_urban_dual_lane_speed_query(parsed, query):
+        citation = _speed_rule_citation(
+            chunk_id="TT38_A06_K2_TABLE_2_STRUCTURED",
+            article="6",
+            article_title="Tốc độ khai thác tối đa cho phép xe cơ giới tham gia giao thông trên đường bộ (trừ đường cao tốc)",
+            clause="2",
+            text=(
+                "Điều 6. Tốc độ khai thác tối đa cho phép xe cơ giới tham gia giao thông trên đường bộ (trừ đường cao tốc)\n\n"
+                "2. Tốc độ khai thác tối đa ngoài khu vực đông dân cư đối với xe ô tô chở người đến 28 chỗ, xe ô tô tải có trọng tải đến 3,5 tấn: "
+                "đường đôi; đường một chiều có từ hai làn xe cơ giới trở lên là 90 km/h; đường hai chiều; đường một chiều có một làn xe cơ giới là 80 km/h."
+            ),
+        )
+        return _table_response(
+            parsed,
+            (
+                "Ngoài khu vực đông dân cư, ô tô con hoặc ô tô chở người đến 28 chỗ trên đường đôi hoặc đường một chiều có từ hai làn xe cơ giới trở lên "
+                "được chạy tối đa **90 km/h** [38/2024/TT-BGTVT, Điều 6, khoản 2]."
+            ),
+            citation,
+            {"provision": "TT38_A06_K2_TABLE_2"},
+        )
     if "xe gan may" in query and (
         "cao toc" not in query
         or any(term in query for term in ["khong di tren cao toc", "khong tren cao toc", "tru duong cao toc", "ngoai cao toc"])
@@ -154,6 +196,66 @@ def _speed_rule_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
     return None
 
 
+def _urban_dual_lane_speed_query(parsed: ParsedQuery, query: str) -> bool:
+    if "ngoai khu dong dan cu" in query:
+        return False
+    if "khu dong dan cu" not in query and "dong dan cu" not in query:
+        return False
+    if parsed.vehicle_code not in {None, "CAR", "TRUCK", "BUS"}:
+        return False
+    has_dual_or_multilane = "duong doi" in query or (
+        "duong mot chieu" in query and any(term in query for term in ["hai lan", "2 lan", "tu hai lan"])
+    )
+    asks_max_speed = any(term in query for term in ["chay toi da", "toc do toi da", "toi da bao nhieu", "duoc chay", "max"])
+    return has_dual_or_multilane and asks_max_speed
+
+
+def _outside_urban_dual_lane_speed_query(parsed: ParsedQuery, query: str) -> bool:
+    if "ngoai khu dong dan cu" not in query:
+        return False
+    if parsed.vehicle_code not in {None, "CAR", "TRUCK", "BUS"}:
+        return False
+    has_dual_or_multilane = "duong doi" in query or (
+        "duong mot chieu" in query and any(term in query for term in ["hai lan", "2 lan", "tu hai lan"])
+    )
+    asks_max_speed = any(term in query for term in ["chay toi da", "toc do toi da", "toi da bao nhieu", "duoc chay", "max"])
+    return has_dual_or_multilane and asks_max_speed
+
+
+def _has_speed_rule_context(query: str) -> bool:
+    if "toc do" in query or "km/h" in query or "kmh" in query:
+        return True
+    return any(
+        term in query
+        for term in [
+            "chay toi da",
+            "chay toi thieu",
+            "toc do toi da",
+            "toc do toi thieu",
+            "toi da bao nhieu",
+            "duoc toi da",
+            "duoc chay toi da",
+            "max",
+        ]
+    )
+
+
+def _highway_incident_query(query: str) -> bool:
+    return "cao toc" in query and any(
+        term in query
+        for term in [
+            "no lop",
+            "hong xe",
+            "su co",
+            "bat kha khang",
+            "dung khan cap",
+            "lan dung khan cap",
+            "bien canh bao",
+            "den canh bao",
+        ]
+    )
+
+
 def _table_response(
     parsed: ParsedQuery,
     conclusion: str,
@@ -220,7 +322,14 @@ def _safe_distance_rows() -> list[DistanceRow]:
     if not SAFE_DISTANCE_SOURCE.exists():
         return []
     lines = SAFE_DISTANCE_SOURCE.read_text(encoding="utf-8-sig").splitlines()
-    start = next((index for index, line in enumerate(lines) if "Bảng 3. Khoảng cách an toàn" in line), None)
+    start = next(
+        (
+            index
+            for index, line in enumerate(lines)
+            if "bang 3" in strip_accents(normalize_text(line)) and "khoang cach an toan" in strip_accents(normalize_text(line))
+        ),
+        None,
+    )
     if start is None:
         return []
     rows: list[DistanceRow] = []
@@ -249,7 +358,7 @@ def _safe_distance_rows() -> list[DistanceRow]:
 
 
 def _parse_speed_cell(cell: str) -> DistanceRow | None:
-    text = strip_accents(normalize_text(cell)).replace("≤", "<=")
+    text = strip_accents(normalize_text(cell)).replace("≤", "<=").replace("â‰¤", "<=")
     exact = re.search(r"v\s*=\s*(\d+(?:[,.]\d+)?)", text)
     if exact:
         value = float(exact.group(1).replace(",", "."))

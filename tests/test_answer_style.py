@@ -19,6 +19,7 @@ def _chunk(
     chunk_type: str = "POINT",
     article_title: str = "Xử phạt vi phạm hành chính",
     rule_function: str = "SANCTION",
+    valid_from: str | None = None,
 ) -> Chunk:
     return Chunk(
         chunk_id=chunk_id,
@@ -33,6 +34,7 @@ def _chunk(
         text=text,
         retrieval_text=text,
         source_file="test.md",
+        valid_from=valid_from,
         rule_function=rule_function,
         coverage_status="COMPLETE",
         source_quality="TEST",
@@ -94,6 +96,44 @@ def test_extractive_effective_date_answer_is_direct() -> None:
 
     assert response.answer.startswith("Chưa.")
     assert "[Nghị định 238/2026/NĐ-CP, Điều 20, khoản 1]" in response.answer
+
+
+def test_effective_date_lookup_uses_provision_valid_from_metadata() -> None:
+    parsed = ParsedQuery(
+        query="Quy dinh xu phat tai diem m khoan 3 Dieu 6 Nghi dinh 168 ve tre em tren o to co hieu luc tu ngay nao?",
+        normalized_query="quy dinh xu phat tai diem m khoan 3 dieu 6 nghi dinh 168 ve tre em tren o to co hieu luc tu ngay nao",
+        temporal_intent="EFFECTIVE_DATE_LOOKUP",
+        document_number="168/2024/NÄ-CP",
+        article="6",
+        clause="3",
+        point="m",
+    )
+    provision = _chunk(
+        chunk_id="child-safety",
+        document_number="168/2024/NÄ-CP",
+        document_title="Nghá»‹ Ä‘á»‹nh sá»‘ 168/2024/NÄ-CP",
+        article="6",
+        clause="3",
+        point="m",
+        text="m) Cho tre em duoi 10 tuoi va chieu cao duoi 1,35 met tren xe o to ngoi cung hang ghe voi nguoi lai xe;",
+        valid_from="2026-01-01",
+    )
+    parent = _chunk(
+        chunk_id="child-safety-parent",
+        document_number="168/2024/NÄ-CP",
+        document_title="Nghá»‹ Ä‘á»‹nh sá»‘ 168/2024/NÄ-CP",
+        article="6",
+        clause="3",
+        point=None,
+        chunk_type="CLAUSE",
+        text="3. Phat tien tu 800.000 dong den 1.000.000 dong doi voi nguoi dieu khien xe thuc hien mot trong cac hanh vi vi pham sau day:",
+        valid_from="2025-01-01",
+    )
+
+    response = build_answer(parsed, [(parent, 1.1), (provision, 1.0)])
+
+    assert "01/01/2026" in response.answer
+    assert any(citation.point == "m" and citation.valid_from == "2026-01-01" for citation in response.citations)
 
 
 def test_common_traffic_questions_use_direct_structured_answers() -> None:

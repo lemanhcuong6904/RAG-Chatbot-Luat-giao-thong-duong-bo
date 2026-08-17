@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -12,7 +13,16 @@ CATALOG_PATH = Path("data/curated/behavior_catalog.json")
 
 
 def _norm(value: str) -> str:
-    return strip_accents(normalize_text(value))
+    normalized = strip_accents(normalize_text(value))
+    replacements = {
+        r"\bko\b": "khong",
+        r"\bk\b": "khong",
+        r"\bkhg\b": "khong",
+        r"\bmbh\b": "mu bao hiem",
+    }
+    for pattern, replacement in replacements.items():
+        normalized = re.sub(pattern, replacement, normalized)
+    return normalized
 
 
 @lru_cache(maxsize=1)

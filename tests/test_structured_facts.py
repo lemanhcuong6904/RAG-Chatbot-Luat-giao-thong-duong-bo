@@ -116,3 +116,93 @@ def test_road_database_and_not_decentralized_national_roads() -> None:
     assert database.citations[0].document_number == "35/2024/QH15"
     assert "Quốc lộ 1" in national_roads.answer
     assert national_roads.citations[0].document_number == "165/2024/NĐ-CP"
+
+
+def test_source_traffic_facts_use_primary_law_sources() -> None:
+    stopping = _answer("Dừng xe và đỗ xe khác nhau thế nào?")
+    truck_bed = _answer("Những trường hợp nào được chở người trên thùng xe ô tô chở hàng?")
+    motorcycle = _answer("Người lái xe máy không được làm gì khi đang chạy?")
+    papers = _answer("Người lái xe ô tô phải mang theo giấy tờ gì khi tham gia giao thông?")
+
+    assert {(citation.article, citation.clause) for citation in stopping.citations} == {("18", "1"), ("18", "2")}
+    assert truck_bed.citations[0].article == "28"
+    assert truck_bed.citations[0].clause == "1"
+    assert "diễu hành theo đoàn" in truck_bed.answer
+    assert motorcycle.citations[0].article == "33"
+    assert motorcycle.citations[0].clause == "3"
+    assert "Buông cả hai tay" in motorcycle.answer
+    assert papers.citations[0].article == "56"
+    assert papers.citations[0].clause == "1"
+    assert "Chứng nhận kiểm định" in papers.answer
+
+
+def test_source_fact_for_self_drive_rental_and_highway_breakdown() -> None:
+    rental = _answer("Dịch vụ cho thuê phương tiện để tự lái gồm những xe nào?")
+    breakdown = _answer("Trên cao tốc xe bị hỏng không thể vào làn dừng khẩn cấp thì đặt cảnh báo bao xa?")
+    transition = _answer("Điều 21 Nghị định 238/2026/NĐ-CP quy định gì về hành vi xảy ra trước ngày nghị định có hiệu lực?")
+
+    assert rental.citations[0].document_number == "35/2024/QH15"
+    assert rental.citations[0].article == "78"
+    assert rental.citations[0].point == "a"
+    assert "ô tô chở người dưới 08 chỗ" in rental.answer
+    assert breakdown.citations[0].article == "25"
+    assert "150 mét" in breakdown.answer
+    assert transition.citations[0].document_number == "238/2026/NĐ-CP"
+    assert transition.citations[0].article == "21"
+    assert "thời điểm thực hiện hành vi" in transition.answer
+
+
+def test_direct_rule_facts_do_not_fall_back_to_sanctions() -> None:
+    lane = _answer("Khi chuyển làn cần làm gì để đúng quy định?")
+    turnaround = _answer("Những nơi nào không được quay đầu xe?")
+    reverse = _answer("Những chỗ nào không được lùi xe?")
+    horn = _answer("Ban đêm có được bấm còi trong khu đông dân cư không?")
+    tunnel_light = _answer("Đi trong hầm đường bộ thì ô tô, xe máy phải bật loại đèn nào?")
+    tunnel_stop = _answer("Có được dừng hoặc đỗ xe trong hầm đường bộ không?")
+
+    assert lane.citations[0].article == "13"
+    assert lane.citations[0].clause == "2"
+    assert turnaround.citations[0].article == "15"
+    assert turnaround.citations[0].clause == "4"
+    assert reverse.citations[0].article == "16"
+    assert reverse.citations[0].clause == "2"
+    assert horn.answer.startswith("Không.")
+    assert horn.citations[0].article == "21"
+    assert horn.citations[0].clause == "2"
+    assert tunnel_light.answer.startswith("Phải bật đèn chiếu gần.")
+    assert tunnel_light.citations[0].article == "26"
+    assert tunnel_light.citations[0].clause == "1"
+    assert tunnel_stop.answer.startswith("Không.")
+    assert tunnel_stop.citations[0].article == "26"
+    assert tunnel_stop.citations[0].clause == "2"
+
+
+def test_priority_order_child_crossing_and_rental_grounding() -> None:
+    priority = _answer("Thứ tự ưu tiên của các xe ưu tiên khi qua đường giao nhau là như thế nào?")
+    child = _answer("Trẻ dưới 7 tuổi tự qua đường có được không?")
+    fixed_route = _answer("Xe khách tuyến cố định được hiểu như thế nào?")
+    rental_license = _answer("Đơn vị cho thuê xe tự lái có được giao xe cho người không có bằng phù hợp không?")
+
+    assert "Đoàn xe tang" in priority.answer
+    assert priority.citations[0].article == "27"
+    assert priority.citations[0].clause == "2"
+    assert child.answer.startswith("Không được tự qua đường.")
+    assert child.citations[0].article == "30"
+    assert child.citations[0].clause == "2"
+    assert "từ 08 chỗ trở lên" in fixed_route.answer
+    assert fixed_route.citations[0].article == "56"
+    assert fixed_route.citations[0].clause == "7"
+    assert "giấy phép lái xe đang còn điểm" in rental_license.answer
+    assert rental_license.citations[0].article == "78"
+    assert rental_license.citations[0].clause == "2"
+    assert rental_license.citations[0].point == "a"
+
+
+def test_nonexistent_explicit_clause_fails_closed() -> None:
+    parsed = parse_query(ChatRequest(query="Khoản 9 Điều 21 Nghị định 238/2026/NĐ-CP quy định gì?"))
+    response = build_structured_fact_answer(parsed)
+
+    assert response is not None
+    assert not response.answerable
+    assert response.citations == []
+    assert "Không có khoản 9 Điều 21" in response.answer

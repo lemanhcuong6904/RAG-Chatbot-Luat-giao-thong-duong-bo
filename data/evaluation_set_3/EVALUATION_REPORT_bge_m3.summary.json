@@ -1,0 +1,46 @@
+{
+  "n": 200,
+  "errors": 0,
+  "latency_mean_s": 4.6885618449980395,
+  "latency_p50_s": 4.591606399975717,
+  "latency_p95_s": 8.87715298502298,
+  "retrieval": {
+    "recall@1": 0.3631578947368421,
+    "recall@3": 0.5947368421052631,
+    "recall@5": 0.6631578947368421,
+    "recall@10": 0.7157894736842105,
+    "completeness@10": 0.6947368421052632,
+    "mrr": 0.49085649730386577,
+    "ndcg@10": 0.6601829501535095
+  },
+  "generation": {
+    "answerable_correct": 0.91,
+    "citation_correct": 0.74,
+    "citation_complete": 0.71,
+    "numeric_exact": null,
+    "points_exact": null,
+    "enumeration_completeness": null,
+    "must_include": null,
+    "context_recall_proxy": 0.7732492859179508,
+    "answer_relevance_proxy": 0.6808543789063797
+  },
+  "generation_metric_coverage": {
+    "numeric_exact": 0,
+    "points_exact": 0,
+    "enumeration_completeness": 0,
+    "must_include": 0,
+    "context_recall_proxy": 200
+  },
+  "abstention": {
+    "accuracy": 0.91,
+    "f1_answerable": 0.9488636363636364,
+    "tp": 167,
+    "tn": 15,
+    "fp": 4,
+    "fn": 14
+  },
+  "structured": {
+    "vehicle_mapping_accuracy": null,
+    "behavior_mapping_accuracy": null
+  }
+}

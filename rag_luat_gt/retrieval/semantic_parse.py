@@ -10,6 +10,11 @@ from rag_luat_gt.text import normalize_text, strip_accents
 ALLOWED_INTENTS = {
     "GENERAL_LEGAL_QA",
     "PENALTY_LOOKUP",
+    "LEGAL_RULE_LOOKUP",
+    "AUTHORITY_LOOKUP",
+    "PROCEDURE_LOOKUP",
+    "TEMPORAL_LOOKUP",
+    "EXACT_PROVISION_LOOKUP",
     "LICENSE_POINT_BALANCE",
     "DRIVER_AGE_REQUIREMENT",
     "ENUMERATION",

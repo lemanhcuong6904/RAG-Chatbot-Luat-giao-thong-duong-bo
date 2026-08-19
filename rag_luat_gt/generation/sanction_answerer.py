@@ -474,5 +474,13 @@ def _missing_field_label(field: str) -> str:
         "paper_type": "loại giấy tờ",
         "parking_location": "vị trí dừng, đỗ",
         "passenger_count": "số người chở vượt",
+        "load_ratio": "tỷ lệ quá tải hoặc khối lượng vượt",
+        "liable_actor": "chủ thể bị xử phạt",
+        "lighting_context": "bối cảnh sử dụng đèn",
+        "plate_issue": "lỗi biển số cụ thể",
+        "driver_age": "tuổi người điều khiển",
+        "pickup_dropoff_context": "bối cảnh đón/trả khách",
+        "cargo_context": "tình huống hàng hóa rơi/văng",
+        "road_context": "bối cảnh tuyến đường",
     }
     return labels.get(field, field)

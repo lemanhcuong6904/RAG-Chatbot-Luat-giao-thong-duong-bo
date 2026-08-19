@@ -285,6 +285,54 @@ def _ambiguous_penalty_lookup(parsed: ParsedQuery, profile: QueryProfile) -> San
             missing.append("vehicle_code")
         missing.append("lane_behavior")
         warning = "Can lam ro loai phuong tien va hanh vi sai lan cu the tren duong cao toc."
+    elif _cargo_overload_query(profile):
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        if not _query_mentions_load_ratio(profile.text):
+            missing.append("load_ratio")
+        if not _query_mentions_liable_actor(profile.text):
+            missing.append("liable_actor")
+        warning = "Can lam ro loai phuong tien, ty le qua tai va chu the bi xu phat la nguoi lai hay chu xe."
+    elif _generic_lighting_query(profile):
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        if not _query_mentions_lighting_context(profile.text):
+            missing.append("lighting_context")
+        warning = "Can lam ro loai phuong tien va boi canh khong bat den/den khong dung quy dinh."
+    elif _plate_query(profile):
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        if not _query_mentions_plate_issue(profile.text):
+            missing.append("plate_issue")
+        warning = "Can lam ro loai phuong tien va loi bien so cu the."
+    elif _insurance_query(profile):
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        warning = "Can lam ro loai phuong tien va loai bao hiem/giay chung nhan bao hiem."
+    elif _underage_query(profile):
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        if not _query_mentions_age(profile.text):
+            missing.append("driver_age")
+        warning = "Can lam ro loai phuong tien va tuoi nguoi dieu khien."
+    elif _passenger_pickup_query(profile):
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        if not _query_mentions_pickup_context(profile.text):
+            missing.append("pickup_dropoff_context")
+        warning = "Can lam ro loai xe khach va boi canh don/tra khach sai quy dinh."
+    elif _falling_cargo_query(profile):
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        if not _query_mentions_cargo_context(profile.text):
+            missing.append("cargo_context")
+        warning = "Can lam ro loai phuong tien va tinh huong hang roi/vang khoi xe."
+    elif _wrong_way_query(profile):
+        if not parsed.vehicle_code:
+            missing.append("vehicle_code")
+        if not _query_mentions_wrong_way_context(profile.text):
+            missing.append("road_context")
+        warning = "Can lam ro loai phuong tien va boi canh di nguoc chieu."
 
     if not missing:
         return None
@@ -297,6 +345,70 @@ def _ambiguous_penalty_lookup(parsed: ParsedQuery, profile: QueryProfile) -> San
 
 def _overloaded_passenger_query(profile: QueryProfile) -> bool:
     return any(term in profile.text for term in ["cho qua nguoi", "cho qua so nguoi", "qua nguoi"])
+
+
+def _cargo_overload_query(profile: QueryProfile) -> bool:
+    return any(term in profile.text for term in ["qua tai", "cho qua tai", "qua kho tai trong", "vuot tai trong"])
+
+
+def _query_mentions_load_ratio(text: str) -> bool:
+    return "%" in text or re.search(r"\b\d+\s*(?:phan tram|tan|kg)\b", text) is not None
+
+
+def _query_mentions_liable_actor(text: str) -> bool:
+    return any(term in text for term in ["nguoi lai", "tai xe", "chu xe", "don vi kinh doanh", "ca nhan", "to chuc"])
+
+
+def _generic_lighting_query(profile: QueryProfile) -> bool:
+    return any(term in profile.text for term in ["khong bat den", "khong mo den", "den xe", "khong co den"])
+
+
+def _query_mentions_lighting_context(text: str) -> bool:
+    return any(term in text for term in ["ban dem", "suong mu", "ham", "den chieu sang", "den tin hieu", "den soi bien so"])
+
+
+def _plate_query(profile: QueryProfile) -> bool:
+    return "bien so" in profile.text and any(term in profile.text for term in ["sai", "khong dung", "che", "mo", "khong co", "gia"])
+
+
+def _query_mentions_plate_issue(text: str) -> bool:
+    return any(term in text for term in ["che lap", "khong ro", "khong gan", "gia", "khong dung vi tri", "sai quy cach"])
+
+
+def _insurance_query(profile: QueryProfile) -> bool:
+    return "bao hiem" in profile.text and any(term in profile.text for term in ["khong co", "khong mang", "het han"])
+
+
+def _underage_query(profile: QueryProfile) -> bool:
+    return any(term in profile.text for term in ["chua du tuoi", "khong du tuoi", "duoi tuoi"])
+
+
+def _query_mentions_age(text: str) -> bool:
+    return re.search(r"\b\d+\s*(?:tuoi|t)\b", text) is not None
+
+
+def _passenger_pickup_query(profile: QueryProfile) -> bool:
+    return any(term in profile.text for term in ["don sai cho", "tra sai cho", "don tra khach", "don khach sai", "tra khach sai"])
+
+
+def _query_mentions_pickup_context(text: str) -> bool:
+    return any(term in text for term in ["cao toc", "noi cam", "ben xe", "diem don", "diem tra", "hop dong", "tuyen co dinh"])
+
+
+def _falling_cargo_query(profile: QueryProfile) -> bool:
+    return any(term in profile.text for term in ["hang roi", "hang vang", "roi khoi xe", "nhom khoi xe", "roi xuong duong"])
+
+
+def _query_mentions_cargo_context(text: str) -> bool:
+    return any(term in text for term in ["gay nguy hiem", "gay tai nan", "khong che chan", "container", "vat lieu"])
+
+
+def _wrong_way_query(profile: QueryProfile) -> bool:
+    return any(term in profile.text for term in ["di nguoc chieu", "chay nguoc chieu", "nguoc chieu"])
+
+
+def _query_mentions_wrong_way_context(text: str) -> bool:
+    return any(term in text for term in ["cao toc", "duong mot chieu", "bien cam", "gay tai nan"])
 
 
 def _query_mentions_passenger_count(text: str) -> bool:

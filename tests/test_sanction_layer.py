@@ -427,3 +427,36 @@ def test_criminal_law_question_fails_closed_before_router() -> None:
     assert "pháp luật hình sự" in response.answer
     assert response.debug
     assert response.debug["routing"]["fallback_to_rag"] is False
+
+
+def test_vague_cargo_overload_requires_branch_slots() -> None:
+    response = RAGService().answer(
+        ChatRequest(
+            query="Cho qua tai thi bi phat sao?",
+            debug=True,
+            pre_rag_enabled=False,
+            llm_provider="extractive",
+        )
+    )
+
+    assert not response.answerable
+    assert response.debug
+    assert response.debug["routing"]["sanction_status"] == "NEEDS_CLARIFICATION"
+    assert "vehicle_code" in response.debug["routing"]["sanction_missing_fields"]
+    assert "load_ratio" in response.debug["routing"]["sanction_missing_fields"]
+    assert "liable_actor" in response.debug["routing"]["sanction_missing_fields"]
+
+
+def test_waterway_overload_fails_closed_before_retrieval() -> None:
+    response = RAGService().answer(
+        ChatRequest(
+            query="Tau thuy cho qua tai bi phat bao nhieu?",
+            debug=True,
+            pre_rag_enabled=False,
+        )
+    )
+
+    assert not response.answerable
+    assert not response.citations
+    assert response.debug
+    assert response.debug["routing"]["query_router"]["decision"]["route"] == "OUT_OF_SCOPE"

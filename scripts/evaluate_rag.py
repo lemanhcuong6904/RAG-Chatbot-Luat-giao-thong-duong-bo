@@ -21,9 +21,9 @@ sys.path.insert(0, str(ROOT_DIR))
 # =========================
 # CONFIG - edit here only
 # =========================
-DATASET_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "golden_v2_200.jsonl"
-REPORT_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "EVALUATION_REPORT_bge_m3.md"
-CACHE_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "eval_outputs_bge_m3.jsonl"
+DATASET_PATH = ROOT_DIR / "data" / "evaluation_set_3" / "golden_v3_200.jsonl"
+REPORT_PATH = ROOT_DIR / "data" / "evaluation_set_3" / "EVALUATION_REPORT_bge_m3.md"
+CACHE_PATH = ROOT_DIR / "data" / "evaluation_set_3" / "eval_outputs_bge_m3.jsonl"
 
 # Smoke-test alternative:
 # DATASET_PATH = ROOT_DIR / "data" / "evaluation_set_2" / "smoke_v2_50.jsonl"
@@ -291,16 +291,34 @@ def _generation_metrics(case: CaseMetrics) -> dict[str, Any]:
     gold_tokens = set().union(*[_tokens(str(text)) for text in gold_texts]) if gold_texts else set()
     context_tokens = set().union(*[_tokens(str(citation.get("text") or "")) for citation in case.citations]) if case.citations else set()
 
+    has_numeric_gold = fine_min is not None or fine_max is not None
+    has_complete_numeric_gold = fine_min is not None and fine_max is not None
+    has_points_gold = expected_points is not None
+    must_include_items = case.row.get("must_include") or []
+
     return {
         "answerable_correct": case.answerable == expected_answerable,
         "citation_correct": (not expected_provisions) or bool(cited_matches),
         "citation_complete": (not expected_provisions) or len(cited_matches) == len(expected_provisions),
-        "numeric_exact": fine_min is None and fine_max is None or (fine_min in money and fine_max in money),
-        "points_exact": expected_points is None or expected_points in points,
+        "numeric_exact": None if not has_numeric_gold else (has_complete_numeric_gold and fine_min in money and fine_max in money),
+        "points_exact": None if not has_points_gold else expected_points in points,
         "enumeration_completeness": None if not expected_items else item_hits / len(expected_items),
-        "must_include": all(str(item).casefold() in case.answer.casefold() for item in case.row.get("must_include") or []),
+        "must_include": None if not must_include_items else all(str(item).casefold() in case.answer.casefold() for item in must_include_items),
         "context_recall_proxy": None if not gold_tokens else len(gold_tokens & context_tokens) / len(gold_tokens),
         "answer_relevance_proxy": len(_tokens(case.row.get("query") or case.row.get("question") or "") & answer_tokens) / max(len(_tokens(case.row.get("query") or case.row.get("question") or "")), 1),
+    }
+
+
+def _metric_coverage(generation: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        key: sum(1 for item in generation if item.get(key) is not None)
+        for key in [
+            "numeric_exact",
+            "points_exact",
+            "enumeration_completeness",
+            "must_include",
+            "context_recall_proxy",
+        ]
     }
 
 
@@ -428,6 +446,7 @@ def _summarize(outputs: list[dict[str, Any]], mode: str, dataset_path: Path) -> 
                 "answer_relevance_proxy",
             ]
         },
+        "generation_metric_coverage": _metric_coverage(generation),
         "abstention": {
             "accuracy": (abst_tp + abst_tn) / max(len(cases), 1),
             "f1_answerable": _f1(abst_tp, abst_fp, abst_fn),
@@ -521,9 +540,10 @@ def _summarize(outputs: list[dict[str, Any]], mode: str, dataset_path: Path) -> 
             "## Lưu ý diễn giải",
             "",
             "- `score` là tỷ lệ 0-1 trừ MRR/nDCG vốn cũng chuẩn hóa 0-1.",
-            "- `numeric_exact` chỉ áp dụng khi case có `expected_fine_min/max`; case không có numeric gold được tính là pass.",
-            "- `points_exact` tương tự cho `expected_points`.",
+            "- `numeric_exact` chỉ áp dụng khi case có `expected_fine_min/max`; case không có numeric gold được tính N/A, không tính pass.",
+            "- `points_exact` tương tự cho `expected_points`; case không có gold được tính N/A.",
             "- `Citation Complete` yêu cầu tất cả provisions gold xuất hiện trong citations, không chấm exact wording.",
+            f"- Coverage metric có gold: `{summary['generation_metric_coverage']}`.",
         ]
     )
     return "\n".join(lines) + "\n", summary

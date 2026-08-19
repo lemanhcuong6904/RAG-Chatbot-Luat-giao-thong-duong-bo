@@ -103,7 +103,7 @@ def route_query(parsed: ParsedQuery) -> tuple[ParsedQuery, QueryRouteDecision, d
 
     try:
         payload = _call_llm(parsed, provider=provider, model=model)
-        decision = QueryRouteDecision.model_validate(payload)
+        decision = _repair_decision(parsed, QueryRouteDecision.model_validate(payload))
         routed = apply_route_decision(parsed, decision)
         return routed, decision, {
             "enabled": True,
@@ -126,6 +126,7 @@ def route_query(parsed: ParsedQuery) -> tuple[ParsedQuery, QueryRouteDecision, d
 def apply_route_decision(parsed: ParsedQuery, decision: QueryRouteDecision) -> ParsedQuery:
     if decision.route != "RAG":
         return parsed
+    decision = _repair_decision(parsed, decision)
 
     payload = decision.model_dump()
     if decision.question_rewrite:
@@ -149,10 +150,13 @@ def apply_route_decision(parsed: ParsedQuery, decision: QueryRouteDecision) -> P
     if validation_notes:
         routed.keywords = [*routed.keywords, *[f"router_validation:{note}" for note in validation_notes]]
     plan = build_query_plan(routed)
-    if decision.use_structured_sanction:
+    if decision.use_structured_sanction and routed.intent == "PENALTY_LOOKUP":
         plan.use_structured_sanction = True
         if "STRUCTURED_LOOKUP" not in plan.strategy:
             plan.strategy.insert(0, "STRUCTURED_LOOKUP")
+    elif routed.intent != "PENALTY_LOOKUP":
+        plan.use_structured_sanction = False
+        plan.strategy = [item for item in plan.strategy if item != "STRUCTURED_LOOKUP"]
     if decision.retrieval_strategy == "EXHAUSTIVE_ARTICLE" and "EXHAUSTIVE_ARTICLE" not in plan.strategy:
         plan.strategy.insert(0, "EXHAUSTIVE_ARTICLE")
     routed.query_plan = plan
@@ -221,10 +225,53 @@ def _rule_route(parsed: ParsedQuery) -> QueryRouteDecision:
         needs_parent=False,
         needs_siblings=False,
         needs_children=False,
-        use_structured_sanction=parsed.intent == "PENALTY_LOOKUP",
+        use_structured_sanction=_intent_uses_structured_sanction(parsed.intent),
         reason="minimal fallback; use LLM router for semantic routing",
         confidence=0.0,
     )
+
+
+def _repair_decision(parsed: ParsedQuery, decision: QueryRouteDecision) -> QueryRouteDecision:
+    if decision.route != "RAG":
+        return decision
+    local_intent = parsed.intent
+    protected_intents = {
+        "EXACT_PROVISION_LOOKUP",
+        "ARTICLE_LOOKUP",
+        "AUTHORITY_LOOKUP",
+        "PROCEDURE_LOOKUP",
+        "LEGAL_RULE_LOOKUP",
+        "TEMPORAL_LOOKUP",
+        "LICENSE_POINT_BALANCE",
+        "DRIVER_AGE_REQUIREMENT",
+        "DRIVER_LICENSE",
+        "FEE_LOOKUP",
+    }
+    updates: dict[str, Any] = {}
+    if local_intent in protected_intents and (
+        decision.intent in {"PENALTY_LOOKUP", "GENERAL_LEGAL_QA"} or decision.use_structured_sanction
+    ):
+        updates["intent"] = local_intent
+        updates["use_structured_sanction"] = False
+        updates["reason"] = f"{decision.reason or 'router'}; local intent guard prevented sanction over-trigger"
+        updates["confidence"] = min(decision.confidence, 0.6)
+    elif local_intent == "PENALTY_LOOKUP":
+        updates["use_structured_sanction"] = True
+    elif decision.intent != "PENALTY_LOOKUP":
+        updates["use_structured_sanction"] = False
+
+    if local_intent in {"EXACT_PROVISION_LOOKUP", "ARTICLE_LOOKUP"}:
+        updates["retrieval_strategy"] = "EXPAND_PARENT_SIBLINGS" if parsed.clause or parsed.point else "EXHAUSTIVE_ARTICLE"
+    if not updates:
+        return decision
+    repaired = decision.model_copy(update=updates)
+    if repaired.intent != "PENALTY_LOOKUP":
+        repaired.use_structured_sanction = False
+    return repaired
+
+
+def _intent_uses_structured_sanction(intent: str) -> bool:
+    return intent == "PENALTY_LOOKUP"
 
 
 def _is_minimal_greeting(query_ascii: str) -> bool:
@@ -242,6 +289,11 @@ def _minimal_meta_key(query_ascii: str) -> str:
 
 
 def _out_of_scope_answer(query_ascii: str) -> str | None:
+    if any(term in query_ascii for term in ["tau thuy", "duong thuy", "thuyen", "cano", "ca no", "hang hai", "tau hoa", "may bay", "hang khong"]):
+        return (
+            "Bộ tài liệu hiện có chỉ hỗ trợ pháp luật giao thông đường bộ Việt Nam. "
+            "Câu hỏi này thuộc lĩnh vực ngoài đường bộ nên tôi không đủ căn cứ từ corpus hiện tại để trả lời."
+        )
     if any(term in query_ascii for term in ["sao chep phan mem", "ban quyen phan mem", "phan mem trai phep"]):
         return (
             "Không có căn cứ về bản quyền phần mềm trong các văn bản giao thông đường bộ đang được cung cấp, "

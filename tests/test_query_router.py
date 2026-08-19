@@ -206,3 +206,39 @@ def test_local_domain_guard_keeps_structured_traffic_facts(query: str) -> None:
     parsed = parse_query(ChatRequest(query=query))
 
     assert _looks_like_traffic_law_query(parsed)
+
+
+@pytest.mark.parametrize(
+    ("query", "intent"),
+    [
+        ("CSGT co duoc dung xe khi truc tiep phat hien vi pham khong?", "AUTHORITY_LOOKUP"),
+        ("Thoi hieu xu phat vi pham giao thong la bao lau?", "PROCEDURE_LOOKUP"),
+        ("Nguyen tac tru diem GPLX khi co nhieu hanh vi la gi?", "LEGAL_RULE_LOOKUP"),
+        ("Khoan 1 Dieu 23 Luat 35/2024/QH15 quy dinh gi?", "ARTICLE_LOOKUP"),
+    ],
+)
+def test_parser_keeps_non_sanction_legal_intents_out_of_penalty_lookup(query: str, intent: str) -> None:
+    parsed = parse_query(ChatRequest(query=query))
+
+    assert parsed.intent == intent
+    assert parsed.query_plan
+    assert not parsed.query_plan.use_structured_sanction
+
+
+def test_router_repair_prevents_structured_sanction_over_trigger() -> None:
+    parsed = parse_query(ChatRequest(query="CSGT co duoc dung xe khi truc tiep phat hien vi pham khong?"))
+    decision = QueryRouteDecision(
+        route="RAG",
+        legal_domain="traffic_law",
+        intent="PENALTY_LOOKUP",
+        retrieval_strategy="FACTOID",
+        use_structured_sanction=True,
+        confidence=0.9,
+    )
+
+    routed = apply_route_decision(parsed, decision)
+
+    assert routed.intent == "AUTHORITY_LOOKUP"
+    assert routed.query_plan
+    assert not routed.query_plan.use_structured_sanction
+    assert "STRUCTURED_LOOKUP" not in routed.query_plan.strategy

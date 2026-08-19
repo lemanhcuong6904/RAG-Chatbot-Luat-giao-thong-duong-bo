@@ -131,13 +131,17 @@ def _step_back_query(parsed: ParsedQuery) -> str:
 
 
 def _should_multi_query(parsed: ParsedQuery) -> bool:
-    if parsed.intent in {"PENALTY_LOOKUP", "ARTICLE_LOOKUP"}:
+    if parsed.intent in {"PENALTY_LOOKUP", "ARTICLE_LOOKUP", "EXACT_PROVISION_LOOKUP"}:
         return False
     if parsed.intent == "DRIVER_AGE_REQUIREMENT" and _has_vehicle_capacity(parsed.query):
         return True
     if parsed.intent == "DRIVER_LICENSE" and parsed.license_classes:
         return True
     if _is_csgt_stop_reason_rights_query(parsed.query):
+        return True
+    if _is_csgt_stop_basis_query(parsed.query):
+        return True
+    if _is_child_pedestrian_crossing_query(parsed.query):
         return True
     if parsed.answer_mode == "ENUMERATION":
         return True
@@ -197,6 +201,27 @@ def _multi_queries(parsed: ParsedQuery) -> list[str]:
                 "can cu dung phuong tien kiem tra kiem soat noi dung ket qua kiem tra hanh vi vi pham bien phap xu ly dieu 72",
             ]
         )
+    elif _is_csgt_stop_basis_query(query):
+        variants.extend(
+            [
+                "Luat 36/2024/QH15 Dieu 66 can cu dung phuong tien tham gia giao thong duong bo de kiem tra kiem soat",
+                "Canh sat giao thong duoc dung phuong tien khi co can cu xac dinh hanh vi vi pham trat tu an toan giao thong duong bo",
+            ]
+        )
+        if _is_csgt_system_detection_query(query):
+            variants.extend(
+                [
+                    "Luat 36/2024/QH15 Dieu 67 bien phap phat hien vi pham he thong giam sat camera thiet bi ky thuat nghiep vu",
+                    "du lieu tu he thong giam sat phuong tien thiet bi ky thuat nghiep vu phat hien vi pham giao thong duong bo",
+                ]
+            )
+    elif _is_child_pedestrian_crossing_query(query):
+        variants.extend(
+            [
+                "Luat 36/2024/QH15 Dieu 30 khoan 2 tre em duoi 07 tuoi khi di qua duong",
+                "tre em duoi 07 tuoi qua duong nguoi di bo tham gia giao thong duong bo",
+            ]
+        )
     else:
         variants.extend(
             [
@@ -220,6 +245,37 @@ def _is_csgt_stop_reason_rights_query(query: str) -> bool:
     has_stop_context = any(term in q for term in ["dung xe", "dung phuong tien", "kiem tra", "kiem soat"])
     asks_reason = any(term in q for term in ["ly do", "can cu", "duoc biet", "duoc thong bao", "quyen"])
     return has_authority and has_stop_context and asks_reason
+
+
+def _is_csgt_stop_basis_query(query: str) -> bool:
+    q = strip_accents(normalize_text(query))
+    has_authority = any(term in q for term in ["csgt", "canh sat giao thong", "luc luong tuan tra"])
+    has_stop_context = any(term in q for term in ["dung xe", "dung phuong tien", "kiem tra", "kiem soat"])
+    return has_authority and has_stop_context
+
+
+def _is_csgt_system_detection_query(query: str) -> bool:
+    q = strip_accents(normalize_text(query))
+    return any(
+        term in q
+        for term in [
+            "camera",
+            "cam thay",
+            "coi cam",
+            "du lieu",
+            "he thong giam sat",
+            "phuong tien thiet bi ky thuat",
+            "thiet bi ky thuat",
+            "thiet bi nghiep vu",
+        ]
+    )
+
+
+def _is_child_pedestrian_crossing_query(query: str) -> bool:
+    q = strip_accents(normalize_text(query))
+    return any(term in q for term in ["tre duoi 7", "tre em duoi 7", "duoi 7 tuoi"]) and any(
+        term in q for term in ["qua duong", "sang duong"]
+    )
 
 
 def _should_hyde(parsed: ParsedQuery) -> bool:

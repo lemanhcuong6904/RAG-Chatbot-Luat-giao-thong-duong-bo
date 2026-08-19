@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 import re
 
-from rag_luat_gt.config import RAG_LLM_PROVIDER, RAG_REQUIRE_LLM
+from rag_luat_gt.config import RAG_DETERMINISTIC_ANSWER_USE_WITH_LLM, RAG_LLM_PROVIDER, RAG_REQUIRE_LLM
 from rag_luat_gt.citation_format import (
     normalize_inline_legal_refs,
     replace_source_markers,
@@ -911,8 +911,9 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
     warnings = []
     llm_provider, _llm_model = resolve_llm(RAG_LLM_PROVIDER, "")
     llm_configured = is_chat_provider_configured(llm_provider)
+    deterministic_answer_enabled = not llm_configured or RAG_DETERMINISTIC_ANSWER_USE_WITH_LLM
 
-    if parsed.temporal_intent == "EFFECTIVE_DATE_LOOKUP":
+    if deterministic_answer_enabled and parsed.temporal_intent == "EFFECTIVE_DATE_LOOKUP":
         effective_answer = _build_effective_date_extractive_answer(parsed, citations)
         if effective_answer:
             return ChatResponse(
@@ -933,7 +934,12 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
             debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "exact_reference_lookup": True},
         )
 
-    if parsed.intent == "PENALTY_LOOKUP" and not parsed.vehicle_code and _has_vehicle_scope_note(notes) and not llm_configured:
+    if (
+        parsed.intent == "PENALTY_LOOKUP"
+        and not parsed.vehicle_code
+        and _has_vehicle_scope_note(notes)
+        and deterministic_answer_enabled
+    ):
         scoped_citations = _vehicle_scope_citations(parsed, citations)
         return ChatResponse(
             answer=_normalize_answer_style(_build_vehicle_scope_answer(parsed, scoped_citations, notes), scoped_citations),
@@ -943,7 +949,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
             debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "vehicle_scope_split": True},
         )
 
-    if _has_bicycle_helmet_scope_note(notes):
+    if deterministic_answer_enabled and _has_bicycle_helmet_scope_note(notes):
         scoped_citations = _bicycle_helmet_scope_citations(citations)
         return ChatResponse(
             answer=_normalize_answer_style(_build_bicycle_helmet_scope_answer(parsed, scoped_citations, notes), scoped_citations),
@@ -956,16 +962,18 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
     gate_passed, gate_notes = _evidence_gate(parsed, results)
     if not gate_passed:
         all_notes = [*notes, *gate_notes]
-        return ChatResponse(
-            answer=_normalize_answer_style(_build_insufficient_evidence_answer(parsed, citations, all_notes), citations),
-            citations=citations,
-            warnings=all_notes,
-            answerable=False,
-            debug={"parsed_query": parsed.model_dump(), "legal_notes": all_notes},
-        )
+        if deterministic_answer_enabled:
+            return ChatResponse(
+                answer=_normalize_answer_style(_build_insufficient_evidence_answer(parsed, citations, all_notes), citations),
+                citations=citations,
+                warnings=all_notes,
+                answerable=False,
+                debug={"parsed_query": parsed.model_dump(), "legal_notes": all_notes},
+            )
+        notes = all_notes
 
     missing_amount = any("không đủ căn cứ để kết luận con số cụ thể" in note for note in notes)
-    if missing_amount:
+    if deterministic_answer_enabled and missing_amount:
         return ChatResponse(
             answer=_normalize_answer_style(_build_missing_amount_answer(parsed, citations, notes), citations),
             citations=citations,
@@ -974,7 +982,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
             debug={"parsed_query": parsed.model_dump(), "legal_notes": notes},
         )
 
-    fee_answer = _build_fee_lookup_answer(parsed, citations)
+    fee_answer = _build_fee_lookup_answer(parsed, citations) if deterministic_answer_enabled else None
     if fee_answer:
         return ChatResponse(
             answer=_normalize_answer_style(fee_answer, citations),
@@ -984,7 +992,7 @@ def build_answer(parsed: ParsedQuery, results: list[tuple[Chunk, float]]) -> Cha
             debug={"parsed_query": parsed.model_dump(), "legal_notes": notes, "fee_lookup": {"resolved": True}},
         )
 
-    capacity_age_answer = _build_capacity_age_answer(parsed, citations)
+    capacity_age_answer = _build_capacity_age_answer(parsed, citations) if deterministic_answer_enabled else None
     if capacity_age_answer:
         return ChatResponse(
             answer=_normalize_answer_style(capacity_age_answer[0], capacity_age_answer[1]),

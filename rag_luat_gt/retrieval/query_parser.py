@@ -39,12 +39,30 @@ def _detect_intent(query: str) -> str:
     q_ascii = strip_accents(q)
     license_classes = extract_license_classes(query)
     explicit_age_question = _is_explicit_age_question(q_ascii)
+    if _is_exact_provision_query(q_ascii):
+        return "ARTICLE_LOOKUP"
     if _is_temporal_legal_question(q_ascii):
-        return "ARTICLE_LOOKUP" if ARTICLE_RE.search(q) or ARTICLE_RE.search(q_ascii) else "GENERAL_LEGAL_QA"
+        return "ARTICLE_LOOKUP" if ARTICLE_RE.search(q) or ARTICLE_RE.search(q_ascii) else "TEMPORAL_LOOKUP"
+    if _is_child_pedestrian_crossing_query(q_ascii):
+        return "LEGAL_RULE_LOOKUP"
+    if _is_authority_query(q_ascii):
+        return "AUTHORITY_LOOKUP"
+    if _is_procedure_query(q_ascii):
+        return "PROCEDURE_LOOKUP"
     if not explicit_age_question and _is_license_scope_query(q_ascii, license_classes):
         return "DRIVER_LICENSE"
     if any(term in q_ascii for term in ["phi", "le phi"]):
         return "FEE_LOOKUP"
+    if (
+        not _has_penalty_or_deduction_cue(q_ascii)
+        and any(term in q_ascii for term in ["giay phep lai xe", "gplx", "bang lai"])
+        and any(
+            term in q_ascii for term in ["bao nhieu diem", "co bao nhieu diem", "may diem", "so diem"]
+        )
+    ):
+        return "LICENSE_POINT_BALANCE"
+    if _is_legal_rule_query(q_ascii) and not _is_enumeration_query(query):
+        return "LEGAL_RULE_LOOKUP"
     if any(term in q for term in ["phạt", "xử phạt", "mức phạt", "trừ điểm"]) or any(
         term in q_ascii
         for term in [
@@ -66,14 +84,12 @@ def _detect_intent(query: str) -> str:
         ]
     ):
         return "PENALTY_LOOKUP"
-    if any(term in q_ascii for term in ["giay phep lai xe", "gplx", "bang lai"]) and any(
-        term in q_ascii for term in ["bao nhieu diem", "co bao nhieu diem", "may diem", "so diem"]
-    ):
-        return "LICENSE_POINT_BALANCE"
-    if explicit_age_question:
-        return "DRIVER_AGE_REQUIREMENT"
     if _is_enumeration_query(query):
         return "ENUMERATION"
+    if _is_legal_rule_query(q_ascii):
+        return "LEGAL_RULE_LOOKUP"
+    if explicit_age_question:
+        return "DRIVER_AGE_REQUIREMENT"
     if any(term in q for term in ["giấy phép lái xe", "gplx", "bằng lái", "sát hạch"]) or any(
         term in q_ascii for term in ["giay phep lai xe", "bang lai", "sat hach"]
     ):
@@ -99,6 +115,99 @@ def _detect_intent(query: str) -> str:
     return "GENERAL_LEGAL_QA"
 
 
+def _is_exact_provision_query(q_ascii: str) -> bool:
+    has_reference = re.search(r"\bdieu\s+\d+[a-z]?\b", q_ascii) is not None
+    if not has_reference:
+        return False
+    return any(
+        term in q_ascii
+        for term in [
+            "noi dung",
+            "quy dinh gi",
+            "quy dinh ve",
+            "ghi gi",
+            "noi gi",
+            "trich",
+            "khoan",
+            "diem",
+        ]
+    )
+
+
+def _has_penalty_or_deduction_cue(q_ascii: str) -> bool:
+    return any(
+        term in q_ascii
+        for term in [
+            "phat",
+            "xu phat",
+            "muc phat",
+            "bi xu ly",
+            "tru diem",
+            "bi tru",
+            "diem tru",
+        ]
+    )
+
+
+def _is_authority_query(q_ascii: str) -> bool:
+    authority_terms = [
+        "tham quyen",
+        "co quyen",
+        "duoc quyen",
+        "csgt",
+        "canh sat giao thong",
+        "luc luong tuan tra",
+        "nguoi co tham quyen",
+    ]
+    action_terms = [
+        "dung xe",
+        "dung phuong tien",
+        "kiem tra",
+        "xu phat",
+        "lap bien ban",
+        "tru diem",
+        "tam giu",
+        "duoc biet ly do",
+        "can cu",
+    ]
+    return any(term in q_ascii for term in authority_terms) and any(term in q_ascii for term in action_terms)
+
+
+def _is_procedure_query(q_ascii: str) -> bool:
+    return any(
+        term in q_ascii
+        for term in [
+            "thoi hieu xu phat",
+            "thoi han xu phat",
+            "trinh tu",
+            "thu tuc",
+            "lap bien ban",
+            "ra quyet dinh",
+            "khieu nai",
+            "nop phat",
+            "tam giu phuong tien",
+        ]
+    )
+
+
+def _is_legal_rule_query(q_ascii: str) -> bool:
+    rule_terms = [
+        "nguyen tac",
+        "quy tac",
+        "quyen cua",
+        "nghia vu",
+        "trach nhiem",
+        "chuc nang",
+        "khoang cach coc km",
+        "duong cuu nan",
+        "co so du lieu",
+        "diem con lai",
+        "con 2 diem",
+        "con bao nhieu diem",
+    ]
+    return any(term in q_ascii for term in rule_terms)
+
+
 def _is_temporal_legal_question(q_ascii: str) -> bool:
     if any(term in q_ascii for term in ["hieu luc", "ngay ap dung", "bat dau ap dung"]):
         return True
@@ -119,7 +228,7 @@ def _is_temporal_legal_question(q_ascii: str) -> bool:
 
 
 def _is_explicit_age_question(q_ascii: str) -> bool:
-    return any(
+    has_age_cue = any(
         term in q_ascii
         for term in [
             "bao nhieu tuoi",
@@ -131,6 +240,35 @@ def _is_explicit_age_question(q_ascii: str) -> bool:
             "tu bao nhieu tuoi",
         ]
     ) or re.search(r"\b\d+\s*(?:tuoi|t)\b", q_ascii) is not None
+    if not has_age_cue:
+        return False
+    return any(
+        term in q_ascii
+        for term in [
+            "bang lai",
+            "cap bang",
+            "cc",
+            "cm3",
+            "cong suat",
+            "dieu khien",
+            "duoc lai",
+            "giay phep lai xe",
+            "gplx",
+            "kw",
+            "lai xe",
+            "mo to",
+            "sat hach",
+            "xe gan may",
+            "xe may",
+            "xi lanh",
+        ]
+    )
+
+
+def _is_child_pedestrian_crossing_query(q_ascii: str) -> bool:
+    return any(term in q_ascii for term in ["tre duoi 7", "tre em duoi 7", "duoi 7 tuoi"]) and any(
+        term in q_ascii for term in ["qua duong", "sang duong"]
+    )
 
 
 def _is_license_scope_query(q_ascii: str, license_classes: list[str]) -> bool:
@@ -281,6 +419,11 @@ def _intent_query_expansion(query: str, intent: str) -> str:
             f"{query} quyen nguoi dieu khien phuong tien duoc thong bao ve can cu dung phuong tien "
             "de kiem tra kiem soat noi dung ket qua kiem tra hanh vi vi pham bien phap xu ly Dieu 72"
         )
+    q_ascii = strip_accents(normalize_text(query))
+    if _is_child_pedestrian_crossing_query(q_ascii):
+        return f"{query} tre em duoi 07 tuoi di qua duong Dieu 30 khoan 2 Luat Trat tu an toan giao thong duong bo"
+    if _is_csgt_stop_basis_query(q_ascii):
+        return f"{query} can cu dung phuong tien de kiem tra kiem soat Dieu 66 Luat Trat tu an toan giao thong duong bo"
     if intent != "DRIVER_AGE_REQUIREMENT":
         return query
     return (
@@ -295,6 +438,12 @@ def _is_csgt_stop_reason_rights_query(query: str) -> bool:
     has_stop_context = any(term in q for term in ["dung xe", "dung phuong tien", "kiem tra", "kiem soat"])
     asks_reason = any(term in q for term in ["ly do", "can cu", "duoc biet", "duoc thong bao", "quyen"])
     return has_authority and has_stop_context and asks_reason
+
+
+def _is_csgt_stop_basis_query(q_ascii: str) -> bool:
+    has_authority = any(term in q_ascii for term in ["csgt", "canh sat giao thong", "luc luong tuan tra"])
+    has_stop_context = any(term in q_ascii for term in ["dung xe", "dung phuong tien", "kiem tra", "kiem soat"])
+    return has_authority and has_stop_context
 
 
 def _detect_temporal_intent(query: str, intent: str, has_request_event_date: bool) -> str:
@@ -337,6 +486,17 @@ def _detect_temporal_intent(query: str, intent: str, has_request_event_date: boo
 def _document_number(query: str) -> str | None:
     match = DOCUMENT_RE.search(query)
     if not match:
+        q = strip_accents(normalize_text(query))
+        aliases = [
+            (["nghi dinh 168", "nd 168", "nd168"], "168/2024/NĐ-CP"),
+            (["nghi dinh 238", "nd 238", "nd238"], "238/2026/NĐ-CP"),
+            (["nghi dinh 165", "nd 165", "nd165"], "165/2024/NĐ-CP"),
+            (["luat 36", "luat trat tu an toan giao thong"], "36/2024/QH15"),
+            (["luat 35", "luat duong bo"], "35/2024/QH15"),
+        ]
+        for terms, document_number in aliases:
+            if any(term in q for term in terms):
+                return document_number
         return None
     return f"{match.group(1)}/{match.group(2)}/{match.group(3).upper()}"
 

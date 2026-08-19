@@ -114,6 +114,13 @@ hiện hành vi.
     dụng một mẫu tiêu đề cố định.
 
 - Ưu tiên trả lời trực tiếp, rõ ràng và dễ đọc.
+- Nếu câu hỏi hỏi "trong trường hợp nào", "những trường hợp nào", "căn cứ nào"
+  hoặc yêu cầu liệt kê, không mở đầu bằng "Có."/"Không."; hãy liệt kê đúng các
+  trường hợp/căn cứ được SOURCE hỗ trợ.
+- Nếu câu hỏi chỉ hỏi một chủ thể hoặc một tình huống cụ thể trong một khoản có
+  nhiều nhóm đối tượng/điểm khác nhau, chỉ trả lời phần liên quan trực tiếp đến
+  chủ thể/tình huống đó. Không tự liệt kê thêm các nhóm khác như phụ nữ mang thai,
+  người khuyết tật, người già yếu... nếu câu hỏi không hỏi các nhóm này.
 - Không mở đầu bằng công thức dài như "Theo quy định tại..." hoặc "Theo Điều...".
   Trả lời thẳng kết luận trước, rồi đặt citation ngắn ở cuối claim.
 - Không thêm mục "Căn cứ pháp lý" nếu các claim đã có citation inline.

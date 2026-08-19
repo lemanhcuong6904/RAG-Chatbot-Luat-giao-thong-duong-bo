@@ -18,6 +18,8 @@ SANCTION_DB_PATH=structured_sanction_layer/structured_sanction_layer/sanctions.s
 
 `RAG_LLM_PROVIDER=openai` dùng LLM để sinh câu trả lời RAG thường. `RAG_SANCTION_LLM_PROVIDER` mặc định kế thừa `RAG_LLM_PROVIDER`, nhưng có thể đặt rõ `openai` để câu trả lời Structured Sanction cũng đi qua LLM renderer.
 
+Khi `RAG_LLM_PROVIDER` là chat LLM đã cấu hình, hệ thống mặc định bỏ qua `structured_facts` deterministic để các câu fact/rule mở đi qua retrieval + LLM, tránh câu trả lời hardcode va nhau. Chỉ bật `RAG_STRUCTURED_FACT_USE_WITH_LLM=true` nếu muốn cưỡng bức dùng lại lớp fact deterministic ngay cả khi có LLM.
+
 Để chạy Qwen3.5 4B Q4_K_M local, chạy model bằng server OpenAI-compatible, ví dụ `llama-server` ở `http://127.0.0.1:8080/v1`, rồi cấu hình:
 
 ```text
@@ -128,6 +130,12 @@ Chưa có trong MVP:
 - post-generation claim verifier đầy đủ;
 - golden evaluation set 300-500 câu;
 - BGE-M3 sparse/multi-vector benchmark.
+
+## LLM-first runtime
+
+Khi `RAG_LLM_PROVIDER` la chat LLM da cau hinh, Pre-RAG/router mac dinh ke thua provider chinh. Cac lop tra loi deterministic (`structured_facts`, `structured_tables`, special extractive answer builders) bi bo qua tru khi bat cac co override `RAG_STRUCTURED_FACT_USE_WITH_LLM=true`, `RAG_STRUCTURED_TABLE_USE_WITH_LLM=true` hoac `RAG_DETERMINISTIC_ANSWER_USE_WITH_LLM=true`.
+
+Structured Sanction van dung DB lam nguon muc phat/diem GPLX, nhung khi co chat LLM thi resolver chi chay neu LLM router hoac Pre-RAG plan chon `PENALTY_LOOKUP` va `use_structured_sanction=true`. Dat `RAG_STRUCTURED_SANCTION_REQUIRE_LLM_PLAN=false` neu muon quay lai hanh vi rule parser kich hoat structured sanction.
 
 ## Frontend Next.js
 

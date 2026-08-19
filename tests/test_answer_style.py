@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from rag_luat_gt.generation.llm_client import set_request_llm
 from rag_luat_gt.generation.answerer import build_answer
 from rag_luat_gt.retrieval.query_parser import parse_query
 from rag_luat_gt.schemas import ChatRequest, Chunk, ParsedQuery
@@ -72,6 +73,38 @@ def test_extractive_yes_no_answer_is_direct_and_filters_irrelevant_sources() -> 
     assert "điện thoại" in response.answer
     assert "158/2024/NĐ-CP" not in response.answer
     assert "[Nghị định 168/2024/NĐ-CP, Điều 6, khoản 5, điểm h]" in response.answer
+
+
+def test_chat_llm_skips_yes_no_extractive_builder(monkeypatch) -> None:
+    set_request_llm(None, None)
+    from rag_luat_gt.generation import answerer as answerer_module
+
+    monkeypatch.setattr(answerer_module, "RAG_LLM_PROVIDER", "openai")
+    monkeypatch.setattr(answerer_module, "RAG_DETERMINISTIC_ANSWER_USE_WITH_LLM", False)
+    monkeypatch.setattr("rag_luat_gt.generation.llm_client.OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        answerer_module,
+        "generate_with_llm",
+        lambda parsed, results, notes: "LLM ANSWER [SOURCE_1]",
+    )
+    parsed = ParsedQuery(
+        query="Dang lai xe tren duong co duoc cam dien thoai de su dung khong?",
+        normalized_query="dang lai xe tren duong co duoc cam dien thoai de su dung khong",
+    )
+    phone = _chunk(
+        chunk_id="phone",
+        document_number="168/2024/NĐ-CP",
+        document_title="Nghi dinh so 168/2024/ND-CP",
+        article="6",
+        clause="5",
+        point="h",
+        text="h) Dung tay cam va su dung dien thoai hoac cac thiet bi dien tu khac khi dieu khien phuong tien tham gia giao thong dang di chuyen tren duong bo;",
+    )
+
+    response = build_answer(parsed, [(phone, 1.0)])
+
+    assert response.answer.startswith("LLM ANSWER")
+    assert not response.answer.startswith("Khong.")
 
 
 def test_extractive_effective_date_answer_is_direct() -> None:

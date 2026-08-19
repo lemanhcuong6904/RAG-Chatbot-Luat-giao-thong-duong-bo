@@ -1,9 +1,19 @@
 from __future__ import annotations
 
-from rag_luat_gt.config import RAG_STRUCTURED_FACT_ENABLED, RAG_STRUCTURED_LOOKUP_ENABLED, SANCTION_ENABLED
+from rag_luat_gt.config import (
+    RAG_LLM_MODEL,
+    RAG_LLM_PROVIDER,
+    RAG_STRUCTURED_TABLE_ENABLED,
+    RAG_STRUCTURED_TABLE_USE_WITH_LLM,
+    RAG_STRUCTURED_FACT_ENABLED,
+    RAG_STRUCTURED_FACT_USE_WITH_LLM,
+    RAG_STRUCTURED_LOOKUP_ENABLED,
+    RAG_STRUCTURED_SANCTION_REQUIRE_LLM_PLAN,
+    SANCTION_ENABLED,
+)
 from rag_luat_gt.citation_format import ensure_claim_citations, normalize_inline_legal_refs
 from rag_luat_gt.generation.answerer import build_answer
-from rag_luat_gt.generation.llm_client import set_request_llm
+from rag_luat_gt.generation.llm_client import is_chat_provider_configured, resolve_llm, set_request_llm
 from rag_luat_gt.generation.multi_sanction_answerer import build_multi_sanction_response
 from rag_luat_gt.generation.sanction_answerer import build_sanction_response
 from rag_luat_gt.generation.structured_sanction_llm import maybe_render_structured_sanction_with_llm
@@ -62,10 +72,7 @@ class RAGService:
                 route="OUT_OF_SCOPE",
                 legal_domain="other_law",
                 retrieval_strategy="NONE",
-                direct_answer=(
-                    "Bộ tài liệu hiện có tập trung vào quy tắc và xử phạt hành chính về giao thông đường bộ. "
-                    "Câu hỏi về phạt tù hoặc trách nhiệm hình sự cần căn cứ pháp luật hình sự ngoài bộ nguồn này."
-                ),
+                direct_answer=_external_law_answer(parsed),
                 reason="outside supported traffic-law administrative corpus",
                 confidence=0.95,
             )
@@ -123,26 +130,52 @@ class RAGService:
         parsed = apply_route_decision(parsed, route_decision)
         parsed = _preserve_initial_parse(initial_parsed, parsed)
         structured_lookup_request_enabled = request.structured_lookup_enabled
-        structured_fact_enabled = (
+        structured_fact_base_enabled = (
             RAG_STRUCTURED_FACT_ENABLED
             if structured_lookup_request_enabled is None
             else RAG_STRUCTURED_FACT_ENABLED and structured_lookup_request_enabled
         )
+        structured_fact_enabled, structured_fact_skip_reason = _structured_fact_runtime_enabled(
+            structured_fact_base_enabled
+        )
+        structured_table_base_enabled = (
+            RAG_STRUCTURED_TABLE_ENABLED
+            if structured_lookup_request_enabled is None
+            else RAG_STRUCTURED_TABLE_ENABLED and structured_lookup_request_enabled
+        )
+        structured_table_enabled, structured_table_skip_reason = _structured_table_runtime_enabled(
+            structured_table_base_enabled
+        )
         if structured_lookup_request_enabled is None:
-            structured_sanction_enabled = (
+            structured_sanction_base_enabled = (
                 SANCTION_ENABLED
                 if request.structured_sanction_enabled is None
                 else SANCTION_ENABLED and request.structured_sanction_enabled
             )
         else:
-            structured_sanction_enabled = SANCTION_ENABLED and structured_lookup_request_enabled
+            structured_sanction_base_enabled = SANCTION_ENABLED and structured_lookup_request_enabled
+        structured_sanction_enabled, structured_sanction_skip_reason = _structured_sanction_runtime_enabled(
+            structured_sanction_base_enabled,
+            parsed,
+            router_debug,
+            prerag_debug,
+        )
+        if not structured_sanction_enabled:
+            parsed = _drop_structured_sanction_plan(parsed)
         routing_debug: dict[str, object] = {
             "sanction_attempted": False,
-            "structured_lookup_enabled": structured_fact_enabled or structured_sanction_enabled,
+            "structured_lookup_enabled": structured_fact_enabled or structured_table_enabled or structured_sanction_enabled,
             "structured_lookup_env_enabled": RAG_STRUCTURED_LOOKUP_ENABLED,
             "structured_lookup_request_enabled": structured_lookup_request_enabled,
+            "structured_fact_base_enabled": structured_fact_base_enabled,
             "structured_fact_enabled": structured_fact_enabled,
+            "structured_fact_skip_reason": structured_fact_skip_reason,
+            "structured_table_base_enabled": structured_table_base_enabled,
+            "structured_table_enabled": structured_table_enabled,
+            "structured_table_skip_reason": structured_table_skip_reason,
             "structured_sanction_enabled": structured_sanction_enabled,
+            "structured_sanction_base_enabled": structured_sanction_base_enabled,
+            "structured_sanction_skip_reason": structured_sanction_skip_reason,
             "structured_sanction_env_enabled": SANCTION_ENABLED,
             "structured_sanction_request_enabled": request.structured_sanction_enabled,
             "fallback_to_rag": False,
@@ -205,7 +238,7 @@ class RAGService:
                     return _finalize_response(response)
             routing_debug["fallback_to_rag"] = penalty.fallback_to_rag
 
-        table_response = build_structured_table_answer(parsed)
+        table_response = build_structured_table_answer(parsed) if structured_table_enabled else None
         if table_response:
             if request.debug:
                 debug = table_response.debug or {}
@@ -296,6 +329,98 @@ def _has_multiple_vehicle_groups(rules: list[object]) -> bool:
     return len(groups) >= 2
 
 
+def _drop_structured_sanction_plan(parsed: ParsedQuery) -> ParsedQuery:
+    if not parsed.query_plan or not parsed.query_plan.use_structured_sanction:
+        return parsed
+    plan = parsed.query_plan.model_copy(
+        update={
+            "use_structured_sanction": False,
+            "strategy": [item for item in parsed.query_plan.strategy if item != "STRUCTURED_LOOKUP"],
+        }
+    )
+    return parsed.model_copy(update={"query_plan": plan})
+
+
+def _structured_fact_runtime_enabled(base_enabled: bool) -> tuple[bool, str | None]:
+    return _deterministic_lookup_runtime_enabled(
+        base_enabled,
+        use_with_llm=RAG_STRUCTURED_FACT_USE_WITH_LLM,
+        layer_name="structured_fact",
+    )
+
+
+def _structured_table_runtime_enabled(base_enabled: bool) -> tuple[bool, str | None]:
+    return _deterministic_lookup_runtime_enabled(
+        base_enabled,
+        use_with_llm=RAG_STRUCTURED_TABLE_USE_WITH_LLM,
+        layer_name="structured_table",
+    )
+
+
+def _deterministic_lookup_runtime_enabled(
+    base_enabled: bool,
+    *,
+    use_with_llm: bool,
+    layer_name: str,
+) -> tuple[bool, str | None]:
+    if not base_enabled:
+        return False, "disabled"
+    if use_with_llm:
+        return True, None
+
+    provider, model = resolve_llm(RAG_LLM_PROVIDER, RAG_LLM_MODEL)
+    if is_chat_provider_configured(provider):
+        detail = f"chat_llm_provider={provider}"
+        if model:
+            detail += f"; model={model}"
+        return False, f"skipped_{layer_name}_deterministic_with_{detail}"
+    return True, None
+
+
+def _structured_sanction_runtime_enabled(
+    base_enabled: bool,
+    parsed: ParsedQuery,
+    router_debug: dict[str, object],
+    prerag_debug: dict[str, object],
+) -> tuple[bool, str | None]:
+    if not base_enabled:
+        return False, "disabled"
+    provider, model = resolve_llm(RAG_LLM_PROVIDER, RAG_LLM_MODEL)
+    if not is_chat_provider_configured(provider) or not RAG_STRUCTURED_SANCTION_REQUIRE_LLM_PLAN:
+        return True, None
+    if parsed.intent != "PENALTY_LOOKUP":
+        return False, "not_penalty_lookup"
+    if _llm_semantic_plan_uses_structured_sanction(router_debug, prerag_debug):
+        return True, None
+    detail = f"chat_llm_provider={provider}"
+    if model:
+        detail += f"; model={model}"
+    return False, f"skipped_structured_sanction_without_llm_plan_with_{detail}"
+
+
+def _llm_semantic_plan_uses_structured_sanction(
+    router_debug: dict[str, object],
+    prerag_debug: dict[str, object],
+) -> bool:
+    raw_route = router_debug.get("raw_payload")
+    if isinstance(raw_route, dict) and _payload_requests_structured_sanction(raw_route):
+        return True
+
+    prerag_payload = prerag_debug.get("payload")
+    if isinstance(prerag_payload, dict) and _payload_requests_structured_sanction(prerag_payload):
+        return True
+    return False
+
+
+def _payload_requests_structured_sanction(payload: dict[str, object]) -> bool:
+    if payload.get("intent") != "PENALTY_LOOKUP":
+        return False
+    if payload.get("use_structured_sanction") is True:
+        return True
+    query_plan = payload.get("query_plan")
+    return isinstance(query_plan, dict) and query_plan.get("use_structured_sanction") is True
+
+
 def _router_has_sufficient_rag_plan(decision: QueryRouteDecision) -> bool:
     if decision.route != "RAG":
         return True
@@ -306,6 +431,11 @@ def _router_has_sufficient_rag_plan(decision: QueryRouteDecision) -> bool:
     if decision.intent not in {
         "GENERAL_LEGAL_QA",
         "PENALTY_LOOKUP",
+        "LEGAL_RULE_LOOKUP",
+        "AUTHORITY_LOOKUP",
+        "PROCEDURE_LOOKUP",
+        "TEMPORAL_LOOKUP",
+        "EXACT_PROVISION_LOOKUP",
         "LICENSE_POINT_BALANCE",
         "DRIVER_AGE_REQUIREMENT",
         "ENUMERATION",
@@ -385,6 +515,12 @@ def _looks_like_traffic_law_query(parsed: ParsedQuery) -> bool:
         "ubnd cap tinh",
         "xe uu tien",
         "thiet bi an toan",
+        "thoi hieu xu phat",
+        "tham quyen",
+        "csgt",
+        "canh sat giao thong",
+        "duong cuu nan",
+        "coc km",
     }
     return any(term in query for term in traffic_terms)
 
@@ -402,7 +538,34 @@ def _requires_external_law(parsed: ParsedQuery) -> bool:
             "sao chep phan mem",
             "ban quyen phan mem",
             "phan mem trai phep",
+            "tau thuy",
+            "duong thuy",
+            "thuyen",
+            "cano",
+            "ca no",
+            "hang hai",
+            "tau hoa",
+            "may bay",
+            "hang khong",
         ]
+    )
+
+
+def _external_law_answer(parsed: ParsedQuery) -> str:
+    query = strip_accents(normalize_text(parsed.query))
+    if any(term in query for term in ["tau thuy", "duong thuy", "thuyen", "cano", "ca no", "hang hai", "tau hoa", "may bay", "hang khong"]):
+        return (
+            "Bộ tài liệu hiện có chỉ hỗ trợ pháp luật giao thông đường bộ Việt Nam. "
+            "Câu hỏi này thuộc lĩnh vực ngoài đường bộ nên tôi không đủ căn cứ từ corpus hiện tại để trả lời."
+        )
+    if any(term in query for term in ["sao chep phan mem", "ban quyen phan mem", "phan mem trai phep"]):
+        return (
+            "Không có căn cứ về bản quyền phần mềm trong các văn bản giao thông đường bộ đang được cung cấp, "
+            "nên không thể xác định mức phạt từ bộ tài liệu này."
+        )
+    return (
+        "Bộ tài liệu hiện có tập trung vào quy tắc và xử phạt hành chính về giao thông đường bộ. "
+        "Câu hỏi về phạt tù hoặc trách nhiệm hình sự cần căn cứ pháp luật hình sự ngoài bộ nguồn này."
     )
 
 

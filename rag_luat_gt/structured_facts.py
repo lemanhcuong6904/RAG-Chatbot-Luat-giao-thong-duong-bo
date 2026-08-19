@@ -23,6 +23,8 @@ def build_structured_fact_answer(parsed: ParsedQuery) -> ChatResponse | None:
         _invalid_explicit_provision_answer,
         _multi_reference_exact_answer,
         _temporal_source_fact_answer,
+        _csgt_stop_authority_answer,
+        _sanction_limitation_period_answer,
         _source_traffic_fact_answer,
         _common_traffic_direct_answer,
         _traffic_rule_catalog_answer,
@@ -56,11 +58,7 @@ def _invalid_explicit_provision_answer(parsed: ParsedQuery, query: str) -> ChatR
         return None
     article_data = _extract_article(source_file, parsed.article)
     if article_data is None:
-        return _unanswerable_response(
-            parsed,
-            f"Không có Điều {parsed.article} trong {parsed.document_number} theo bộ nguồn hiện có. Cần kiểm tra lại căn cứ.",
-            {"invalid_provision": "article"},
-        )
+        return None
     if parsed.clause and _clause_bounds(article_data[1], parsed.clause) is None:
         return _unanswerable_response(
             parsed,
@@ -80,6 +78,89 @@ def _invalid_explicit_provision_answer(parsed: ParsedQuery, query: str) -> ChatR
             {"invalid_provision": "point"},
         )
     return None
+
+
+def _csgt_stop_authority_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
+    if parsed.intent != "AUTHORITY_LOOKUP":
+        return None
+    if not any(term in query for term in ["csgt", "canh sat giao thong"]):
+        return None
+    if not any(term in query for term in ["dung xe", "dung phuong tien", "kiem tra", "kiem soat"]):
+        return None
+    if _driver_stop_reason_right_query(query):
+        return None
+    article = _extract_article(LAW36_SOURCE, "66")
+    if article is None:
+        return None
+    article_title, article_lines = article
+    intro, items = _numbered_article_items(article_lines)
+    if not items:
+        return None
+
+    item_citations = [
+        _citation(
+            f"L36_A66_K{number}_CSGT_STOP_AUTHORITY",
+            "36/2024/QH15",
+            "Luật Trật tự, an toàn giao thông đường bộ",
+            "66",
+            article_title,
+            number,
+            None,
+            LAW36_SOURCE,
+            f"{number}. {text}",
+            "AUTHORITY_RULE",
+        )
+        for number, text in items
+    ]
+
+    if _asks_csgt_stop_basis_list(parsed, query):
+        lines = [f'{intro.rstrip(":")} [Luật 36/2024/QH15, Điều 66]:']
+        lines.extend(f"- {text} [{short_ref(citation)}]" for (_number, text), citation in zip(items, item_citations, strict=True))
+        return _response(parsed, "\n".join(lines), item_citations, {"provision": "L36_A66_ALL"})
+
+    technical_citations = _csgt_technical_detection_citations()
+    if _csgt_system_detection_query(query) and technical_citations:
+        citations = [item_citations[0], *technical_citations]
+        conclusion = (
+            "Có, nếu thông tin hoặc dữ liệu từ hệ thống giám sát, camera, phương tiện hoặc thiết bị kỹ thuật nghiệp vụ "
+            "làm phát sinh căn cứ xác định có hành vi vi phạm. CSGT được dừng phương tiện khi phát hiện hoặc có căn cứ "
+            f"xác định hành vi vi phạm [{short_ref(item_citations[0])}]; các biện pháp phát hiện vi phạm gồm vận hành, "
+            f"sử dụng hệ thống giám sát/camera và phương tiện, thiết bị kỹ thuật nghiệp vụ [{short_ref(technical_citations[0])}; "
+            f"{short_ref(technical_citations[1])}]."
+        )
+        return _response(parsed, conclusion, citations, {"provision": "L36_A66_K1_A67_K1_K2"})
+
+    citation = item_citations[0]
+    conclusion = (
+        "Có. CSGT được dừng phương tiện để kiểm tra, kiểm soát khi phát hiện hành vi vi phạm pháp luật "
+        "hoặc có căn cứ xác định có hành vi vi phạm pháp luật về trật tự, an toàn giao thông đường bộ hoặc vi phạm pháp luật khác "
+        f"[{short_ref(citation)}]."
+    )
+    return _response(parsed, conclusion, [citation], {"provision": "L36_A66_K1"})
+
+
+def _sanction_limitation_period_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
+    if parsed.intent != "PROCEDURE_LOOKUP":
+        return None
+    if "thoi hieu xu phat" not in query:
+        return None
+    citation = _citation(
+        "ND168_A04_K1_LIMITATION_PERIOD",
+        "168/2024/NĐ-CP",
+        "Nghị định số 168/2024/NĐ-CP",
+        "4",
+        "Thời hiệu xử phạt vi phạm hành chính; hành vi vi phạm hành chính đã kết thúc, hành vi vi phạm hành chính đang thực hiện",
+        "1",
+        None,
+        ND168_SOURCE,
+        "1. Thời hiệu xử phạt vi phạm hành chính về trật tự, an toàn giao thông trong lĩnh vực giao thông đường bộ là 01 năm.",
+        "PROCEDURE_RULE",
+    )
+    conclusion = (
+        "Thời hiệu xử phạt vi phạm hành chính về trật tự, an toàn giao thông trong lĩnh vực giao thông đường bộ là **01 năm** "
+        f"[{short_ref(citation)}]."
+    )
+    return _response(parsed, conclusion, [citation], {"provision": "ND168_A04_K1"})
 
 
 def _temporal_source_fact_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
@@ -256,7 +337,7 @@ def _explicit_law36_clause_fact_answer(parsed: ParsedQuery, query: str) -> ChatR
         source_text,
         "TRAFFIC_RULE",
     )
-    conclusion = _format_clause_answer(clause_intro, points)
+    conclusion = _format_focused_clause_answer(parsed, query, clause_intro, points)
     return _response(
         parsed,
         f"{conclusion} [{short_ref(citation)}].",
@@ -356,7 +437,7 @@ def _source_clause_fact(parsed: ParsedQuery, query: str) -> ChatResponse | None:
         source_text,
         rule_function,
     )
-    conclusion = _format_clause_answer(clause_intro, points)
+    conclusion = _format_focused_clause_answer(parsed, query, clause_intro, points)
     if _night_horn_forbidden_query(query) or _tunnel_stop_parking_query(query):
         conclusion = f"Không. {conclusion}"
     elif _child_pedestrian_crossing_query(query):
@@ -761,6 +842,182 @@ def _format_clause_answer(clause_intro: str, points: list[tuple[str, str]]) -> s
     lines = [clause_intro]
     lines.extend(f"- {text}" for _, text in points)
     return "\n".join(lines)
+
+
+def _format_focused_clause_answer(parsed: ParsedQuery, query: str, clause_intro: str, points: list[tuple[str, str]]) -> str:
+    if not points or parsed.answer_mode == "ENUMERATION" or _is_clause_list_question(query):
+        return _format_clause_answer(clause_intro, points)
+
+    selected = _focused_clause_points(query, points)
+    if not selected or len(selected) == len(points):
+        return _format_clause_answer(clause_intro, points)
+    if len(selected) == 1:
+        return _strip_terminal_punctuation(selected[0][1])
+    return "\n".join(f"- {_strip_terminal_punctuation(text)}" for _point, text in selected)
+
+
+def _focused_clause_points(query: str, points: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    query_tokens = _focus_tokens(query)
+    if not query_tokens:
+        return []
+
+    scored: list[tuple[int, int, tuple[str, str]]] = []
+    for index, point in enumerate(points):
+        _point_name, text = point
+        tokens = _focus_tokens(text)
+        leading_tokens = _focus_tokens(" ".join(strip_accents(normalize_text(text)).split()[:10]))
+        score = len(query_tokens & tokens) + (2 * len(query_tokens & leading_tokens))
+        if score:
+            scored.append((score, index, point))
+
+    if not scored:
+        return []
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    best = scored[0][0]
+    if best < 3:
+        return []
+    return [point for score, _index, point in scored if score == best]
+
+
+def _focus_tokens(text: str) -> set[str]:
+    stopwords = {
+        "ban",
+        "bao",
+        "cac",
+        "can",
+        "cho",
+        "co",
+        "cua",
+        "duoc",
+        "duoi",
+        "gi",
+        "hoi",
+        "khong",
+        "khi",
+        "la",
+        "mot",
+        "nao",
+        "nguoi",
+        "nhung",
+        "phai",
+        "quy",
+        "quy dinh",
+        "sau",
+        "thi",
+        "the",
+        "trong",
+        "tuoi",
+        "ve",
+        "voi",
+    }
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", strip_accents(normalize_text(text)))
+        if len(token) >= 3 and token not in stopwords
+    }
+
+
+def _strip_terminal_punctuation(text: str) -> str:
+    return text.strip().rstrip(";.")
+
+
+def _is_clause_list_question(query: str) -> bool:
+    return any(
+        term in query
+        for term in [
+            "bao gom",
+            "cac truong hop",
+            "gom nhung",
+            "giay to",
+            "hanh vi nao",
+            "lam gi",
+            "liet ke",
+            "mang theo",
+            "loai hinh",
+            "nhung gi",
+            "nhung noi",
+            "nhung truong hop",
+            "truong hop nao",
+        ]
+    )
+
+
+def _numbered_article_items(lines: list[str]) -> tuple[str, list[tuple[str, str]]]:
+    intro_lines: list[str] = []
+    items: list[tuple[str, str]] = []
+    current_number: str | None = None
+    current_lines: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        match = re.match(r"^(\d+)\.\s+(.*)", stripped)
+        if match:
+            if current_number is not None:
+                items.append((current_number, " ".join(current_lines).strip()))
+            current_number = match.group(1)
+            current_lines = [match.group(2).strip()]
+        elif current_number is None:
+            intro_lines.append(stripped)
+        else:
+            current_lines.append(stripped)
+
+    if current_number is not None:
+        items.append((current_number, " ".join(current_lines).strip()))
+    return " ".join(intro_lines).strip(), items
+
+
+def _asks_csgt_stop_basis_list(parsed: ParsedQuery, query: str) -> bool:
+    return parsed.answer_mode == "ENUMERATION" or any(
+        term in query for term in ["can cu nao", "khi nao", "truong hop nao", "nhung truong hop nao"]
+    )
+
+
+def _csgt_system_detection_query(query: str) -> bool:
+    return any(
+        term in query
+        for term in [
+            "camera",
+            "cam thay",
+            "coi cam",
+            "du lieu",
+            "he thong giam sat",
+            "phuong tien thiet bi ky thuat",
+            "thiet bi ky thuat",
+            "thiet bi nghiep vu",
+        ]
+    )
+
+
+def _driver_stop_reason_right_query(query: str) -> bool:
+    return any(term in query for term in ["co quyen", "duoc biet", "thong bao", "ly do"]) and any(
+        term in query for term in ["can cu dung", "ly do", "noi dung va ket qua"]
+    )
+
+
+def _csgt_technical_detection_citations() -> list[Citation]:
+    citations: list[Citation] = []
+    for clause in ["1", "2"]:
+        extracted = _extract_clause_provision(LAW36_SOURCE, "67", clause)
+        if extracted is None:
+            continue
+        article_title, clause_intro, points, source_text = extracted
+        citations.append(
+            _citation(
+                f"L36_A67_K{clause}_DETECTION_METHOD",
+                "36/2024/QH15",
+                "Luật Trật tự, an toàn giao thông đường bộ",
+                "67",
+                article_title,
+                clause,
+                None,
+                LAW36_SOURCE,
+                source_text,
+                "AUTHORITY_RULE",
+            )
+        )
+    return citations
 
 
 def _multi_reference_exact_answer(parsed: ParsedQuery, query: str) -> ChatResponse | None:
